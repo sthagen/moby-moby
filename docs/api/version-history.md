@@ -17,6 +17,9 @@ keywords: "API, Docker, rcli, REST, documentation"
 
 [Docker Engine API v1.41](https://docs.docker.com/engine/api/v1.41/) documentation
 
+* The `filter` (singular) query parameter, which was deprecated in favor of the
+  `filters` option in Docker 1.13, has now been removed from the `GET /images/json`
+  endpoint. The parameter remains available when using API version 1.40 or below.
 * `GET /services` now returns `Capabilities` as part of the `ContainerSpec`.
 * `GET /services/{id}` now returns `Capabilities` as part of the `ContainerSpec`.
 * `POST /services/create` now accepts `Capabilities` as part of the `ContainerSpec`.
@@ -85,6 +88,17 @@ keywords: "API, Docker, rcli, REST, documentation"
   on the node.label. The format of the label filter is `node.label=<key>`/`node.label=<key>=<value>`
   to return those with the specified labels, or `node.label!=<key>`/`node.label!=<key>=<value>`
   to return those without the specified labels.
+* `POST /containers/create` now accepts a `fluentd-async` option in `HostConfig.LogConfig.Config`
+  when using the Fluentd logging driver. This option deprecates the `fluentd-async-connect`
+  option, which remains funtional, but will be removed in a future release. Users
+  are encouraged to use the `fluentd-async` option going forward. This change is
+  not versioned, and affects all API versions if the daemon has this patch.
+* `POST /containers/create` now accepts a `fluentd-request-ack` option in
+  `HostConfig.LogConfig.Config` when using the Fluentd logging driver. If enabled,
+  the Fluentd logging driver sends the chunk option with a unique ID. The server
+  will respond with an acknowledgement. This option improves the reliability of
+  the message transmission. This change is not versioned, and affects all API
+  versions if the daemon has this patch.
 * `POST /containers/create`, `GET /containers/{id}/json`, and `GET /containers/json` now supports
   `BindOptions.NonRecursive`.
 * `POST /swarm/init` now accepts a `DataPathPort` property to set data path port number.
