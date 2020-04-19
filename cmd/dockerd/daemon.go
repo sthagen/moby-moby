@@ -11,7 +11,6 @@ import (
 	"time"
 
 	containerddefaults "github.com/containerd/containerd/defaults"
-	"github.com/docker/distribution/uuid"
 	"github.com/docker/docker/api"
 	apiserver "github.com/docker/docker/api/server"
 	buildbackend "github.com/docker/docker/api/server/backend/build"
@@ -77,9 +76,6 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 	stopc := make(chan bool)
 	defer close(stopc)
 
-	// warn from uuid package when running the daemon
-	uuid.Loggerf = logrus.Warnf
-
 	opts.SetDefaultOptions(opts.flags)
 
 	if cli.Config, err = loadDaemonCliConfig(opts); err != nil {
@@ -102,20 +98,18 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 
 	if cli.Config.Experimental {
 		logrus.Warn("Running experimental build")
-		if cli.Config.IsRootless() {
-			logrus.Warn("Running in rootless mode. Cgroups, AppArmor, and CRIU are disabled.")
-		}
-		if rootless.RunningWithRootlessKit() {
-			logrus.Info("Running with RootlessKit integration")
-			if !cli.Config.IsRootless() {
-				return fmt.Errorf("rootless mode needs to be enabled for running with RootlessKit")
-			}
-		}
-	} else {
-		if cli.Config.IsRootless() {
-			return fmt.Errorf("rootless mode is supported only when running in experimental mode")
+	}
+
+	if cli.Config.IsRootless() {
+		logrus.Warn("Running in rootless mode. This mode has feature limitations.")
+	}
+	if rootless.RunningWithRootlessKit() {
+		logrus.Info("Running with RootlessKit integration")
+		if !cli.Config.IsRootless() {
+			return fmt.Errorf("rootless mode needs to be enabled for running with RootlessKit")
 		}
 	}
+
 	// return human-friendly error before creating files
 	if runtime.GOOS == "linux" && os.Geteuid() != 0 {
 		return fmt.Errorf("dockerd needs to be started with root. To see how to run dockerd in rootless mode with unprivileged user, see the documentation")
@@ -294,7 +288,7 @@ func newRouterOptions(config *config.Config, d *daemon.Daemon) (routerOptions, e
 		Dist:                d.DistributionServices(),
 		NetworkController:   d.NetworkController(),
 		DefaultCgroupParent: cgroupParent,
-		ResolverOpt:         d.NewResolveOptionsFunc(),
+		RegistryHosts:       d.RegistryHosts(),
 		BuilderConfig:       config.Builder,
 		Rootless:            d.Rootless(),
 		IdentityMapping:     d.IdentityMapping(),

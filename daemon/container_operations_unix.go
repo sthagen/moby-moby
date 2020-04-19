@@ -16,6 +16,7 @@ import (
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/idtools"
 	"github.com/docker/docker/pkg/stringid"
+	"github.com/docker/docker/pkg/system"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/libnetwork"
 	"github.com/moby/sys/mount"
@@ -61,33 +62,33 @@ func (daemon *Daemon) setupLinkedContainers(container *container.Container) ([]s
 func (daemon *Daemon) getIpcContainer(id string) (*container.Container, error) {
 	errMsg := "can't join IPC of container " + id
 	// Check the container exists
-	container, err := daemon.GetContainer(id)
+	ctr, err := daemon.GetContainer(id)
 	if err != nil {
 		return nil, errors.Wrap(err, errMsg)
 	}
 	// Check the container is running and not restarting
-	if err := daemon.checkContainer(container, containerIsRunning, containerIsNotRestarting); err != nil {
+	if err := daemon.checkContainer(ctr, containerIsRunning, containerIsNotRestarting); err != nil {
 		return nil, errors.Wrap(err, errMsg)
 	}
 	// Check the container ipc is shareable
-	if st, err := os.Stat(container.ShmPath); err != nil || !st.IsDir() {
+	if st, err := os.Stat(ctr.ShmPath); err != nil || !st.IsDir() {
 		if err == nil || os.IsNotExist(err) {
 			return nil, errors.New(errMsg + ": non-shareable IPC (hint: use IpcMode:shareable for the donor container)")
 		}
 		// stat() failed?
-		return nil, errors.Wrap(err, errMsg+": unexpected error from stat "+container.ShmPath)
+		return nil, errors.Wrap(err, errMsg+": unexpected error from stat "+ctr.ShmPath)
 	}
 
-	return container, nil
+	return ctr, nil
 }
 
-func (daemon *Daemon) getPidContainer(container *container.Container) (*container.Container, error) {
-	containerID := container.HostConfig.PidMode.Container()
-	container, err := daemon.GetContainer(containerID)
+func (daemon *Daemon) getPidContainer(ctr *container.Container) (*container.Container, error) {
+	containerID := ctr.HostConfig.PidMode.Container()
+	ctr, err := daemon.GetContainer(containerID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot join PID of a non running container: %s", containerID)
 	}
-	return container, daemon.checkContainer(container, containerIsRunning, containerIsNotRestarting)
+	return ctr, daemon.checkContainer(ctr, containerIsRunning, containerIsNotRestarting)
 }
 
 func containerIsRunning(c *container.Container) error {
@@ -352,6 +353,20 @@ func killProcessDirectly(cntr *container.Container) error {
 				e := errNoSuchProcess{pid, 9}
 				logrus.Debug(e)
 				return e
+			}
+
+			// In case there were some exceptions(e.g., state of zombie and D)
+			if system.IsProcessAlive(pid) {
+
+				// Since we can not kill a zombie pid, add zombie check here
+				isZombie, err := system.IsProcessZombie(pid)
+				if err != nil {
+					logrus.Warnf("Container %s state is invalid", stringid.TruncateID(cntr.ID))
+					return err
+				}
+				if isZombie {
+					return errdefs.System(errors.Errorf("container %s PID %d is zombie and can not be killed. Use the --init option when creating containers to run an init inside the container that forwards signals and reaps processes", stringid.TruncateID(cntr.ID), pid))
+				}
 			}
 		}
 	}
