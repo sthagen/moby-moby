@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/containerd/containerd/sys"
 	"github.com/docker/docker/pkg/pools"
 	"github.com/docker/docker/pkg/system"
-	rsystem "github.com/opencontainers/runc/libcontainer/system"
 	"golang.org/x/sys/unix"
 )
 
@@ -42,7 +42,7 @@ func copyRegular(srcPath, dstPath string, fileinfo os.FileInfo, copyWithFileRang
 	defer dstFile.Close()
 
 	if *copyWithFileClone {
-		err = fiClone(srcFile, dstFile)
+		err = unix.IoctlFileClone(int(dstFile.Fd()), int(srcFile.Fd()))
 		if err == nil {
 			return nil
 		}
@@ -184,7 +184,7 @@ func DirCopy(srcDir, dstDir string, copyMode Mode, copyXattrs bool) error {
 			}
 
 		case mode&os.ModeDevice != 0:
-			if rsystem.RunningInUserNS() {
+			if sys.RunningInUserNS() {
 				// cannot create a device if running in user namespace
 				return nil
 			}

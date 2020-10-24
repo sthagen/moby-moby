@@ -23,7 +23,7 @@ import (
 	"github.com/docker/docker/runconfig"
 	volumemounts "github.com/docker/docker/volume/mounts"
 	"github.com/docker/go-connections/nat"
-	"github.com/opencontainers/selinux/go-selinux/label"
+	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -97,9 +97,7 @@ func (daemon *Daemon) load(id string) (*container.Container, error) {
 	if err := ctr.FromDisk(); err != nil {
 		return nil, err
 	}
-	if err := label.ReserveLabel(ctr.ProcessLabel); err != nil {
-		return nil, err
-	}
+	selinux.ReserveLabel(ctr.ProcessLabel)
 
 	if ctr.ID != id {
 		return ctr, fmt.Errorf("Container %s is stored at %s", ctr.ID, id)
@@ -307,20 +305,11 @@ func validateHostConfig(hostConfig *containertypes.HostConfig, platform string) 
 }
 
 func validateCapabilities(hostConfig *containertypes.HostConfig) error {
-	if len(hostConfig.CapAdd) > 0 && hostConfig.Capabilities != nil {
-		return errdefs.InvalidParameter(errors.Errorf("conflicting options: Capabilities and CapAdd"))
-	}
-	if len(hostConfig.CapDrop) > 0 && hostConfig.Capabilities != nil {
-		return errdefs.InvalidParameter(errors.Errorf("conflicting options: Capabilities and CapDrop"))
-	}
 	if _, err := caps.NormalizeLegacyCapabilities(hostConfig.CapAdd); err != nil {
 		return errors.Wrap(err, "invalid CapAdd")
 	}
 	if _, err := caps.NormalizeLegacyCapabilities(hostConfig.CapDrop); err != nil {
 		return errors.Wrap(err, "invalid CapDrop")
-	}
-	if err := caps.ValidateCapabilities(hostConfig.Capabilities); err != nil {
-		return errors.Wrap(err, "invalid Capabilities")
 	}
 	// TODO consider returning warnings if "Privileged" is combined with Capabilities, CapAdd and/or CapDrop
 	return nil

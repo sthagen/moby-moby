@@ -6,13 +6,16 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/docker/docker/daemon/logger"
+	"github.com/docker/docker/pkg/pubsub"
 	"github.com/docker/docker/pkg/tailfile"
 	"gotest.tools/v3/assert"
+	"gotest.tools/v3/poll"
 )
 
 type testDecoder struct {
@@ -233,5 +236,77 @@ func TestFollowLogsProducerGone(t *testing.T) {
 	case <-lw.WatchConsumerGone():
 		t.Fatal("consumer should not have exited")
 	default:
+	}
+}
+
+func TestCheckCapacityAndRotate(t *testing.T) {
+	dir, err := ioutil.TempDir("", t.Name())
+	assert.NilError(t, err)
+	defer os.RemoveAll(dir)
+
+	f, err := ioutil.TempFile(dir, "log")
+	assert.NilError(t, err)
+
+	l := &LogFile{
+		f:            f,
+		capacity:     5,
+		maxFiles:     3,
+		compress:     true,
+		notifyRotate: pubsub.NewPublisher(0, 1),
+		perms:        0600,
+		marshal: func(msg *logger.Message) ([]byte, error) {
+			return msg.Line, nil
+		},
+	}
+	defer l.Close()
+
+	assert.NilError(t, l.WriteLogEntry(&logger.Message{Line: []byte("hello world!")}))
+	_, err = os.Stat(f.Name() + ".1")
+	assert.Assert(t, os.IsNotExist(err), dirStringer{dir})
+
+	assert.NilError(t, l.WriteLogEntry(&logger.Message{Line: []byte("hello world!")}))
+	poll.WaitOn(t, checkFileExists(f.Name()+".1.gz"), poll.WithDelay(time.Millisecond), poll.WithTimeout(30*time.Second))
+
+	assert.NilError(t, l.WriteLogEntry(&logger.Message{Line: []byte("hello world!")}))
+	poll.WaitOn(t, checkFileExists(f.Name()+".1.gz"), poll.WithDelay(time.Millisecond), poll.WithTimeout(30*time.Second))
+	poll.WaitOn(t, checkFileExists(f.Name()+".2.gz"), poll.WithDelay(time.Millisecond), poll.WithTimeout(30*time.Second))
+
+	// Now let's simulate a failed rotation where the file was able to be closed but something else happened elsewhere
+	// down the line.
+	// We want to make sure that we can recover in the case that `l.f` was closed while attempting a rotation.
+	l.f.Close()
+	assert.NilError(t, l.WriteLogEntry(&logger.Message{Line: []byte("hello world!")}))
+}
+
+type dirStringer struct {
+	d string
+}
+
+func (d dirStringer) String() string {
+	ls, err := ioutil.ReadDir(d.d)
+	if err != nil {
+		return ""
+	}
+	var s strings.Builder
+	s.WriteString("\n")
+
+	for _, fi := range ls {
+		s.WriteString(fi.Name() + "\n")
+	}
+	return s.String()
+}
+
+func checkFileExists(name string) poll.Check {
+	return func(t poll.LogT) poll.Result {
+		_, err := os.Stat(name)
+		switch {
+		case err == nil:
+			return poll.Success()
+		case os.IsNotExist(err):
+			return poll.Continue("waiting for %s to exist", name)
+		default:
+			t.Logf("%s", dirStringer{filepath.Dir(name)})
+			return poll.Error(err)
+		}
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/containerd/containerd/defaults"
 	"github.com/containerd/containerd/pkg/dialer"
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/containerd/containerd/sys"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/swarm"
@@ -42,7 +43,6 @@ import (
 	"github.com/docker/docker/errdefs"
 	bkconfig "github.com/moby/buildkit/cmd/buildkitd/config"
 	"github.com/moby/buildkit/util/resolver"
-	rsystem "github.com/opencontainers/runc/libcontainer/system"
 	"github.com/sirupsen/logrus"
 
 	// register graph drivers
@@ -55,7 +55,6 @@ import (
 	"github.com/docker/docker/libcontainerd"
 	libcontainerdtypes "github.com/docker/docker/libcontainerd/types"
 	"github.com/docker/docker/pkg/idtools"
-	"github.com/docker/docker/pkg/locker"
 	"github.com/docker/docker/pkg/plugingetter"
 	"github.com/docker/docker/pkg/system"
 	"github.com/docker/docker/pkg/truncindex"
@@ -68,6 +67,7 @@ import (
 	"github.com/docker/libnetwork"
 	"github.com/docker/libnetwork/cluster"
 	nwconfig "github.com/docker/libnetwork/config"
+	"github.com/moby/locker"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/semaphore"
 )
@@ -187,6 +187,17 @@ func (daemon *Daemon) RegistryHosts() docker.RegistryHosts {
 		if d, err := registry.HostCertsDir(k); err == nil {
 			v.TLSConfigDir = []string{d}
 			m[k] = v
+		}
+	}
+
+	certsDir := registry.CertsDir()
+	if fis, err := ioutil.ReadDir(certsDir); err == nil {
+		for _, fi := range fis {
+			if _, ok := m[fi.Name()]; !ok {
+				m[fi.Name()] = bkconfig.RegistryConfig{
+					TLSConfigDir: []string{filepath.Join(certsDir, fi.Name())},
+				}
+			}
 		}
 	}
 
@@ -921,7 +932,11 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 			}
 		}
 
-		return pluginexec.New(ctx, getPluginExecRoot(config.Root), pluginCli, config.ContainerdPluginNamespace, m, d.useShimV2())
+		var rt types.Runtime
+		if runtime := config.GetRuntime(config.GetDefaultRuntimeName()); runtime != nil {
+			rt = *runtime
+		}
+		return pluginexec.New(ctx, getPluginExecRoot(config.Root), pluginCli, config.ContainerdPluginNamespace, m, rt)
 	}
 
 	// Plugin system initialization should happen before restore. Do not change order.
@@ -1029,7 +1044,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	sysInfo := d.RawSysInfo(false)
 	// Check if Devices cgroup is mounted, it is hard requirement for container security,
 	// on Linux.
-	if runtime.GOOS == "linux" && !sysInfo.CgroupDevicesEnabled && !rsystem.RunningInUserNS() {
+	if runtime.GOOS == "linux" && !sysInfo.CgroupDevicesEnabled && !sys.RunningInUserNS() {
 		return nil, errors.New("Devices cgroup isn't mounted")
 	}
 
@@ -1070,7 +1085,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 
 	go d.execCommandGC()
 
-	d.containerd, err = libcontainerd.NewClient(ctx, d.containerdCli, filepath.Join(config.ExecRoot, "containerd"), config.ContainerdNamespace, d, d.useShimV2())
+	d.containerd, err = libcontainerd.NewClient(ctx, d.containerdCli, filepath.Join(config.ExecRoot, "containerd"), config.ContainerdNamespace, d)
 	if err != nil {
 		return nil, err
 	}

@@ -2,11 +2,14 @@
 
 ARG CROSS="false"
 ARG SYSTEMD="false"
-ARG GO_VERSION=1.13.10
+# IMPORTANT: When updating this please note that stdlib archive/tar pkg is vendored
+ARG GO_VERSION=1.13.15
 ARG DEBIAN_FRONTEND=noninteractive
 ARG VPNKIT_VERSION=0.4.0
 ARG DOCKER_BUILDTAGS="apparmor seccomp selinux"
-ARG GOLANG_IMAGE="golang:${GO_VERSION}-buster"
+
+ARG BASE_DEBIAN_DISTRO="buster"
+ARG GOLANG_IMAGE="golang:${GO_VERSION}-${BASE_DEBIAN_DISTRO}"
 
 FROM ${GOLANG_IMAGE} AS base
 RUN echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
@@ -31,7 +34,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-criu-aptlib,target=/var/lib/apt \
             python-protobuf
 
 # Install CRIU for checkpoint/restore support
-ENV CRIU_VERSION 3.13
+ARG CRIU_VERSION=3.14
 RUN mkdir -p /usr/src/criu \
     && curl -sSL https://github.com/checkpoint-restore/criu/archive/v${CRIU_VERSION}.tar.gz | tar -C /usr/src/criu/ -xz --strip-components=1 \
     && cd /usr/src/criu \
@@ -78,21 +81,24 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
         && git checkout -q "$GO_SWAGGER_COMMIT" \
         && go build -o /build/swagger github.com/go-swagger/go-swagger/cmd/swagger
 
-FROM base AS frozen-images
+FROM debian:${BASE_DEBIAN_DISTRO} AS frozen-images
 ARG DEBIAN_FRONTEND
 RUN --mount=type=cache,sharing=locked,id=moby-frozen-images-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-frozen-images-aptcache,target=/var/cache/apt \
        apt-get update && apt-get install -y --no-install-recommends \
            ca-certificates \
+           curl \
            jq
 # Get useful and necessary Hub images so we can "docker load" locally instead of pulling
 COPY contrib/download-frozen-image-v2.sh /
+ARG TARGETARCH
 RUN /download-frozen-image-v2.sh /build \
-        buildpack-deps:jessie@sha256:dd86dced7c9cd2a724e779730f0a53f93b7ef42228d4344b25ce9a42a1486251 \
-        busybox:latest@sha256:bbc3a03235220b170ba48a157dd097dd1379299370e1ed99ce976df0355d24f0 \
-        busybox:glibc@sha256:0b55a30394294ab23b9afd58fab94e61a923f5834fba7ddbae7f8e0c11ba85e6 \
-        debian:jessie@sha256:287a20c5f73087ab406e6b364833e3fb7b3ae63ca0eb3486555dc27ed32c6e60 \
-        hello-world:latest@sha256:be0cd392e45be79ffeffa6b05338b98ebb16c87b255f48e297ec7f98e123905c
+        buildpack-deps:buster@sha256:d0abb4b1e5c664828b93e8b6ac84d10bce45ee469999bef88304be04a2709491 \
+        busybox:latest@sha256:95cf004f559831017cdf4628aaf1bb30133677be8702a8c5f2994629f637a209 \
+        busybox:glibc@sha256:1f81263701cddf6402afe9f33fca0266d9fff379e59b1748f33d3072da71ee85 \
+        debian:buster@sha256:46d659005ca1151087efa997f1039ae45a7bf7a2cbbe2d17d3dcbda632a3ee9a \
+        hello-world:latest@sha256:d58e752213a51785838f9eed2b7a498ffa1cb3aa7f946dda11af39286c3db9a9 \
+        arm32v7/hello-world:latest@sha256:50b8560ad574c779908da71f7ce370c0a2471c098d44d1c8f6b513c5a55eeeb1
 # See also ensureFrozenImagesLinux() in "integration-cli/fixtures_linux_daemon_test.go" (which needs to be updated when adding images to this list)
 
 FROM base AS cross-false
@@ -144,92 +150,74 @@ RUN --mount=type=cache,sharing=locked,id=moby-cross-true-aptlib,target=/var/lib/
 FROM runtime-dev-cross-${CROSS} AS runtime-dev
 
 FROM base AS tomlv
-ENV INSTALL_BINARY_NAME=tomlv
 ARG TOMLV_COMMIT
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh tomlv
 
 FROM base AS vndr
-ENV INSTALL_BINARY_NAME=vndr
 ARG VNDR_COMMIT
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh vndr
 
 FROM dev-base AS containerd
 ARG DEBIAN_FRONTEND
-ARG CONTAINERD_COMMIT
 RUN --mount=type=cache,sharing=locked,id=moby-containerd-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-containerd-aptcache,target=/var/cache/apt \
         apt-get update && apt-get install -y --no-install-recommends \
             libbtrfs-dev
-ENV INSTALL_BINARY_NAME=containerd
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
+ARG CONTAINERD_COMMIT
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh containerd
 
 FROM dev-base AS proxy
-ENV INSTALL_BINARY_NAME=proxy
 ARG LIBNETWORK_COMMIT
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh proxy
 
 FROM base AS golangci_lint
-ENV INSTALL_BINARY_NAME=golangci_lint
 ARG GOLANGCI_LINT_COMMIT
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh golangci_lint
 
 FROM base AS gotestsum
-ENV INSTALL_BINARY_NAME=gotestsum
 ARG GOTESTSUM_COMMIT
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh gotestsum
 
 FROM base AS shfmt
-ENV INSTALL_BINARY_NAME=shfmt
 ARG SHFMT_COMMIT
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh shfmt
 
 FROM dev-base AS dockercli
-ENV INSTALL_BINARY_NAME=dockercli
 ARG DOCKERCLI_CHANNEL
 ARG DOCKERCLI_VERSION
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh dockercli
 
 FROM runtime-dev AS runc
-ENV INSTALL_BINARY_NAME=runc
 ARG RUNC_COMMIT
 ARG RUNC_BUILDTAGS
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh runc
 
 FROM dev-base AS tini
 ARG DEBIAN_FRONTEND
@@ -239,22 +227,19 @@ RUN --mount=type=cache,sharing=locked,id=moby-tini-aptlib,target=/var/lib/apt \
         apt-get update && apt-get install -y --no-install-recommends \
             cmake \
             vim-common
-COPY hack/dockerfile/install/install.sh ./install.sh
-ENV INSTALL_BINARY_NAME=tini
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh tini
 
 FROM dev-base AS rootlesskit
-ENV INSTALL_BINARY_NAME=rootlesskit
 ARG ROOTLESSKIT_COMMIT
-COPY hack/dockerfile/install/install.sh ./install.sh
-COPY hack/dockerfile/install/$INSTALL_BINARY_NAME.installer ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        PREFIX=/build/ ./install.sh $INSTALL_BINARY_NAME
+    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
+        PREFIX=/build /tmp/install/install.sh rootlesskit
 COPY ./contrib/dockerd-rootless.sh /build
+COPY ./contrib/dockerd-rootless-setuptool.sh /build
 
 FROM djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit
 

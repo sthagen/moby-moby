@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types/swarm"
+	"github.com/docker/go-units"
 )
 
 func TestAdjustForAPIVersion(t *testing.T) {
@@ -17,8 +18,7 @@ func TestAdjustForAPIVersion(t *testing.T) {
 	spec := &swarm.ServiceSpec{
 		TaskTemplate: swarm.TaskSpec{
 			ContainerSpec: &swarm.ContainerSpec{
-				Sysctls:   expectedSysctls,
-				PidsLimit: 300,
+				Sysctls: expectedSysctls,
 				Privileges: &swarm.Privileges{
 					CredentialSpec: &swarm.CredentialSpec{
 						Config: "someconfig",
@@ -40,9 +40,21 @@ func TestAdjustForAPIVersion(t *testing.T) {
 						ConfigName: "configRuntime",
 					},
 				},
+				Ulimits: []*units.Ulimit{
+					{
+						Name: "nofile",
+						Soft: 100,
+						Hard: 200,
+					},
+				},
 			},
 			Placement: &swarm.Placement{
 				MaxReplicas: 222,
+			},
+			Resources: &swarm.ResourceRequirements{
+				Limits: &swarm.Limit{
+					Pids: 300,
+				},
 			},
 		},
 	}
@@ -55,10 +67,10 @@ func TestAdjustForAPIVersion(t *testing.T) {
 		t.Error("Sysctls was stripped from spec")
 	}
 
-	if spec.TaskTemplate.ContainerSpec.PidsLimit == 0 {
+	if spec.TaskTemplate.Resources.Limits.Pids == 0 {
 		t.Error("PidsLimit was stripped from spec")
 	}
-	if spec.TaskTemplate.ContainerSpec.PidsLimit != 300 {
+	if spec.TaskTemplate.Resources.Limits.Pids != 300 {
 		t.Error("PidsLimit did not preserve the value from spec")
 	}
 
@@ -74,13 +86,17 @@ func TestAdjustForAPIVersion(t *testing.T) {
 		t.Error("MaxReplicas was stripped from spec")
 	}
 
+	if len(spec.TaskTemplate.ContainerSpec.Ulimits) == 0 {
+		t.Error("Ulimits were stripped from spec")
+	}
+
 	// next, does calling this with an earlier version correctly strip fields?
 	adjustForAPIVersion("1.29", spec)
 	if spec.TaskTemplate.ContainerSpec.Sysctls != nil {
 		t.Error("Sysctls was not stripped from spec")
 	}
 
-	if spec.TaskTemplate.ContainerSpec.PidsLimit != 0 {
+	if spec.TaskTemplate.Resources.Limits.Pids != 0 {
 		t.Error("PidsLimit was not stripped from spec")
 	}
 
@@ -94,6 +110,10 @@ func TestAdjustForAPIVersion(t *testing.T) {
 
 	if spec.TaskTemplate.Placement.MaxReplicas != 0 {
 		t.Error("MaxReplicas was not stripped from spec")
+	}
+
+	if len(spec.TaskTemplate.ContainerSpec.Ulimits) != 0 {
+		t.Error("Ulimits were not stripped from spec")
 	}
 
 }

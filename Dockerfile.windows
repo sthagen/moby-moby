@@ -165,8 +165,8 @@ FROM microsoft/windowsservercore
 # Use PowerShell as the default shell
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
-ARG GO_VERSION=1.13.10
-ARG GOTESTSUM_COMMIT=v0.3.5
+ARG GO_VERSION=1.13.15
+ARG GOTESTSUM_COMMIT=v0.5.3
 
 # Environment variable notes:
 #  - GO_VERSION must be consistent with 'Dockerfile' used by Linux.
@@ -205,6 +205,7 @@ RUN `
       Throw ("Failed to download " + $source) `
       }`
     } else { `
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `
       $webClient = New-Object System.Net.WebClient; `
       $webClient.DownloadFile($source, $target); `
     } `
@@ -262,29 +263,13 @@ RUN `
 RUN `
   Function Build-GoTestSum() { `
     Write-Host "INFO: Building gotestsum version $Env:GOTESTSUM_COMMIT in $Env:GOPATH"; `
-    $optsForGet = @('"get"', '"-d"', '"gotest.tools/gotestsum"'); `
-    &go $optsForGet; `
-    $savedExitCode = $LASTEXITCODE; `
-    if ($savedExitCode -ne 0) {  `
-      Throw '"Failed getting gotestsum sources..."'  `
-    }; `
-    Write-Host "INFO:     Sources obtained for gotestsum..."; `
-    $GotestsumPath=Join-Path -Path $Env:GOPATH -ChildPath "src\gotest.tools\gotestsum"; `
-    Push-Location $GotestsumPath; `
-    $optsForCheckout = @('"checkout"', '"-q"', """$Env:GOTESTSUM_COMMIT"""); `
-    &git $optsForCheckout; `
-    $savedExitCode = $LASTEXITCODE; `
-    if ($savedExitCode -eq 0) { `
-      Write-Host "INFO:     Checkout done for gotestsum..."; `
-      $optsForBuild = @('"build"', '"-buildmode=exe"'); `
-      &go $optsForBuild; `
-      $savedExitCode = $LASTEXITCODE; `
-    } else { `
-      Throw '"gotestsum checkout failed..."'; `
-    } `
-    Pop-Location; `
-    `
-    if ($savedExitCode -ne 0) {  `
+    $Env:GO111MODULE = 'on'; `
+    $tmpGobin = "${Env:GOBIN_TMP}"; `
+    $Env:GOBIN = """${Env:GOPATH}`\bin"""; `
+    &go get -buildmode=exe "gotest.tools/gotestsum@${Env:GOTESTSUM_COMMIT}"; `
+    $Env:GOBIN = "${tmpGobin}"; `
+    $Env:GO111MODULE = 'off'; `
+    if ($LASTEXITCODE -ne 0) {  `
       Throw '"gotestsum build failed..."'; `
     } `
     Write-Host "INFO:     Build done for gotestsum..."; `

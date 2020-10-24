@@ -62,7 +62,7 @@ func newArchiveRemote(rc io.ReadCloser, dockerfilePath string) (builder.Source, 
 func withDockerfileFromContext(c modifiableContext, dockerfilePath string) (builder.Source, *parser.Result, error) {
 	df, err := openAt(c, dockerfilePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			if dockerfilePath == builder.DefaultDockerfileName {
 				lowercase := strings.ToLower(dockerfilePath)
 				if _, err := StatAt(c, lowercase); err == nil {
@@ -185,7 +185,7 @@ func FullPath(remote builder.Source, path string) (string, error) {
 		if runtime.GOOS == "windows" {
 			return "", fmt.Errorf("failed to resolve scoped path %s (%s): %s. Possible cause is a forbidden path outside the build context", path, fullPath, err)
 		}
-		return "", fmt.Errorf("Forbidden path outside the build context: %s (%s)", path, fullPath) // backwards compat with old error
+		return "", fmt.Errorf("forbidden path outside the build context: %s (%s)", path, fullPath) // backwards compat with old error
 	}
 	return fullPath, nil
 }

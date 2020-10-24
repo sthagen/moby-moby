@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/containerd/containerd/platforms"
 	"github.com/docker/docker/api/server/httputils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/backend"
@@ -19,6 +20,7 @@ import (
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/docker/pkg/signal"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
@@ -487,18 +489,26 @@ func (s *containerRouter) postContainersCreate(ctx context.Context, w http.Respo
 		// Ignore KernelMemoryTCP because it was added in API 1.40.
 		hostConfig.KernelMemoryTCP = 0
 
-		// Ignore Capabilities because it was added in API 1.40.
-		hostConfig.Capabilities = nil
-
 		// Older clients (API < 1.40) expects the default to be shareable, make them happy
 		if hostConfig.IpcMode.IsEmpty() {
 			hostConfig.IpcMode = container.IpcMode("shareable")
 		}
 	}
-	if hostConfig != nil && versions.LessThan(version, "1.41") {
-		// Older clients expect the default to be "host"
+	if hostConfig != nil && versions.LessThan(version, "1.41") && !s.cgroup2 {
+		// Older clients expect the default to be "host" on cgroup v1 hosts
 		if hostConfig.CgroupnsMode.IsEmpty() {
 			hostConfig.CgroupnsMode = container.CgroupnsMode("host")
+		}
+	}
+
+	var platform *specs.Platform
+	if versions.GreaterThanOrEqualTo(version, "1.41") {
+		if v := r.Form.Get("platform"); v != "" {
+			p, err := platforms.Parse(v)
+			if err != nil {
+				return errdefs.InvalidParameter(err)
+			}
+			platform = &p
 		}
 	}
 
@@ -516,6 +526,7 @@ func (s *containerRouter) postContainersCreate(ctx context.Context, w http.Respo
 		HostConfig:       hostConfig,
 		NetworkingConfig: networkingConfig,
 		AdjustCPUShares:  adjustCPUShares,
+		Platform:         platform,
 	})
 	if err != nil {
 		return err

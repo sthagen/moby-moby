@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/docker/distribution/reference"
+	gogotypes "github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/any"
 	apitypes "github.com/moby/buildkit/api/types"
 	"github.com/moby/buildkit/cache"
 	cacheutil "github.com/moby/buildkit/cache/util"
@@ -23,10 +25,10 @@ import (
 	"github.com/moby/buildkit/frontend"
 	pb "github.com/moby/buildkit/frontend/gateway/pb"
 	"github.com/moby/buildkit/identity"
-	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/solver"
 	opspb "github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/apicaps"
+	"github.com/moby/buildkit/util/grpcerrors"
 	"github.com/moby/buildkit/util/tracing"
 	"github.com/moby/buildkit/worker"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -65,26 +67,24 @@ func filterPrefix(opts map[string]string, pfx string) map[string]string {
 	return m
 }
 
-func (gf *gatewayFrontend) Solve(ctx context.Context, llbBridge frontend.FrontendLLBBridge, opts map[string]string, inputs map[string]*opspb.Definition) (*frontend.Result, error) {
+func (gf *gatewayFrontend) Solve(ctx context.Context, llbBridge frontend.FrontendLLBBridge, opts map[string]string, inputs map[string]*opspb.Definition, sid string) (*frontend.Result, error) {
 	source, ok := opts[keySource]
 	if !ok {
 		return nil, errors.Errorf("no source specified for gateway")
 	}
 
-	sid := session.FromContext(ctx)
-
 	_, isDevel := opts[keyDevel]
 	var img specs.Image
-	var rootFS cache.ImmutableRef
+	var rootFS cache.MutableRef
 	var readonly bool // TODO: try to switch to read-only by default.
 
 	if isDevel {
-		devRes, err := llbBridge.Solve(session.NewContext(ctx, "gateway:"+sid),
+		devRes, err := llbBridge.Solve(ctx,
 			frontend.SolveRequest{
 				Frontend:       source,
 				FrontendOpt:    filterPrefix(opts, "gateway-"),
 				FrontendInputs: inputs,
-			})
+			}, "gateway:"+sid)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +104,12 @@ func (gf *gatewayFrontend) Solve(ctx context.Context, llbBridge frontend.Fronten
 		if !ok {
 			return nil, errors.Errorf("invalid ref: %T", res.Sys())
 		}
-		rootFS = workerRef.ImmutableRef
+
+		rootFS, err = workerRef.Worker.CacheManager().New(ctx, workerRef.ImmutableRef)
+		if err != nil {
+			return nil, err
+		}
+		defer rootFS.Release(context.TODO())
 		config, ok := devRes.Metadata[exptypes.ExporterImageConfigKey]
 		if ok {
 			if err := json.Unmarshal(config, &img); err != nil {
@@ -142,7 +147,7 @@ func (gf *gatewayFrontend) Solve(ctx context.Context, llbBridge frontend.Fronten
 
 		res, err := llbBridge.Solve(ctx, frontend.SolveRequest{
 			Definition: def.ToPB(),
-		})
+		}, sid)
 		if err != nil {
 			return nil, err
 		}
@@ -163,10 +168,14 @@ func (gf *gatewayFrontend) Solve(ctx context.Context, llbBridge frontend.Fronten
 		if !ok {
 			return nil, errors.Errorf("invalid ref: %T", r.Sys())
 		}
-		rootFS = workerRef.ImmutableRef
+		rootFS, err = workerRef.Worker.CacheManager().New(ctx, workerRef.ImmutableRef)
+		if err != nil {
+			return nil, err
+		}
+		defer rootFS.Release(context.TODO())
 	}
 
-	lbf, ctx, err := newLLBBridgeForwarder(ctx, llbBridge, gf.workers, inputs)
+	lbf, ctx, err := newLLBBridgeForwarder(ctx, llbBridge, gf.workers, inputs, sid)
 	defer lbf.conn.Close()
 	if err != nil {
 		return nil, err
@@ -215,10 +224,10 @@ func (gf *gatewayFrontend) Solve(ctx context.Context, llbBridge frontend.Fronten
 		}
 	}
 
-	err = llbBridge.Exec(ctx, meta, rootFS, lbf.Stdin, lbf.Stdout, os.Stderr)
+	err = llbBridge.Run(ctx, "", rootFS, nil, executor.ProcessInfo{Meta: meta, Stdin: lbf.Stdin, Stdout: lbf.Stdout, Stderr: os.Stderr}, nil)
 
 	if err != nil {
-		if errors.Cause(err) == context.Canceled && lbf.isErrServerClosed {
+		if errors.Is(err, context.Canceled) && lbf.isErrServerClosed {
 			err = errors.Errorf("frontend grpc server closed unexpectedly")
 		}
 		// An existing error (set via Return rpc) takes
@@ -293,7 +302,7 @@ func (lbf *llbBridgeForwarder) Result() (*frontend.Result, error) {
 	return lbf.result, nil
 }
 
-func NewBridgeForwarder(ctx context.Context, llbBridge frontend.FrontendLLBBridge, workers frontend.WorkerInfos, inputs map[string]*opspb.Definition) *llbBridgeForwarder {
+func NewBridgeForwarder(ctx context.Context, llbBridge frontend.FrontendLLBBridge, workers frontend.WorkerInfos, inputs map[string]*opspb.Definition, sid string) *llbBridgeForwarder {
 	lbf := &llbBridgeForwarder{
 		callCtx:   ctx,
 		llbBridge: llbBridge,
@@ -302,14 +311,15 @@ func NewBridgeForwarder(ctx context.Context, llbBridge frontend.FrontendLLBBridg
 		pipe:      newPipe(),
 		workers:   workers,
 		inputs:    inputs,
+		sid:       sid,
 	}
 	return lbf
 }
 
-func newLLBBridgeForwarder(ctx context.Context, llbBridge frontend.FrontendLLBBridge, workers frontend.WorkerInfos, inputs map[string]*opspb.Definition) (*llbBridgeForwarder, context.Context, error) {
+func newLLBBridgeForwarder(ctx context.Context, llbBridge frontend.FrontendLLBBridge, workers frontend.WorkerInfos, inputs map[string]*opspb.Definition, sid string) (*llbBridgeForwarder, context.Context, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	lbf := NewBridgeForwarder(ctx, llbBridge, workers, inputs)
-	server := grpc.NewServer()
+	lbf := NewBridgeForwarder(ctx, llbBridge, workers, inputs, sid)
+	server := grpc.NewServer(grpc.UnaryInterceptor(grpcerrors.UnaryServerInterceptor), grpc.StreamInterceptor(grpcerrors.StreamServerInterceptor))
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
 	pb.RegisterLLBBridgeServer(server, lbf)
 
@@ -400,6 +410,7 @@ type llbBridgeForwarder struct {
 	workers           frontend.WorkerInfos
 	inputs            map[string]*opspb.Definition
 	isErrServerClosed bool
+	sid               string
 	*pipe
 }
 
@@ -462,7 +473,7 @@ func (lbf *llbBridgeForwarder) Solve(ctx context.Context, req *pb.SolveRequest) 
 		FrontendOpt:    req.FrontendOpt,
 		FrontendInputs: req.FrontendInputs,
 		CacheImports:   cacheImports,
-	})
+	}, lbf.sid)
 	if err != nil {
 		return nil, err
 	}
@@ -472,7 +483,9 @@ func (lbf *llbBridgeForwarder) Solve(ctx context.Context, req *pb.SolveRequest) 
 		return nil, errors.Errorf("solve did not return default result")
 	}
 
-	pbRes := &pb.Result{}
+	pbRes := &pb.Result{
+		Metadata: res.Metadata,
+	}
 	var defaultID string
 
 	lbf.mu.Lock()
@@ -668,11 +681,11 @@ func (lbf *llbBridgeForwarder) Ping(context.Context, *pb.PingRequest) (*pb.PongR
 
 func (lbf *llbBridgeForwarder) Return(ctx context.Context, in *pb.ReturnRequest) (*pb.ReturnResponse, error) {
 	if in.Error != nil {
-		return lbf.setResult(nil, status.ErrorProto(&spb.Status{
+		return lbf.setResult(nil, grpcerrors.FromGRPC(status.ErrorProto(&spb.Status{
 			Code:    in.Error.Code,
 			Message: in.Error.Message,
-			// Details: in.Error.Details,
-		}))
+			Details: convertGogoAny(in.Error.Details),
+		})))
 	} else {
 		r := &frontend.Result{
 			Metadata: in.Result.Metadata,
@@ -751,4 +764,12 @@ type markTypeFrontend struct{}
 
 func (*markTypeFrontend) SetImageOption(ii *llb.ImageInfo) {
 	ii.RecordType = string(client.UsageRecordTypeFrontend)
+}
+
+func convertGogoAny(in []*gogotypes.Any) []*any.Any {
+	out := make([]*any.Any, len(in))
+	for i := range in {
+		out[i] = &any.Any{TypeUrl: in[i].TypeUrl, Value: in[i].Value}
+	}
+	return out
 }

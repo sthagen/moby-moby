@@ -167,10 +167,11 @@ func (s *snapshotter) getLayer(key string, withCommitted bool) (layer.Layer, err
 				s.mu.Unlock()
 				return nil, errors.WithStack(err)
 			}
+			s.mu.Unlock()
 			if id == "" {
-				s.mu.Unlock()
 				return nil, nil
 			}
+			return s.getLayer(string(id), withCommitted)
 		}
 		var err error
 		l, err = s.opt.LayerStore.Get(id)
@@ -394,7 +395,7 @@ func (s *snapshotter) View(ctx context.Context, key, parent string, opts ...snap
 }
 
 func (s *snapshotter) Walk(context.Context, snapshots.WalkFunc, ...string) error {
-	return errors.Errorf("not-implemented")
+	return nil
 }
 
 func (s *snapshotter) Update(ctx context.Context, info snapshots.Info, fieldpaths ...string) (snapshots.Info, error) {

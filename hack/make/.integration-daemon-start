@@ -38,6 +38,9 @@ fi
 # intentionally open a couple bogus file descriptors to help test that they get scrubbed in containers
 exec 41>&1 42>&2
 
+# Allow pushing manifest v2 schema 1 images, as they're used to push
+# images to our test-registries for testing _pulling_ schema 2v1 images.
+export DOCKER_ALLOW_SCHEMA1_PUSH_DONOTUSE=1
 export DOCKER_GRAPHDRIVER=${DOCKER_GRAPHDRIVER:-vfs}
 export DOCKER_USERLANDPROXY=${DOCKER_USERLANDPROXY:-true}
 
@@ -64,6 +67,13 @@ if [ "$DOCKER_EXPERIMENTAL" ]; then
 fi
 
 dockerd="dockerd"
+if [ -f "/sys/fs/cgroup/cgroup.controllers" ]; then
+	if [ -z "$TEST_SKIP_INTEGRATION_CLI" ]; then
+		echo >&2 '# cgroup v2 requires TEST_SKIP_INTEGRATION_CLI to be set'
+		exit 1
+	fi
+fi
+
 if [ -n "$DOCKER_ROOTLESS" ]; then
 	if [ -z "$TEST_SKIP_INTEGRATION_CLI" ]; then
 		echo >&2 '# DOCKER_ROOTLESS requires TEST_SKIP_INTEGRATION_CLI to be set'

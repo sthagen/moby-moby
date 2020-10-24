@@ -54,6 +54,7 @@ func TestReadPluginNoRead(t *testing.T) {
 				cfg,
 				&container.HostConfig{LogConfig: container.LogConfig{Type: "test"}},
 				nil,
+				nil,
 				"",
 			)
 			assert.Assert(t, err)
@@ -72,7 +73,7 @@ func TestReadPluginNoRead(t *testing.T) {
 
 			buf := bytes.NewBuffer(nil)
 
-			errCh := make(chan error)
+			errCh := make(chan error, 1)
 			go func() {
 				_, err := stdcopy.StdCopy(buf, buf, logs)
 				errCh <- err

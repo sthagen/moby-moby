@@ -144,7 +144,7 @@ func (pm *Manager) HandleExitEvent(id string) error {
 		return err
 	}
 
-	if err := os.RemoveAll(filepath.Join(pm.config.ExecRoot, id)); err != nil && !os.IsNotExist(err) {
+	if err := os.RemoveAll(filepath.Join(pm.config.ExecRoot, id)); err != nil {
 		logrus.WithError(err).WithField("id", id).Error("Could not remove plugin bundle dir")
 	}
 
@@ -172,7 +172,7 @@ func handleLoadError(err error, id string) {
 		return
 	}
 	logger := logrus.WithError(err).WithField("id", id)
-	if os.IsNotExist(errors.Cause(err)) {
+	if errors.Is(err, os.ErrNotExist) {
 		// Likely some error while removing on an older version of docker
 		logger.Warn("missing plugin config, skipping: this may be caused due to a failed remove and requires manual cleanup.")
 		return
@@ -298,17 +298,17 @@ func (pm *Manager) GC() {
 	pm.muGC.Lock()
 	defer pm.muGC.Unlock()
 
-	whitelist := make(map[digest.Digest]struct{})
+	used := make(map[digest.Digest]struct{})
 	for _, p := range pm.config.Store.GetAll() {
-		whitelist[p.Config] = struct{}{}
+		used[p.Config] = struct{}{}
 		for _, b := range p.Blobsums {
-			whitelist[b] = struct{}{}
+			used[b] = struct{}{}
 		}
 	}
 
 	ctx := context.TODO()
 	pm.blobStore.Walk(ctx, func(info content.Info) error {
-		_, ok := whitelist[info.Digest]
+		_, ok := used[info.Digest]
 		if ok {
 			return nil
 		}

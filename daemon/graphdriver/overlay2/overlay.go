@@ -15,21 +15,21 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/containerd/containerd/sys"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/daemon/graphdriver/overlayutils"
-	"github.com/docker/docker/daemon/graphdriver/quota"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/chrootarchive"
 	"github.com/docker/docker/pkg/containerfs"
 	"github.com/docker/docker/pkg/directory"
 	"github.com/docker/docker/pkg/fsutils"
 	"github.com/docker/docker/pkg/idtools"
-	"github.com/docker/docker/pkg/locker"
 	"github.com/docker/docker/pkg/parsers"
 	"github.com/docker/docker/pkg/system"
+	"github.com/docker/docker/quota"
 	units "github.com/docker/go-units"
+	"github.com/moby/locker"
 	"github.com/moby/sys/mount"
-	rsystem "github.com/opencontainers/runc/libcontainer/system"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -683,7 +683,7 @@ func (d *Driver) ApplyDiff(id string, parent string, diff io.Reader) (size int64
 		UIDMaps:        d.uidMaps,
 		GIDMaps:        d.gidMaps,
 		WhiteoutFormat: archive.OverlayWhiteoutFormat,
-		InUserNS:       rsystem.RunningInUserNS(),
+		InUserNS:       sys.RunningInUserNS(),
 	}); err != nil {
 		return 0, err
 	}

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	cgroupsV2 "github.com/containerd/cgroups/v2"
-	rsystem "github.com/opencontainers/runc/libcontainer/system"
+	"github.com/containerd/containerd/sys"
 	"github.com/sirupsen/logrus"
 )
 
@@ -90,10 +90,8 @@ func applyCPUCgroupInfoV2(info *SysInfo, controllers map[string]struct{}, _ stri
 		return warnings
 	}
 	info.CPUShares = true
-	info.CPUCfsPeriod = true
-	info.CPUCfsQuota = true
-	info.CPURealtimePeriod = false
-	info.CPURealtimeRuntime = false
+	info.CPUCfs = true
+	info.CPURealtime = false
 	return warnings
 }
 
@@ -146,6 +144,6 @@ func applyPIDSCgroupInfoV2(info *SysInfo, controllers map[string]struct{}, _ str
 }
 
 func applyDevicesCgroupInfoV2(info *SysInfo, controllers map[string]struct{}, _ string) []string {
-	info.CgroupDevicesEnabled = !rsystem.RunningInUserNS()
+	info.CgroupDevicesEnabled = !sys.RunningInUserNS()
 	return nil
 }

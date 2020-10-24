@@ -3,7 +3,6 @@ package daemon // import "github.com/docker/docker/daemon"
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/containerd/containerd/containers"
 	coci "github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/sys"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/container"
 	daemonconfig "github.com/docker/docker/daemon/config"
@@ -28,7 +28,6 @@ import (
 	"github.com/opencontainers/runc/libcontainer/apparmor"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/devices"
-	rsystem "github.com/opencontainers/runc/libcontainer/system"
 	"github.com/opencontainers/runc/libcontainer/user"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -162,7 +161,6 @@ func WithCapabilities(c *container.Container) coci.SpecOpts {
 			caps.DefaultCapabilities(),
 			c.HostConfig.CapAdd,
 			c.HostConfig.CapDrop,
-			c.HostConfig.Capabilities,
 			c.HostConfig.Privileged,
 		)
 		if err != nil {
@@ -172,57 +170,42 @@ func WithCapabilities(c *container.Container) coci.SpecOpts {
 	}
 }
 
-func readUserFile(c *container.Container, p string) (io.ReadCloser, error) {
-	fp, err := c.GetResourcePath(p)
+func resourcePath(c *container.Container, getPath func() (string, error)) (string, error) {
+	p, err := getPath()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return os.Open(fp)
+	return c.GetResourcePath(p)
 }
 
-func getUser(c *container.Container, username string) (uint32, uint32, []uint32, error) {
-	passwdPath, err := user.GetPasswdPath()
+func getUser(c *container.Container, username string) (specs.User, error) {
+	var usr specs.User
+	passwdPath, err := resourcePath(c, user.GetPasswdPath)
 	if err != nil {
-		return 0, 0, nil, err
+		return usr, err
 	}
-	groupPath, err := user.GetGroupPath()
+	groupPath, err := resourcePath(c, user.GetGroupPath)
 	if err != nil {
-		return 0, 0, nil, err
+		return usr, err
 	}
-	passwdFile, err := readUserFile(c, passwdPath)
-	if err == nil {
-		defer passwdFile.Close()
+	execUser, err := user.GetExecUserPath(username, nil, passwdPath, groupPath)
+	if err != nil {
+		return usr, err
 	}
-	groupFile, err := readUserFile(c, groupPath)
-	if err == nil {
-		defer groupFile.Close()
-	}
+	usr.UID = uint32(execUser.Uid)
+	usr.GID = uint32(execUser.Gid)
 
-	execUser, err := user.GetExecUser(username, nil, passwdFile, groupFile)
-	if err != nil {
-		return 0, 0, nil, err
-	}
-
-	// todo: fix this double read by a change to libcontainer/user pkg
-	groupFile, err = readUserFile(c, groupPath)
-	if err == nil {
-		defer groupFile.Close()
-	}
 	var addGroups []int
 	if len(c.HostConfig.GroupAdd) > 0 {
-		addGroups, err = user.GetAdditionalGroups(c.HostConfig.GroupAdd, groupFile)
+		addGroups, err = user.GetAdditionalGroupsPath(c.HostConfig.GroupAdd, groupPath)
 		if err != nil {
-			return 0, 0, nil, err
+			return usr, err
 		}
 	}
-	uid := uint32(execUser.Uid)
-	gid := uint32(execUser.Gid)
-	sgids := append(execUser.Sgids, addGroups...)
-	var additionalGids []uint32
-	for _, g := range sgids {
-		additionalGids = append(additionalGids, uint32(g))
+	for _, g := range append(execUser.Sgids, addGroups...) {
+		usr.AdditionalGids = append(usr.AdditionalGids, uint32(g))
 	}
-	return uid, gid, additionalGids, nil
+	return usr, nil
 }
 
 func setNamespace(s *specs.Spec, ns specs.LinuxNamespace) {
@@ -339,10 +322,7 @@ func WithNamespaces(daemon *Daemon, c *container.Container) coci.SpecOpts {
 			if !cgroupNsMode.Valid() {
 				return fmt.Errorf("invalid cgroup namespace mode: %v", cgroupNsMode)
 			}
-
-			// for cgroup v2: unshare cgroupns even for privileged containers
-			// https://github.com/containers/libpod/pull/4374#issuecomment-549776387
-			if cgroupNsMode.IsPrivate() && (cgroups.IsCgroup2UnifiedMode() || !c.HostConfig.Privileged) {
+			if cgroupNsMode.IsPrivate() {
 				nsCgroup := specs.LinuxNamespace{Type: "cgroup"}
 				setNamespace(s, nsCgroup)
 			}
@@ -719,6 +699,14 @@ func WithMounts(daemon *Daemon, c *container.Container) coci.SpecOpts {
 	}
 }
 
+// sysctlExists checks if a sysctl exists; runc will error if we add any that do not actually
+// exist, so do not add the default ones if running on an old kernel.
+func sysctlExists(s string) bool {
+	f := filepath.Join("/proc", "sys", strings.Replace(s, ".", "/", -1))
+	_, err := os.Stat(f)
+	return err == nil
+}
+
 // WithCommonOptions sets common docker options
 func WithCommonOptions(daemon *Daemon, c *container.Container) coci.SpecOpts {
 	return func(ctx context.Context, _ coci.Client, _ *containers.Container, s *coci.Spec) error {
@@ -771,6 +759,23 @@ func WithCommonOptions(daemon *Daemon, c *container.Container) coci.SpecOpts {
 		s.Hostname = c.Config.Hostname
 		setLinuxDomainname(c, s)
 
+		// Add default sysctls that are generally safe and useful; currently we
+		// grant the capabilities to allow these anyway. You can override if
+		// you want to restore the original behaviour.
+		// We do not set network sysctls if network namespace is host, or if we are
+		// joining an existing namespace, only if we create a new net namespace.
+		if c.HostConfig.NetworkMode.IsPrivate() {
+			// We cannot set up ping socket support in a user namespace
+			if !c.HostConfig.UsernsMode.IsPrivate() && sysctlExists("net.ipv4.ping_group_range") {
+				// allow unprivileged ICMP echo sockets without CAP_NET_RAW
+				s.Linux.Sysctl["net.ipv4.ping_group_range"] = "0 2147483647"
+			}
+			// allow opening any port less than 1024 without CAP_NET_BIND_SERVICE
+			if sysctlExists("net.ipv4.ip_unprivileged_port_start") {
+				s.Linux.Sysctl["net.ipv4.ip_unprivileged_port_start"] = "0"
+			}
+		}
+
 		return nil
 	}
 }
@@ -802,15 +807,32 @@ func WithCgroups(daemon *Daemon, c *container.Container) coci.SpecOpts {
 			cgroupsPath = filepath.Join(parent, c.ID)
 		}
 		s.Linux.CgroupsPath = cgroupsPath
+
+		// the rest is only needed for CPU RT controller
+
+		if daemon.configStore.CPURealtimePeriod == 0 && daemon.configStore.CPURealtimeRuntime == 0 {
+			return nil
+		}
+
+		if cgroups.IsCgroup2UnifiedMode() {
+			return errors.New("daemon-scoped cpu-rt-period and cpu-rt-runtime are not implemented for cgroup v2")
+		}
+
+		// FIXME this is very expensive way to check if cpu rt is supported
+		sysInfo := daemon.RawSysInfo(true)
+		if !sysInfo.CPURealtime {
+			return errors.New("daemon-scoped cpu-rt-period and cpu-rt-runtime are not supported by the kernel")
+		}
+
 		p := cgroupsPath
 		if useSystemd {
 			initPath, err := cgroups.GetInitCgroup("cpu")
 			if err != nil {
-				return err
+				return errors.Wrap(err, "unable to init CPU RT controller")
 			}
 			_, err = cgroups.GetOwnCgroup("cpu")
 			if err != nil {
-				return err
+				return errors.Wrap(err, "unable to init CPU RT controller")
 			}
 			p = filepath.Join(initPath, s.Linux.CgroupsPath)
 		}
@@ -821,8 +843,19 @@ func WithCgroups(daemon *Daemon, c *container.Container) coci.SpecOpts {
 			parentPath = filepath.Clean("/" + parentPath)
 		}
 
-		if err := daemon.initCgroupsPath(parentPath); err != nil {
-			return fmt.Errorf("linux init cgroups path: %v", err)
+		mnt, root, err := cgroups.FindCgroupMountpointAndRoot("", "cpu")
+		if err != nil {
+			return errors.Wrap(err, "unable to init CPU RT controller")
+		}
+		// When docker is run inside docker, the root is based of the host cgroup.
+		// Should this be handled in runc/libcontainer/cgroups ?
+		if strings.HasPrefix(root, "/docker/") {
+			root = "/"
+		}
+		mnt = filepath.Join(mnt, root)
+
+		if err := daemon.initCPURtController(mnt, parentPath); err != nil {
+			return errors.Wrap(err, "unable to init CPU RT controller")
 		}
 		return nil
 	}
@@ -835,7 +868,7 @@ func WithDevices(daemon *Daemon, c *container.Container) coci.SpecOpts {
 		var devs []specs.LinuxDevice
 		devPermissions := s.Linux.Resources.Devices
 
-		if c.HostConfig.Privileged && !rsystem.RunningInUserNS() {
+		if c.HostConfig.Privileged && !sys.RunningInUserNS() {
 			hostDevices, err := devices.HostDevices()
 			if err != nil {
 				return err
@@ -967,14 +1000,9 @@ func WithSysctls(c *container.Container) coci.SpecOpts {
 // WithUser sets the container's user
 func WithUser(c *container.Container) coci.SpecOpts {
 	return func(ctx context.Context, _ coci.Client, _ *containers.Container, s *coci.Spec) error {
-		uid, gid, additionalGids, err := getUser(c, c.Config.User)
-		if err != nil {
-			return err
-		}
-		s.Process.User.UID = uid
-		s.Process.User.GID = gid
-		s.Process.User.AdditionalGids = additionalGids
-		return nil
+		var err error
+		s.Process.User, err = getUser(c, c.Config.User)
+		return err
 	}
 }
 
