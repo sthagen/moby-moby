@@ -11,52 +11,113 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	defaultBindingIP = net.IPv4(0, 0, 0, 0)
-)
-
 func (n *bridgeNetwork) allocatePorts(ep *bridgeEndpoint, reqDefBindIP net.IP, ulPxyEnabled bool) ([]types.PortBinding, error) {
 	if ep.extConnConfig == nil || ep.extConnConfig.PortBindings == nil {
 		return nil, nil
 	}
 
-	defHostIP := defaultBindingIP
+	defHostIP := net.IPv4zero // 0.0.0.0
 	if reqDefBindIP != nil {
 		defHostIP = reqDefBindIP
 	}
 
-	return n.allocatePortsInternal(ep.extConnConfig.PortBindings, ep.addr.IP, defHostIP, ulPxyEnabled)
+	var containerIPv6 net.IP
+	if ep.addrv6 != nil {
+		containerIPv6 = ep.addrv6.IP
+	}
+
+	pb, err := n.allocatePortsInternal(ep.extConnConfig.PortBindings, ep.addr.IP, containerIPv6, defHostIP, ulPxyEnabled)
+	if err != nil {
+		return nil, err
+	}
+	return pb, nil
 }
 
-func (n *bridgeNetwork) allocatePortsInternal(bindings []types.PortBinding, containerIP, defHostIP net.IP, ulPxyEnabled bool) ([]types.PortBinding, error) {
+func (n *bridgeNetwork) allocatePortsInternal(bindings []types.PortBinding, containerIPv4, containerIPv6, defHostIP net.IP, ulPxyEnabled bool) ([]types.PortBinding, error) {
 	bs := make([]types.PortBinding, 0, len(bindings))
 	for _, c := range bindings {
-		b := c.GetCopy()
-		if err := n.allocatePort(&b, containerIP, defHostIP, ulPxyEnabled); err != nil {
-			// On allocation failure, release previously allocated ports. On cleanup error, just log a warning message
-			if cuErr := n.releasePortsInternal(bs); cuErr != nil {
-				logrus.Warnf("Upon allocation failure for %v, failed to clear previously allocated port bindings: %v", b, cuErr)
+		bIPv4 := c.GetCopy()
+		bIPv6 := c.GetCopy()
+		// Allocate IPv4 Port mappings
+		if ok := n.validatePortBindingIPv4(&bIPv4, containerIPv4, defHostIP); ok {
+			if err := n.allocatePort(&bIPv4, ulPxyEnabled); err != nil {
+				// On allocation failure, release previously allocated ports. On cleanup error, just log a warning message
+				if cuErr := n.releasePortsInternal(bs); cuErr != nil {
+					logrus.Warnf("allocation failure for %v, failed to clear previously allocated ipv4 port bindings: %v", bIPv4, cuErr)
+				}
+				return nil, err
 			}
-			return nil, err
+			bs = append(bs, bIPv4)
 		}
-		bs = append(bs, b)
+		// Allocate IPv6 Port mappings
+		if ok := n.validatePortBindingIPv6(&bIPv6, containerIPv6, defHostIP); ok {
+			if err := n.allocatePort(&bIPv6, ulPxyEnabled); err != nil {
+				// On allocation failure, release previously allocated ports. On cleanup error, just log a warning message
+				if cuErr := n.releasePortsInternal(bs); cuErr != nil {
+					logrus.Warnf("allocation failure for %v, failed to clear previously allocated ipv6 port bindings: %v", bIPv6, cuErr)
+				}
+				return nil, err
+			}
+			bs = append(bs, bIPv6)
+		}
 	}
 	return bs, nil
 }
 
-func (n *bridgeNetwork) allocatePort(bnd *types.PortBinding, containerIP, defHostIP net.IP, ulPxyEnabled bool) error {
+// validatePortBindingIPv4 validates the port binding, populates the missing Host IP field and returns true
+// if this is a valid IPv4 binding, else returns false
+func (n *bridgeNetwork) validatePortBindingIPv4(bnd *types.PortBinding, containerIPv4, defHostIP net.IP) bool {
+	//Return early if there is a valid Host IP, but its not a IPv6 address
+	if len(bnd.HostIP) > 0 && bnd.HostIP.To4() == nil {
+		return false
+	}
+	// Adjust the host address in the operational binding
+	if len(bnd.HostIP) == 0 {
+		// Return early if the default binding address is an IPv6 address
+		if defHostIP.To4() == nil {
+			return false
+		}
+		bnd.HostIP = defHostIP
+	}
+	bnd.IP = containerIPv4
+	return true
+
+}
+
+// validatePortBindingIPv6 validates the port binding, populates the missing Host IP field and returns true
+// if this is a valid IP6v binding, else returns false
+func (n *bridgeNetwork) validatePortBindingIPv6(bnd *types.PortBinding, containerIPv6, defHostIP net.IP) bool {
+	// Return early if there is no IPv6 container endpoint
+	if containerIPv6 == nil {
+		return false
+	}
+	// Return early if there is a valid Host IP, which is a IPv4 address
+	if len(bnd.HostIP) > 0 && bnd.HostIP.To4() != nil {
+		return false
+	}
+
+	// Setup a binding to  "::" if Host IP is empty and the default binding IP is 0.0.0.0
+	if len(bnd.HostIP) == 0 {
+		if defHostIP.Equal(net.IPv4zero) {
+			bnd.HostIP = net.IPv6zero
+			// If the default binding IP is an IPv6 address, use it
+		} else if defHostIP.To4() == nil {
+			bnd.HostIP = defHostIP
+			// Return false if default binding ip is an IPv4 address
+		} else {
+			return false
+		}
+	}
+	bnd.IP = containerIPv6
+	return true
+
+}
+
+func (n *bridgeNetwork) allocatePort(bnd *types.PortBinding, ulPxyEnabled bool) error {
 	var (
 		host net.Addr
 		err  error
 	)
-
-	// Store the container interface address in the operational binding
-	bnd.IP = containerIP
-
-	// Adjust the host address in the operational binding
-	if len(bnd.HostIP) == 0 {
-		bnd.HostIP = defHostIP
-	}
 
 	// Adjust HostPortEnd if this is not a range.
 	if bnd.HostPortEnd == 0 {
@@ -69,9 +130,15 @@ func (n *bridgeNetwork) allocatePort(bnd *types.PortBinding, containerIP, defHos
 		return err
 	}
 
+	portmapper := n.portMapper
+
+	if bnd.IP.To4() == nil {
+		portmapper = n.portMapperV6
+	}
+
 	// Try up to maxAllocatePortAttempts times to get a port that's not already allocated.
 	for i := 0; i < maxAllocatePortAttempts; i++ {
-		if host, err = n.portMapper.MapRange(container, bnd.HostIP, int(bnd.HostPort), int(bnd.HostPortEnd), ulPxyEnabled); err == nil {
+		if host, err = portmapper.MapRange(container, bnd.HostIP, int(bnd.HostPort), int(bnd.HostPortEnd), ulPxyEnabled); err == nil {
 			break
 		}
 		// There is no point in immediately retrying to map an explicitly chosen port.
@@ -128,5 +195,12 @@ func (n *bridgeNetwork) releasePort(bnd types.PortBinding) error {
 	if err != nil {
 		return err
 	}
-	return n.portMapper.Unmap(host)
+
+	portmapper := n.portMapper
+
+	if bnd.HostIP.To4() == nil {
+		portmapper = n.portMapperV6
+	}
+
+	return portmapper.Unmap(host)
 }

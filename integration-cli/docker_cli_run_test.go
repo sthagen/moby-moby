@@ -34,7 +34,6 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/docker/libnetwork/resolvconf"
 	"github.com/docker/libnetwork/types"
-	"github.com/moby/sys/mount"
 	"github.com/moby/sys/mountinfo"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/icmd"
@@ -2928,7 +2927,7 @@ func (s *DockerSuite) TestRunUnshareProc(c *testing.T) {
 
 	go func() {
 		name := "acidburn"
-		out, _, err := dockerCmdWithError("run", "--name", name, "--security-opt", "seccomp=unconfined", "debian:buster", "unshare", "-p", "-m", "-f", "-r", "--mount-proc=/proc", "mount")
+		out, _, err := dockerCmdWithError("run", "--name", name, "--security-opt", "seccomp=unconfined", "debian:bullseye", "unshare", "-p", "-m", "-f", "-r", "--mount-proc=/proc", "mount")
 		if err == nil ||
 			!(strings.Contains(strings.ToLower(out), "permission denied") ||
 				strings.Contains(strings.ToLower(out), "operation not permitted")) {
@@ -2940,7 +2939,7 @@ func (s *DockerSuite) TestRunUnshareProc(c *testing.T) {
 
 	go func() {
 		name := "cereal"
-		out, _, err := dockerCmdWithError("run", "--name", name, "--security-opt", "seccomp=unconfined", "debian:buster", "unshare", "-p", "-m", "-f", "-r", "mount", "-t", "proc", "none", "/proc")
+		out, _, err := dockerCmdWithError("run", "--name", name, "--security-opt", "seccomp=unconfined", "debian:bullseye", "unshare", "-p", "-m", "-f", "-r", "mount", "-t", "proc", "none", "/proc")
 		if err == nil ||
 			!(strings.Contains(strings.ToLower(out), "mount: cannot mount none") ||
 				strings.Contains(strings.ToLower(out), "permission denied") ||
@@ -2954,7 +2953,7 @@ func (s *DockerSuite) TestRunUnshareProc(c *testing.T) {
 	/* Ensure still fails if running privileged with the default policy */
 	go func() {
 		name := "crashoverride"
-		out, _, err := dockerCmdWithError("run", "--privileged", "--security-opt", "seccomp=unconfined", "--security-opt", "apparmor=docker-default", "--name", name, "debian:buster", "unshare", "-p", "-m", "-f", "-r", "mount", "-t", "proc", "none", "/proc")
+		out, _, err := dockerCmdWithError("run", "--privileged", "--security-opt", "seccomp=unconfined", "--security-opt", "apparmor=docker-default", "--name", name, "debian:bullseye", "unshare", "-p", "-m", "-f", "-r", "mount", "-t", "proc", "none", "/proc")
 		if err == nil ||
 			!(strings.Contains(strings.ToLower(out), "mount: cannot mount none") ||
 				strings.Contains(strings.ToLower(out), "permission denied") ||
@@ -3761,86 +3760,6 @@ func (s *DockerSuite) TestRunWithOomScoreAdjInvalidRange(c *testing.T) {
 	expected = "Invalid value -1001, range for oom score adj is [-1000, 1000]."
 	if !strings.Contains(out, expected) {
 		c.Fatalf("Expected output to contain %q, got %q instead", expected, out)
-	}
-}
-
-func (s *DockerSuite) TestRunVolumesMountedAsShared(c *testing.T) {
-	// Volume propagation is linux only. Also it creates directories for
-	// bind mounting, so needs to be same host.
-	testRequires(c, DaemonIsLinux, testEnv.IsLocalDaemon, NotUserNamespace)
-
-	// Prepare a source directory to bind mount
-	tmpDir, err := ioutil.TempDir("", "volume-source")
-	if err != nil {
-		c.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	if err := os.Mkdir(path.Join(tmpDir, "mnt1"), 0755); err != nil {
-		c.Fatal(err)
-	}
-
-	// Convert this directory into a shared mount point so that we do
-	// not rely on propagation properties of parent mount.
-	icmd.RunCommand("mount", "--bind", tmpDir, tmpDir).Assert(c, icmd.Success)
-	icmd.RunCommand("mount", "--make-private", "--make-shared", tmpDir).Assert(c, icmd.Success)
-
-	dockerCmd(c, "run", "--privileged", "-v", fmt.Sprintf("%s:/volume-dest:shared", tmpDir), "busybox", "mount", "--bind", "/volume-dest/mnt1", "/volume-dest/mnt1")
-
-	// Make sure a bind mount under a shared volume propagated to host.
-	if mounted, _ := mountinfo.Mounted(path.Join(tmpDir, "mnt1")); !mounted {
-		c.Fatalf("Bind mount under shared volume did not propagate to host")
-	}
-
-	mount.Unmount(path.Join(tmpDir, "mnt1"))
-}
-
-func (s *DockerSuite) TestRunVolumesMountedAsSlave(c *testing.T) {
-	// Volume propagation is linux only. Also it creates directories for
-	// bind mounting, so needs to be same host.
-	testRequires(c, DaemonIsLinux, testEnv.IsLocalDaemon, NotUserNamespace)
-
-	// Prepare a source directory to bind mount
-	tmpDir, err := ioutil.TempDir("", "volume-source")
-	if err != nil {
-		c.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	if err := os.Mkdir(path.Join(tmpDir, "mnt1"), 0755); err != nil {
-		c.Fatal(err)
-	}
-
-	// Prepare a source directory with file in it. We will bind mount this
-	// directory and see if file shows up.
-	tmpDir2, err := ioutil.TempDir("", "volume-source2")
-	if err != nil {
-		c.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir2)
-
-	if err := ioutil.WriteFile(path.Join(tmpDir2, "slave-testfile"), []byte("Test"), 0644); err != nil {
-		c.Fatal(err)
-	}
-
-	// Convert this directory into a shared mount point so that we do
-	// not rely on propagation properties of parent mount.
-	icmd.RunCommand("mount", "--bind", tmpDir, tmpDir).Assert(c, icmd.Success)
-	icmd.RunCommand("mount", "--make-private", "--make-shared", tmpDir).Assert(c, icmd.Success)
-
-	dockerCmd(c, "run", "-i", "-d", "--name", "parent", "-v", fmt.Sprintf("%s:/volume-dest:slave", tmpDir), "busybox", "top")
-
-	// Bind mount tmpDir2/ onto tmpDir/mnt1. If mount propagates inside
-	// container then contents of tmpDir2/slave-testfile should become
-	// visible at "/volume-dest/mnt1/slave-testfile"
-	icmd.RunCommand("mount", "--bind", tmpDir2, path.Join(tmpDir, "mnt1")).Assert(c, icmd.Success)
-
-	out, _ := dockerCmd(c, "exec", "parent", "cat", "/volume-dest/mnt1/slave-testfile")
-
-	mount.Unmount(path.Join(tmpDir, "mnt1"))
-
-	if out != "Test" {
-		c.Fatalf("Bind mount under slave volume did not propagate to container")
 	}
 }
 
