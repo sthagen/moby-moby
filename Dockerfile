@@ -5,7 +5,7 @@ ARG SYSTEMD="false"
 # IMPORTANT: When updating this please note that stdlib archive/tar pkg is vendored
 ARG GO_VERSION=1.13.15
 ARG DEBIAN_FRONTEND=noninteractive
-ARG VPNKIT_VERSION=0.4.0
+ARG VPNKIT_VERSION=0.5.0
 ARG DOCKER_BUILDTAGS="apparmor seccomp"
 
 ARG BASE_DEBIAN_DISTRO="buster"
@@ -119,6 +119,7 @@ FROM cross-${CROSS} as dev-base
 
 FROM dev-base AS runtime-dev-cross-false
 ARG DEBIAN_FRONTEND
+RUN echo 'deb http://deb.debian.org/debian buster-backports main' > /etc/apt/sources.list.d/backports.list
 RUN --mount=type=cache,sharing=locked,id=moby-cross-false-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-cross-false-aptcache,target=/var/cache/apt \
         apt-get update && apt-get install -y --no-install-recommends \
@@ -127,7 +128,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-cross-false-aptlib,target=/var/lib
             libapparmor-dev \
             libbtrfs-dev \
             libdevmapper-dev \
-            libseccomp-dev \
+            libseccomp-dev/buster-backports \
             libsystemd-dev \
             libudev-dev
 
@@ -137,15 +138,16 @@ ARG DEBIAN_FRONTEND
 # on non-amd64 systems.
 # Additionally, the crossbuild-amd64 is currently only on debian:buster, so
 # other architectures cannnot crossbuild amd64.
+RUN echo 'deb http://deb.debian.org/debian buster-backports main' > /etc/apt/sources.list.d/backports.list
 RUN --mount=type=cache,sharing=locked,id=moby-cross-true-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-cross-true-aptcache,target=/var/cache/apt \
         apt-get update && apt-get install -y --no-install-recommends \
             libapparmor-dev:arm64 \
             libapparmor-dev:armel \
             libapparmor-dev:armhf \
-            libseccomp-dev:arm64 \
-            libseccomp-dev:armel \
-            libseccomp-dev:armhf
+            libseccomp-dev:arm64/buster-backports \
+            libseccomp-dev:armel/buster-backports \
+            libseccomp-dev:armhf/buster-backports
 
 FROM runtime-dev-cross-${CROSS} AS runtime-dev
 
@@ -241,7 +243,13 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 COPY ./contrib/dockerd-rootless.sh /build
 COPY ./contrib/dockerd-rootless-setuptool.sh /build
 
-FROM djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit
+FROM --platform=amd64 djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit-amd64
+
+FROM --platform=arm64 djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit-arm64
+
+FROM scratch AS vpnkit
+COPY --from=vpnkit-amd64 /vpnkit /build/vpnkit.x86_64
+COPY --from=vpnkit-arm64 /vpnkit /build/vpnkit.aarch64
 
 # TODO: Some of this is only really needed for testing, it would be nice to split this up
 FROM runtime-dev AS dev-systemd-false
@@ -308,7 +316,7 @@ COPY --from=shfmt         /build/ /usr/local/bin/
 COPY --from=runc          /build/ /usr/local/bin/
 COPY --from=containerd    /build/ /usr/local/bin/
 COPY --from=rootlesskit   /build/ /usr/local/bin/
-COPY --from=vpnkit        /vpnkit /usr/local/bin/vpnkit.x86_64
+COPY --from=vpnkit        /build/ /usr/local/bin/
 COPY --from=proxy         /build/ /usr/local/bin/
 ENV PATH=/usr/local/cli:$PATH
 ARG DOCKER_BUILDTAGS
@@ -356,7 +364,7 @@ COPY --from=runc        /build/ /usr/local/bin/
 COPY --from=containerd  /build/ /usr/local/bin/
 COPY --from=rootlesskit /build/ /usr/local/bin/
 COPY --from=proxy       /build/ /usr/local/bin/
-COPY --from=vpnkit      /vpnkit /usr/local/bin/vpnkit.x86_64
+COPY --from=vpnkit      /build/ /usr/local/bin/
 WORKDIR /go/src/github.com/docker/docker
 
 FROM binary-base AS build-binary
