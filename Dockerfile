@@ -20,26 +20,15 @@ ENV GO111MODULE=off
 
 FROM base AS criu
 ARG DEBIAN_FRONTEND
-# Install dependency packages specific to criu
+ADD --chmod=0644 https://download.opensuse.org/repositories/devel:/tools:/criu/Debian_10/Release.key /etc/apt/trusted.gpg.d/criu.gpg.asc
+# FIXME: temporarily doing a manual chmod as workaround for https://github.com/moby/buildkit/issues/2114
 RUN --mount=type=cache,sharing=locked,id=moby-criu-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-criu-aptcache,target=/var/cache/apt \
-        apt-get update && apt-get install -y --no-install-recommends \
-            libcap-dev \
-            libnet-dev \
-            libnl-3-dev \
-            libprotobuf-c-dev \
-            libprotobuf-dev \
-            protobuf-c-compiler \
-            protobuf-compiler \
-            python-protobuf
-
-# Install CRIU for checkpoint/restore support
-ARG CRIU_VERSION=3.14
-RUN mkdir -p /usr/src/criu \
-    && curl -sSL https://github.com/checkpoint-restore/criu/archive/v${CRIU_VERSION}.tar.gz | tar -C /usr/src/criu/ -xz --strip-components=1 \
-    && cd /usr/src/criu \
-    && make \
-    && make PREFIX=/build/ install-criu
+        chmod 0644 /etc/apt/trusted.gpg.d/criu.gpg.asc \
+        && echo 'deb https://download.opensuse.org/repositories/devel:/tools:/criu/Debian_10/ /' > /etc/apt/sources.list.d/criu.list \
+        && apt-get update \
+        && apt-get install -y --no-install-recommends criu \
+        && install -D /usr/sbin/criu /build/criu
 
 FROM base AS registry
 WORKDIR /go/src/github.com/docker/distribution
@@ -177,13 +166,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh containerd
 
-FROM dev-base AS proxy
-ARG LIBNETWORK_COMMIT
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
-        PREFIX=/build /tmp/install/install.sh proxy
-
 FROM base AS golangci_lint
 ARG GOLANGCI_LINT_COMMIT
 RUN --mount=type=cache,target=/root/.cache/go-build \
@@ -280,6 +262,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-dev-aptlib,target=/var/lib/apt \
             libnl-3-200 \
             libprotobuf-c1 \
             net-tools \
+            patch \
             pigz \
             python3-pip \
             python3-setuptools \
@@ -308,7 +291,7 @@ COPY --from=swagger       /build/ /usr/local/bin/
 COPY --from=tomll         /build/ /usr/local/bin/
 COPY --from=tini          /build/ /usr/local/bin/
 COPY --from=registry      /build/ /usr/local/bin/
-COPY --from=criu          /build/ /usr/local/
+COPY --from=criu          /build/ /usr/local/bin/
 COPY --from=vndr          /build/ /usr/local/bin/
 COPY --from=gotestsum     /build/ /usr/local/bin/
 COPY --from=golangci_lint /build/ /usr/local/bin/
@@ -317,7 +300,6 @@ COPY --from=runc          /build/ /usr/local/bin/
 COPY --from=containerd    /build/ /usr/local/bin/
 COPY --from=rootlesskit   /build/ /usr/local/bin/
 COPY --from=vpnkit        /build/ /usr/local/bin/
-COPY --from=proxy         /build/ /usr/local/bin/
 ENV PATH=/usr/local/cli:$PATH
 ARG DOCKER_BUILDTAGS
 ENV DOCKER_BUILDTAGS="${DOCKER_BUILDTAGS}"
@@ -363,7 +345,6 @@ COPY --from=tini        /build/ /usr/local/bin/
 COPY --from=runc        /build/ /usr/local/bin/
 COPY --from=containerd  /build/ /usr/local/bin/
 COPY --from=rootlesskit /build/ /usr/local/bin/
-COPY --from=proxy       /build/ /usr/local/bin/
 COPY --from=vpnkit      /build/ /usr/local/bin/
 WORKDIR /go/src/github.com/docker/docker
 
