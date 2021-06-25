@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/containerd/containerd/sys"
+	"github.com/containerd/containerd/pkg/userns"
 	"github.com/docker/docker/pkg/system"
 	"golang.org/x/sys/unix"
 	"gotest.tools/v3/assert"
@@ -186,7 +186,7 @@ func getNlink(path string) (uint64, error) {
 		return 0, fmt.Errorf("expected type *syscall.Stat_t, got %t", stat.Sys())
 	}
 	// We need this conversion on ARM64
-	// nolint: unconvert
+	//nolint: unconvert
 	return uint64(statT.Nlink), nil
 }
 
@@ -204,7 +204,7 @@ func getInode(path string) (uint64, error) {
 
 func TestTarWithBlockCharFifo(t *testing.T) {
 	skip.If(t, os.Getuid() != 0, "skipping test that requires root")
-	skip.If(t, sys.RunningInUserNS(), "skipping test that requires initial userns")
+	skip.If(t, userns.RunningInUserNS(), "skipping test that requires initial userns")
 	origin, err := ioutil.TempDir("", "docker-test-tar-hardlink")
 	assert.NilError(t, err)
 
