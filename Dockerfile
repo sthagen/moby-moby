@@ -3,7 +3,7 @@
 ARG CROSS="false"
 ARG SYSTEMD="false"
 # IMPORTANT: When updating this please note that stdlib archive/tar pkg is vendored
-ARG GO_VERSION=1.17.0
+ARG GO_VERSION=1.17.1
 ARG DEBIAN_FRONTEND=noninteractive
 ARG VPNKIT_VERSION=0.5.0
 ARG DOCKER_BUILDTAGS="apparmor seccomp"
@@ -276,7 +276,8 @@ RUN --mount=type=cache,sharing=locked,id=moby-dev-aptlib,target=/var/lib/apt \
             vim-common \
             xfsprogs \
             xz-utils \
-            zip
+            zip \
+            zstd
 
 
 # Switch to use iptables instead of nftables (to match the CI hosts)
