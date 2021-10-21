@@ -3,7 +3,7 @@
 ARG CROSS="false"
 ARG SYSTEMD="false"
 # IMPORTANT: When updating this please note that stdlib archive/tar pkg is vendored
-ARG GO_VERSION=1.17.1
+ARG GO_VERSION=1.17.2
 ARG DEBIAN_FRONTEND=noninteractive
 ARG VPNKIT_VERSION=0.5.0
 ARG DOCKER_BUILDTAGS="apparmor seccomp"
@@ -20,10 +20,10 @@ ENV GO111MODULE=off
 
 FROM base AS criu
 ARG DEBIAN_FRONTEND
-ADD --chmod=0644 https://download.opensuse.org/repositories/devel:/tools:/criu/Debian_10/Release.key /etc/apt/trusted.gpg.d/criu.gpg.asc
+ADD --chmod=0644 https://download.opensuse.org/repositories/devel:/tools:/criu/Debian_11/Release.key /etc/apt/trusted.gpg.d/criu.gpg.asc
 RUN --mount=type=cache,sharing=locked,id=moby-criu-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-criu-aptcache,target=/var/cache/apt \
-        echo 'deb https://download.opensuse.org/repositories/devel:/tools:/criu/Debian_10/ /' > /etc/apt/sources.list.d/criu.list \
+        echo 'deb https://download.opensuse.org/repositories/devel:/tools:/criu/Debian_11/ /' > /etc/apt/sources.list.d/criu.list \
         && apt-get update \
         && apt-get install -y --no-install-recommends criu \
         && install -D /usr/sbin/criu /build/criu

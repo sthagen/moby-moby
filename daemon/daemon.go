@@ -364,7 +364,8 @@ func (daemon *Daemon) restore() error {
 
 				c.RestartManager().Cancel() // manually start containers because some need to wait for swarm networking
 
-				if c.IsPaused() && alive {
+				switch {
+				case c.IsPaused() && alive:
 					s, err := daemon.containerd.Status(context.Background(), c.ID)
 					if err != nil {
 						logger(c).WithError(err).Error("failed to get container status")
@@ -382,12 +383,18 @@ func (daemon *Daemon) restore() error {
 							c.Lock()
 							c.Paused = false
 							daemon.setStateCounter(c)
+							daemon.updateHealthMonitor(c)
 							if err := c.CheckpointTo(daemon.containersReplica); err != nil {
 								log.WithError(err).Error("failed to update paused container state")
 							}
 							c.Unlock()
 						}
 					}
+				case !c.IsPaused() && alive:
+					logger(c).Debug("restoring healthcheck")
+					c.Lock()
+					daemon.updateHealthMonitor(c)
+					c.Unlock()
 				}
 
 				if !alive {
@@ -845,7 +852,10 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	}
 
 	daemonRepo := filepath.Join(config.Root, "containers")
-	if err := idtools.MkdirAllAndChown(daemonRepo, 0701, idtools.CurrentIdentity()); err != nil {
+	if err := idtools.MkdirAllAndChown(daemonRepo, 0710, idtools.Identity{
+		UID: idtools.CurrentIdentity().UID,
+		GID: rootIDs.GID,
+	}); err != nil {
 		return nil, err
 	}
 
