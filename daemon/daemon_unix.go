@@ -869,6 +869,7 @@ func (daemon *Daemon) initNetworkController(config *config.Config, activeSandbox
 
 	if len(activeSandboxes) > 0 {
 		logrus.Info("There are old running containers, the network config will not take affect")
+		setHostGatewayIP(daemon.configStore, controller)
 		return controller, nil
 	}
 
@@ -906,33 +907,38 @@ func (daemon *Daemon) initNetworkController(config *config.Config, activeSandbox
 	}
 
 	// Set HostGatewayIP to the default bridge's IP  if it is empty
-	if daemon.configStore.HostGatewayIP == nil && controller != nil {
-		if n, err := controller.NetworkByName("bridge"); err == nil {
-			v4Info, v6Info := n.Info().IpamInfo()
-			var gateway net.IP
-			if len(v4Info) > 0 {
-				gateway = v4Info[0].Gateway.IP
-			} else if len(v6Info) > 0 {
-				gateway = v6Info[0].Gateway.IP
-			}
-			daemon.configStore.HostGatewayIP = gateway
-		}
-	}
+	setHostGatewayIP(daemon.configStore, controller)
+
 	return controller, nil
 }
 
-func driverOptions(config *config.Config) []nwconfig.Option {
-	bridgeConfig := options.Generic{
-		"EnableIPForwarding":  config.BridgeConfig.EnableIPForward,
-		"EnableIPTables":      config.BridgeConfig.EnableIPTables,
-		"EnableIP6Tables":     config.BridgeConfig.EnableIP6Tables,
-		"EnableUserlandProxy": config.BridgeConfig.EnableUserlandProxy,
-		"UserlandProxyPath":   config.BridgeConfig.UserlandProxyPath}
-	bridgeOption := options.Generic{netlabel.GenericData: bridgeConfig}
+// setHostGatewayIP sets cfg.HostGatewayIP to the default bridge's IP if it is empty.
+func setHostGatewayIP(config *config.Config, controller libnetwork.NetworkController) {
+	if config.HostGatewayIP != nil {
+		return
+	}
+	if n, err := controller.NetworkByName("bridge"); err == nil {
+		v4Info, v6Info := n.Info().IpamInfo()
+		var gateway net.IP
+		if len(v4Info) > 0 {
+			gateway = v4Info[0].Gateway.IP
+		} else if len(v6Info) > 0 {
+			gateway = v6Info[0].Gateway.IP
+		}
+		config.HostGatewayIP = gateway
+	}
+}
 
-	dOptions := []nwconfig.Option{}
-	dOptions = append(dOptions, nwconfig.OptionDriverConfig("bridge", bridgeOption))
-	return dOptions
+func driverOptions(config *config.Config) nwconfig.Option {
+	return nwconfig.OptionDriverConfig("bridge", options.Generic{
+		netlabel.GenericData: options.Generic{
+			"EnableIPForwarding":  config.BridgeConfig.EnableIPForward,
+			"EnableIPTables":      config.BridgeConfig.EnableIPTables,
+			"EnableIP6Tables":     config.BridgeConfig.EnableIP6Tables,
+			"EnableUserlandProxy": config.BridgeConfig.EnableUserlandProxy,
+			"UserlandProxyPath":   config.BridgeConfig.UserlandProxyPath,
+		},
+	})
 }
 
 func initBridgeDriver(controller libnetwork.NetworkController, config *config.Config) error {
