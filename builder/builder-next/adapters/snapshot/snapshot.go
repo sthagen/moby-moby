@@ -15,7 +15,7 @@ import (
 	"github.com/docker/docker/pkg/idtools"
 	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/snapshot"
-	digest "github.com/opencontainers/go-digest"
+	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	bolt "go.etcd.io/bbolt"
 )
@@ -405,11 +405,7 @@ func (s *snapshotter) Usage(ctx context.Context, key string) (us snapshots.Usage
 	if l, err := s.getLayer(key, true); err != nil {
 		return usage, err
 	} else if l != nil {
-		s, err := l.DiffSize()
-		if err != nil {
-			return usage, err
-		}
-		usage.Size = s
+		usage.Size = l.DiffSize()
 		return usage, nil
 	}
 

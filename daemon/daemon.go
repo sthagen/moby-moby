@@ -47,6 +47,7 @@ import (
 	"github.com/docker/docker/pkg/fileutils"
 	"github.com/docker/docker/pkg/idtools"
 	"github.com/docker/docker/pkg/plugingetter"
+	"github.com/docker/docker/pkg/sysinfo"
 	"github.com/docker/docker/pkg/system"
 	"github.com/docker/docker/pkg/truncindex"
 	"github.com/docker/docker/plugin"
@@ -77,7 +78,7 @@ var (
 
 // Daemon holds information about the Docker daemon.
 type Daemon struct {
-	ID                    string
+	id                    string
 	repository            string
 	containers            container.Store
 	containersReplica     container.ViewDB
@@ -87,13 +88,13 @@ type Daemon struct {
 	configStore           *config.Config
 	statsCollector        *stats.Collector
 	defaultLogConfig      containertypes.LogConfig
-	RegistryService       registry.Service
+	registryService       registry.Service
 	EventsService         *events.Events
 	netController         libnetwork.NetworkController
 	volumes               *volumesservice.VolumesService
 	root                  string
-	seccompEnabled        bool
-	apparmorEnabled       bool
+	sysInfoOnce           sync.Once
+	sysInfo               *sysinfo.SysInfo
 	shutdown              bool
 	idMapping             *idtools.IdentityMapping
 	graphDriver           string        // TODO: move graphDriver field to an InfoService
@@ -851,7 +852,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		}
 	}
 
-	d.RegistryService = registryService
+	d.registryService = registryService
 	logger.RegisterPluginGetter(d.PluginStore)
 
 	metricsSockPath, err := d.listenMetricsSock()
@@ -948,7 +949,6 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		IDMapping:                 idMapping,
 		PluginGetter:              d.PluginStore,
 		ExperimentalEnabled:       config.Experimental,
-		OS:                        runtime.GOOS,
 	})
 	if err != nil {
 		return nil, err
@@ -1021,7 +1021,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		return nil, errors.New("Devices cgroup isn't mounted")
 	}
 
-	d.ID = trustKey.PublicKey().KeyID()
+	d.id = trustKey.PublicKey().KeyID()
 	d.repository = daemonRepo
 	d.containers = container.NewMemoryStore()
 	if d.containersReplica, err = container.NewViewDB(); err != nil {
@@ -1034,8 +1034,6 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	d.EventsService = events.New()
 	d.root = config.Root
 	d.idMapping = idMapping
-	d.seccompEnabled = sysInfo.Seccomp
-	d.apparmorEnabled = sysInfo.AppArmor
 
 	d.linkIndex = newLinkIndex()
 
@@ -1073,6 +1071,9 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	// used above to run migration. They could be initialized in ImageService
 	// if migration is called from daemon/images. layerStore might move as well.
 	d.imageService = images.NewImageService(imgSvcConfig)
+	logrus.Debugf("Max Concurrent Downloads: %d", imgSvcConfig.MaxConcurrentDownloads)
+	logrus.Debugf("Max Concurrent Uploads: %d", imgSvcConfig.MaxConcurrentUploads)
+	logrus.Debugf("Max Download Attempts: %d", imgSvcConfig.MaxDownloadAttempts)
 
 	go d.execCommandGC()
 
@@ -1204,7 +1205,9 @@ func (daemon *Daemon) Shutdown() error {
 	}
 
 	if daemon.imageService != nil {
-		daemon.imageService.Cleanup()
+		if err := daemon.imageService.Cleanup(); err != nil {
+			logrus.Error(err)
+		}
 	}
 
 	// If we are part of a cluster, clean up cluster's stuff
@@ -1471,4 +1474,17 @@ func (daemon *Daemon) BuilderBackend() builder.Backend {
 		*Daemon
 		*images.ImageService
 	}{daemon, daemon.imageService}
+}
+
+// RawSysInfo returns *sysinfo.SysInfo .
+func (daemon *Daemon) RawSysInfo() *sysinfo.SysInfo {
+	daemon.sysInfoOnce.Do(func() {
+		// We check if sysInfo is not set here, to allow some test to
+		// override the actual sysInfo.
+		if daemon.sysInfo == nil {
+			daemon.loadSysInfo()
+		}
+	})
+
+	return daemon.sysInfo
 }

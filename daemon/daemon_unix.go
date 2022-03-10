@@ -302,25 +302,6 @@ func adjustParallelLimit(n int, limit int) int {
 	return softRlimit / overhead
 }
 
-func checkKernel() error {
-	// Check for unsupported kernel versions
-	// FIXME: it would be cleaner to not test for specific versions, but rather
-	// test for specific functionalities.
-	// Unfortunately we can't test for the feature "does not cause a kernel panic"
-	// without actually causing a kernel panic, so we need this workaround until
-	// the circumstances of pre-3.10 crashes are clearer.
-	// For details see https://github.com/docker/docker/issues/407
-	// Docker 1.11 and above doesn't actually run on kernels older than 3.4,
-	// due to containerd-shim usage of PR_SET_CHILD_SUBREAPER (introduced in 3.4).
-	if !kernel.CheckKernelVersion(3, 10, 0) {
-		v, _ := kernel.GetKernelVersion()
-		if os.Getenv("DOCKER_NOWARN_KERNEL_VERSION") == "" {
-			logrus.Fatalf("Your Linux kernel version %s is not supported for running docker. Please upgrade your kernel to 3.10.0 or newer.", v.String())
-		}
-	}
-	return nil
-}
-
 // adaptContainerSettings is called during container creation to modify any
 // settings necessary in the HostConfig structure.
 func (daemon *Daemon) adaptContainerSettings(hostConfig *containertypes.HostConfig, adjustCPUShares bool) error {
@@ -471,7 +452,7 @@ func verifyPlatformContainerResources(resources *containertypes.Resources, sysIn
 		resources.KernelMemory = 0
 	}
 	if resources.KernelMemory > 0 && resources.KernelMemory < linuxMinMemory {
-		return warnings, fmt.Errorf("Minimum kernel memory limit allowed is 4MB")
+		return warnings, fmt.Errorf("Minimum kernel memory limit allowed is 6MB")
 	}
 	if resources.KernelMemory > 0 && !kernel.CheckKernelVersion(4, 0, 0) {
 		warnings = append(warnings, "You specified a kernel memory limit on a kernel older than 4.0. Kernel memory limits are experimental on older kernels, it won't work as expected and can cause your system to be unstable.")
@@ -790,7 +771,7 @@ func verifyDaemonSettings(conf *config.Config) error {
 
 // checkSystem validates platform-specific requirements
 func checkSystem() error {
-	return checkKernel()
+	return nil
 }
 
 // configureMaxThreads sets the Go runtime max threads threshold
@@ -1731,19 +1712,14 @@ func (daemon *Daemon) setupSeccompProfile() error {
 	return nil
 }
 
-// RawSysInfo returns *sysinfo.SysInfo .
-func (daemon *Daemon) RawSysInfo() *sysinfo.SysInfo {
+func (daemon *Daemon) loadSysInfo() {
 	var siOpts []sysinfo.Opt
 	if daemon.getCgroupDriver() == cgroupSystemdDriver {
 		if euid := os.Getenv("ROOTLESSKIT_PARENT_EUID"); euid != "" {
 			siOpts = append(siOpts, sysinfo.WithCgroup2GroupPath("/user.slice/user-"+euid+".slice"))
 		}
 	}
-	return sysinfo.New(siOpts...)
-}
-
-func recursiveUnmount(target string) error {
-	return mount.RecursiveUnmount(target)
+	daemon.sysInfo = sysinfo.New(siOpts...)
 }
 
 func (daemon *Daemon) initLibcontainerd(ctx context.Context) error {
@@ -1756,4 +1732,8 @@ func (daemon *Daemon) initLibcontainerd(ctx context.Context) error {
 		daemon,
 	)
 	return err
+}
+
+func recursiveUnmount(target string) error {
+	return mount.RecursiveUnmount(target)
 }

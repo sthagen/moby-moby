@@ -17,7 +17,7 @@ import (
 	"github.com/containerd/containerd/pkg/userns"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/container"
-	daemonconfig "github.com/docker/docker/daemon/config"
+	dconfig "github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/oci"
 	"github.com/docker/docker/oci/caps"
 	"github.com/docker/docker/pkg/idtools"
@@ -34,7 +34,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const inContainerInitPath = "/sbin/" + daemonconfig.DefaultInitBinary
+const inContainerInitPath = "/sbin/" + dconfig.DefaultInitBinary
 
 // WithRlimits sets the container's rlimits along with merging the daemon's rlimits
 func WithRlimits(daemon *Daemon, c *container.Container) coci.SpecOpts {
@@ -742,7 +742,7 @@ func WithCommonOptions(daemon *Daemon, c *container.Container) coci.SpecOpts {
 				s.Process.Args = append([]string{inContainerInitPath, "--", c.Path}, c.Args...)
 				path := daemon.configStore.InitPath
 				if path == "" {
-					path, err = exec.LookPath(daemonconfig.DefaultInitBinary)
+					path, err = exec.LookPath(dconfig.DefaultInitBinary)
 					if err != nil {
 						return err
 					}
@@ -816,16 +816,6 @@ func WithCgroups(daemon *Daemon, c *container.Container) coci.SpecOpts {
 
 		if daemon.configStore.CPURealtimePeriod == 0 && daemon.configStore.CPURealtimeRuntime == 0 {
 			return nil
-		}
-
-		if cdcgroups.Mode() == cdcgroups.Unified {
-			return errors.New("daemon-scoped cpu-rt-period and cpu-rt-runtime are not implemented for cgroup v2")
-		}
-
-		// FIXME this is very expensive way to check if cpu rt is supported
-		sysInfo := daemon.RawSysInfo()
-		if !sysInfo.CPURealtime {
-			return errors.New("daemon-scoped cpu-rt-period and cpu-rt-runtime are not supported by the kernel")
 		}
 
 		p := cgroupsPath
