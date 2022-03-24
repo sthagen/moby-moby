@@ -42,6 +42,14 @@ keywords: "API, Docker, rcli, REST, documentation"
   versioned, and affects all API versions if the daemon has this patch.
 * The `POST /containers/{id}/wait` endpoint now returns a `400` status code if an
   invalid `condition` is provided (on API 1.30 and up).
+* Removed the `KernelMemory` field from the `POST /containers/create` and
+  `POST /containers/{id}/update` endpoints, any value it is set to will be ignored
+  on API version `v1.42` and up. Older API versions still accept this field, but
+  may take no effect, depending on the kernel version and OCI runtime in use.
+* `GET /containers/{id}/json` now omits the `KernelMemory` and `KernelMemoryTCP`
+  if they are not set.
+* `GET /info` now omits the `KernelMemory` and `KernelMemoryTCP` if they are not
+  supported by the host or host's configuration (if cgroups v2 are in use).
 
 ## v1.41 API changes
 
@@ -270,6 +278,7 @@ keywords: "API, Docker, rcli, REST, documentation"
 
 [Docker Engine API v1.32](https://docs.docker.com/engine/api/v1.32/) documentation
 
+* `POST /images/create` now accepts a `platform` parameter in the form of `os[/arch[/variant]]`.
 * `POST /containers/create` now accepts additional values for the
   `HostConfig.IpcMode` property. New values are `private`, `shareable`,
   and `none`.

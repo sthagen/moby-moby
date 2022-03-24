@@ -65,6 +65,7 @@ import (
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ContainersNamespace is the name of the namespace used for users containers
@@ -182,10 +183,8 @@ func (daemon *Daemon) RegistryHosts() docker.RegistryHosts {
 	}
 
 	for k, v := range m {
-		if d, err := registry.HostCertsDir(k); err == nil {
-			v.TLSConfigDir = []string{d}
-			m[k] = v
-		}
+		v.TLSConfigDir = []string{registry.HostCertsDir(k)}
+		m[k] = v
 	}
 
 	certsDir := registry.CertsDir()
@@ -885,7 +884,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		// It is not harm to add WithBlock for containerd connection.
 		grpc.WithBlock(),
 
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithConnectParams(connParams),
 		grpc.WithContextDialer(dialer.ContextDialer),
 

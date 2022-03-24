@@ -577,19 +577,13 @@ definitions:
         type: "array"
         items:
           $ref: "#/definitions/DeviceRequest"
-      KernelMemory:
-        description: |
-          Kernel memory limit in bytes.
-
-          <p><br /></p>
-
-          > **Deprecated**: This field is deprecated as the kernel 5.4 deprecated
-          > `kmem.limit_in_bytes`.
-        type: "integer"
-        format: "int64"
-        example: 209715200
       KernelMemoryTCP:
-        description: "Hard limit for kernel TCP buffer memory (in bytes)."
+        description: |
+          Hard limit for kernel TCP buffer memory (in bytes). Depending on the
+          OCI runtime in use, this option may be ignored. It is no longer supported
+          by the default (runc) runtime.
+
+          This field is omitted when empty.
         type: "integer"
         format: "int64"
       MemoryReservation:
@@ -2035,11 +2029,23 @@ definitions:
           ```
         type: "array"
         items:
-          type: "object"
-          additionalProperties:
-            type: "string"
+          $ref: "#/definitions/IPAMConfig"
       Options:
         description: "Driver-specific options, specified as a map."
+        type: "object"
+        additionalProperties:
+          type: "string"
+
+  IPAMConfig:
+    type: "object"
+    properties:
+      Subnet:
+        type: "string"
+      IPRange:
+        type: "string"
+      Gateway:
+        type: "string"
+      AuxiliaryAddresses:
         type: "object"
         additionalProperties:
           type: "string"
@@ -3827,6 +3833,7 @@ definitions:
 
   ServiceSpec:
     description: "User modifiable configuration for a service."
+    type: object
     properties:
       Name:
         description: "Name of the service."
@@ -4644,19 +4651,10 @@ definitions:
         description: "Indicates if the host has memory swap limit support enabled."
         type: "boolean"
         example: true
-      KernelMemory:
-        description: |
-          Indicates if the host has kernel memory limit support enabled.
-
-          <p><br /></p>
-
-          > **Deprecated**: This field is deprecated as the kernel 5.4 deprecated
-          > `kmem.limit_in_bytes`.
-        type: "boolean"
-        example: true
       KernelMemoryTCP:
         description: |
-          Indicates if the host has kernel memory TCP limit support enabled.
+          Indicates if the host has kernel memory TCP limit support enabled. This
+          field is omitted if not supported.
 
           Kernel memory TCP limits are not supported when using cgroups v2, which
           does not support the corresponding `memory.kmem.tcp.limit_in_bytes` cgroup.
@@ -5369,6 +5367,7 @@ definitions:
 
   PeerNode:
     description: "Represents a peer-node in the swarm"
+    type: "object"
     properties:
       NodeID:
         description: "Unique identifier of for this node in the swarm."
@@ -5820,7 +5819,6 @@ paths:
                 Memory: 0
                 MemorySwap: 0
                 MemoryReservation: 0
-                KernelMemory: 0
                 NanoCpus: 500000
                 CpuPercent: 80
                 CpuShares: 512
@@ -6112,7 +6110,6 @@ paths:
                 Memory: 0
                 MemorySwap: 0
                 MemoryReservation: 0
-                KernelMemory: 0
                 OomKillDisable: false
                 OomScoreAdj: 500
                 NetworkMode: "bridge"
@@ -6857,7 +6854,6 @@ paths:
               Memory: 314572800
               MemorySwap: 514288000
               MemoryReservation: 209715200
-              KernelMemory: 52428800
               RestartPolicy:
                 MaximumRetryCount: 4
                 Name: "on-failure"
@@ -7319,17 +7315,7 @@ paths:
         400:
           description: "Bad parameter"
           schema:
-            allOf:
-              - $ref: "#/definitions/ErrorResponse"
-              - type: "object"
-                properties:
-                  message:
-                    description: |
-                      The error message. Either "must specify path parameter"
-                      (path cannot be empty) or "not a directory" (path was
-                      asserted to be a directory but exists as a file).
-                    type: "string"
-                    x-nullable: false
+            $ref: "#/definitions/ErrorResponse"
         404:
           description: "Container or path does not exist"
           schema:
@@ -7364,17 +7350,7 @@ paths:
         400:
           description: "Bad parameter"
           schema:
-            allOf:
-              - $ref: "#/definitions/ErrorResponse"
-              - type: "object"
-                properties:
-                  message:
-                    description: |
-                      The error message. Either "must specify path parameter"
-                      (path cannot be empty) or "not a directory" (path was
-                      asserted to be a directory but exists as a file).
-                    type: "string"
-                    x-nullable: false
+            $ref: "#/definitions/ErrorResponse"
         404:
           description: "Container or path does not exist"
           schema:
@@ -7400,7 +7376,10 @@ paths:
       tags: ["Container"]
     put:
       summary: "Extract an archive of files or folders to a directory in a container"
-      description: "Upload a tar archive to be extracted to a path in the filesystem of container id."
+      description: |
+        Upload a tar archive to be extracted to a path in the filesystem of container id.
+        `path` parameter is asserted to be a directory. If it exists as a file, 400 error
+        will be returned with message "not a directory".
       operationId: "PutContainerArchive"
       consumes: ["application/x-tar", "application/octet-stream"]
       responses:
@@ -7410,6 +7389,9 @@ paths:
           description: "Bad parameter"
           schema:
             $ref: "#/definitions/ErrorResponse"
+          examples:
+            application/json:
+              message: "not a directory"
         403:
           description: "Permission denied, the volume or container rootfs is marked as read-only."
           schema:
