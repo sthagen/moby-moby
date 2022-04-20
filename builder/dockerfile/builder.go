@@ -35,6 +35,7 @@ var validCommitCommands = map[string]bool{
 	"expose":      true,
 	"label":       true,
 	"onbuild":     true,
+	"stopsignal":  true,
 	"user":        true,
 	"volume":      true,
 	"workdir":     true,
@@ -46,13 +47,13 @@ const (
 
 // BuildManager is shared across all Builder objects
 type BuildManager struct {
-	idMapping *idtools.IdentityMapping
+	idMapping idtools.IdentityMapping
 	backend   builder.Backend
 	pathCache pathCache // TODO: make this persistent
 }
 
 // NewBuildManager creates a BuildManager
-func NewBuildManager(b builder.Backend, identityMapping *idtools.IdentityMapping) (*BuildManager, error) {
+func NewBuildManager(b builder.Backend, identityMapping idtools.IdentityMapping) (*BuildManager, error) {
 	bm := &BuildManager{
 		backend:   b,
 		pathCache: &syncmap.Map{},
@@ -103,7 +104,7 @@ type builderOptions struct {
 	Backend        builder.Backend
 	ProgressWriter backend.ProgressWriter
 	PathCache      pathCache
-	IDMapping      *idtools.IdentityMapping
+	IDMapping      idtools.IdentityMapping
 }
 
 // Builder is a Dockerfile builder
@@ -119,7 +120,7 @@ type Builder struct {
 	docker    builder.Backend
 	clientCtx context.Context
 
-	idMapping        *idtools.IdentityMapping
+	idMapping        idtools.IdentityMapping
 	disableCommit    bool
 	imageSources     *imageSources
 	pathCache        pathCache
@@ -185,7 +186,7 @@ func (b *Builder) build(source builder.Source, dockerfile *parser.Result) (*buil
 
 	stages, metaArgs, err := instructions.Parse(dockerfile.AST)
 	if err != nil {
-		var uiErr *instructions.UnknownInstruction
+		var uiErr *instructions.UnknownInstructionError
 		if errors.As(err, &uiErr) {
 			buildsFailed.WithValues(metricsUnknownInstructionError).Inc()
 		}
@@ -336,7 +337,7 @@ func BuildFromConfig(config *container.Config, changes []string, os string) (*co
 
 	// ensure that the commands are valid
 	for _, n := range dockerfile.AST.Children {
-		if !validCommitCommands[n.Value] {
+		if !validCommitCommands[strings.ToLower(n.Value)] {
 			return nil, errdefs.InvalidParameter(errors.Errorf("%s is not a valid change command", n.Value))
 		}
 	}

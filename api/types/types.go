@@ -28,7 +28,7 @@ type RootFS struct {
 type ImageInspect struct {
 	// ID is the content-addressable ID of an image.
 	//
-	// This identified is a content-addressable digest calculated from the
+	// This identifier is a content-addressable digest calculated from the
 	// image's configuration (which includes the digests of layers used by
 	// the image).
 	//
@@ -73,8 +73,11 @@ type ImageInspect struct {
 	// Depending on how the image was created, this field may be empty.
 	Container string
 
-	// ContainerConfig is the configuration of the container that was committed
-	// into the image.
+	// ContainerConfig is an optional field containing the configuration of the
+	// container that was last committed when creating the image.
+	//
+	// Previous versions of Docker builder used this field to store build cache,
+	// and it is not in active use anymore.
 	ContainerConfig *container.Config
 
 	// DockerVersion is the version of Docker that was used to build the image.
@@ -188,6 +191,15 @@ type Ping struct {
 	OSType         string
 	Experimental   bool
 	BuilderVersion BuilderVersion
+
+	// SwarmStatus provides information about the current swarm status of the
+	// engine, obtained from the "Swarm" header in the API response.
+	//
+	// It can be a nil struct if the API version does not provide this header
+	// in the ping response, or if an error occurred, in which case the client
+	// should use other ways to get the current swarm status, such as the /swarm
+	// endpoint.
+	SwarmStatus *swarm.Status
 }
 
 // ComponentVersion describes the version information for a specific component.

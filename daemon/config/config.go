@@ -38,11 +38,18 @@ const (
 	DefaultNetworkMtu = 1500
 	// DisableNetworkBridge is the default value of the option to disable network bridge
 	DisableNetworkBridge = "none"
+	// DefaultShutdownTimeout is the default shutdown timeout (in seconds) for
+	// the daemon for containers to stop when it is shutting down.
+	DefaultShutdownTimeout = 15
 	// DefaultInitBinary is the name of the default init binary
 	DefaultInitBinary = "docker-init"
 	// DefaultRuntimeBinary is the default runtime to be used by
 	// containerd if none is specified
 	DefaultRuntimeBinary = "runc"
+	// DefaultContainersNamespace is the name of the default containerd namespace used for users containers.
+	DefaultContainersNamespace = "moby"
+	// DefaultPluginNamespace is the name of the default containerd namespace used for plugins.
+	DefaultPluginNamespace = "plugins.moby"
 
 	// LinuxV1RuntimeName is the runtime used to specify the containerd v1 shim with the runc binary
 	// Note this is different than io.containerd.runc.v1 which would be the v1 shim using the v2 shim API.
@@ -160,7 +167,9 @@ type CommonConfig struct {
 	ExecRoot              string                    `json:"exec-root,omitempty"`
 	SocketGroup           string                    `json:"group,omitempty"`
 	CorsHeaders           string                    `json:"api-cors-header,omitempty"`
-	ProxyConfig
+
+	// Proxies holds the proxies that are configured for the daemon.
+	Proxies `json:"proxies"`
 
 	// TrustKeyPath is used to generate the daemon ID and for signing schema 1 manifests
 	// when pushing to a registry which does not support schema 2. This field is marked as
@@ -271,8 +280,8 @@ type CommonConfig struct {
 	DefaultRuntime string `json:"default-runtime,omitempty"`
 }
 
-// ProxyConfig holds the proxy-configuration for the daemon.
-type ProxyConfig struct {
+// Proxies holds the proxies that are configured for the daemon.
+type Proxies struct {
 	HTTPProxy  string `json:"http-proxy,omitempty"`
 	HTTPSProxy string `json:"https-proxy,omitempty"`
 	NoProxy    string `json:"no-proxy,omitempty"`
@@ -598,6 +607,12 @@ func Validate(config *Config) error {
 			if _, ok := runtimes[defaultRuntime]; !ok {
 				return fmt.Errorf("specified default runtime '%s' does not exist", defaultRuntime)
 			}
+		}
+	}
+
+	for _, h := range config.Hosts {
+		if _, err := opts.ValidateHost(h); err != nil {
+			return err
 		}
 	}
 

@@ -54,7 +54,7 @@ pipeline {
                   -v "$WORKSPACE:/workspace" \
                   -e VALIDATE_REPO=${GIT_URL} \
                   -e VALIDATE_BRANCH=${CHANGE_TARGET} \
-                  alpine sh -c 'apk add --no-cache -q bash git openssh-client && cd /workspace && hack/validate/dco'
+                  alpine sh -c 'apk add --no-cache -q bash git openssh-client && git config --system --add safe.directory /workspace && cd /workspace && hack/validate/dco'
                 '''
             }
         }
@@ -663,8 +663,11 @@ pipeline {
                 stage('s390x integration-cli') {
                     when {
                         beforeAgent true
-                        not { changeRequest() }
-                        expression { params.s390x }
+                        // Skip this stage on PRs unless the checkbox is selected
+                        anyOf {
+                            not { changeRequest() }
+                            expression { params.s390x }
+                        }
                     }
                     agent { label 's390x-ubuntu-2004' }
 
@@ -865,8 +868,11 @@ pipeline {
                 stage('ppc64le integration-cli') {
                     when {
                         beforeAgent true
-                        not { changeRequest() }
-                        expression { params.ppc64le }
+                        // Skip this stage on PRs unless the checkbox is selected
+                        anyOf {
+                            not { changeRequest() }
+                            expression { params.ppc64le }
+                        }
                     }
                     agent { label 'ppc64le-ubuntu-1604' }
                     // ppc64le machines run on Docker 18.06, and buildkit has some
