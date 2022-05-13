@@ -1,6 +1,3 @@
-//go:build seccomp
-// +build seccomp
-
 package seccomp // import "github.com/docker/docker/profiles/seccomp"
 
 import (
@@ -37,6 +34,10 @@ func arches() []Architecture {
 		{
 			Arch:      specs.ArchS390X,
 			SubArches: []specs.Arch{specs.ArchS390},
+		},
+		{
+			Arch:      specs.ArchRISCV64,
+			SubArches: nil,
 		},
 	}
 }
@@ -178,6 +179,9 @@ func DefaultProfile() *Seccomp {
 					"io_uring_setup",
 					"ipc",
 					"kill",
+					"landlock_add_rule",
+					"landlock_create_ruleset",
+					"landlock_restrict_self",
 					"lchown",
 					"lchown32",
 					"lgetxattr",
@@ -531,6 +535,17 @@ func DefaultProfile() *Seccomp {
 			},
 			Includes: &Filter{
 				Arches: []string{"s390", "s390x"},
+			},
+		},
+		{
+			LinuxSyscall: specs.LinuxSyscall{
+				Names: []string{
+					"riscv_flush_icache",
+				},
+				Action: specs.ActAllow,
+			},
+			Includes: &Filter{
+				Arches: []string{"riscv64"},
 			},
 		},
 		{
