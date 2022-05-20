@@ -380,6 +380,10 @@ definitions:
             description: "Disable recursive bind mount."
             type: "boolean"
             default: false
+          CreateMountpoint:
+            description: "Create mount point on host if missing"
+            type: "boolean"
+            default: false
       VolumeOptions:
         description: "Optional configuration for the `volume` type."
         type: "object"
@@ -955,6 +959,15 @@ definitions:
             type: "array"
             items:
               $ref: "#/definitions/Mount"
+          ConsoleSize:
+            type: "array"
+            description: |
+              Initial console size, as an `[height, width]` array.
+            minItems: 2
+            maxItems: 2
+            items:
+              type: "integer"
+              minimum: 0
 
           # Applicable to UNIX platforms
           CapAdd:
@@ -1119,15 +1132,6 @@ definitions:
             type: "string"
             description: "Runtime to use with this container."
           # Applicable to Windows
-          ConsoleSize:
-            type: "array"
-            description: |
-              Initial console size, as an `[height, width]` array. (Windows only)
-            minItems: 2
-            maxItems: 2
-            items:
-              type: "integer"
-              minimum: 0
           Isolation:
             type: "string"
             description: |
@@ -3699,7 +3703,7 @@ definitions:
           Limits:
             description: "Define resources limits."
             $ref: "#/definitions/Limit"
-          Reservation:
+          Reservations:
             description: "Define resources reservation."
             $ref: "#/definitions/ResourceObject"
       RestartPolicy:

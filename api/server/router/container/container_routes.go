@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strconv"
 
 	"github.com/containerd/containerd/platforms"
@@ -15,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types/backend"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/versions"
 	containerpkg "github.com/docker/docker/container"
 	"github.com/docker/docker/errdefs"
@@ -512,9 +514,47 @@ func (s *containerRouter) postContainersCreate(ctx context.Context, w http.Respo
 		}
 	}
 
+	if hostConfig != nil && versions.LessThan(version, "1.42") {
+		for _, m := range hostConfig.Mounts {
+			// Ignore BindOptions.CreateMountpoint because it was added in API 1.42.
+			if bo := m.BindOptions; bo != nil {
+				bo.CreateMountpoint = false
+			}
+
+			// These combinations are invalid, but weren't validated in API < 1.42.
+			// We reset them here, so that validation doesn't produce an error.
+			if o := m.VolumeOptions; o != nil && m.Type != mount.TypeVolume {
+				m.VolumeOptions = nil
+			}
+			if o := m.TmpfsOptions; o != nil && m.Type != mount.TypeTmpfs {
+				m.TmpfsOptions = nil
+			}
+			if bo := m.BindOptions; bo != nil {
+				// Ignore BindOptions.CreateMountpoint because it was added in API 1.42.
+				bo.CreateMountpoint = false
+			}
+		}
+	}
+
 	if hostConfig != nil && versions.GreaterThanOrEqualTo(version, "1.42") {
 		// Ignore KernelMemory removed in API 1.42.
 		hostConfig.KernelMemory = 0
+		for _, m := range hostConfig.Mounts {
+			if o := m.VolumeOptions; o != nil && m.Type != mount.TypeVolume {
+				return errdefs.InvalidParameter(fmt.Errorf("VolumeOptions must not be specified on mount type %q", m.Type))
+			}
+			if o := m.BindOptions; o != nil && m.Type != mount.TypeBind {
+				return errdefs.InvalidParameter(fmt.Errorf("BindOptions must not be specified on mount type %q", m.Type))
+			}
+			if o := m.TmpfsOptions; o != nil && m.Type != mount.TypeTmpfs {
+				return errdefs.InvalidParameter(fmt.Errorf("TmpfsOptions must not be specified on mount type %q", m.Type))
+			}
+		}
+	}
+
+	if hostConfig != nil && runtime.GOOS == "linux" && versions.LessThan(version, "1.42") {
+		// ConsoleSize is not respected by Linux daemon before API 1.42
+		hostConfig.ConsoleSize = [2]uint{0, 0}
 	}
 
 	var platform *specs.Platform
@@ -693,15 +733,22 @@ func (s *containerRouter) wsContainersAttach(ctx context.Context, w http.Respons
 		return conn, conn, conn, nil
 	}
 
+	useStdin, useStdout, useStderr := true, true, true
+	if versions.GreaterThanOrEqualTo(version, "1.42") {
+		useStdin = httputils.BoolValue(r, "stdin")
+		useStdout = httputils.BoolValue(r, "stdout")
+		useStderr = httputils.BoolValue(r, "stderr")
+	}
+
 	attachConfig := &backend.ContainerAttachConfig{
 		GetStreams: setupStreams,
+		UseStdin:   useStdin,
+		UseStdout:  useStdout,
+		UseStderr:  useStderr,
 		Logs:       httputils.BoolValue(r, "logs"),
 		Stream:     httputils.BoolValue(r, "stream"),
 		DetachKeys: detachKeys,
-		UseStdin:   true,
-		UseStdout:  true,
-		UseStderr:  true,
-		MuxStreams: false, // TODO: this should be true since it's a single stream for both stdout and stderr
+		MuxStreams: false, // never multiplex, as we rely on websocket to manage distinct streams
 	}
 
 	err = s.backend.ContainerAttach(containerName, attachConfig)

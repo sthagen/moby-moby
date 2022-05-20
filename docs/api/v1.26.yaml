@@ -1944,7 +1944,7 @@ definitions:
                 description: "Memory limit in Bytes."
                 type: "integer"
                 format: "int64"
-          Reservation:
+          Reservations:
             description: "Define resources reservation."
             properties:
               NanoCPUs:
@@ -3987,21 +3987,6 @@ paths:
         - name: "stream"
           in: "query"
           description: "Return stream"
-          type: "boolean"
-          default: false
-        - name: "stdin"
-          in: "query"
-          description: "Attach to `stdin`"
-          type: "boolean"
-          default: false
-        - name: "stdout"
-          in: "query"
-          description: "Attach to `stdout`"
-          type: "boolean"
-          default: false
-        - name: "stderr"
-          in: "query"
-          description: "Attach to `stderr`"
           type: "boolean"
           default: false
       tags: ["Container"]
