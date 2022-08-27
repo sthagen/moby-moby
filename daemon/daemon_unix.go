@@ -822,7 +822,7 @@ func configureKernelSecuritySupport(config *config.Config, driverName string) er
 			return nil
 		}
 
-		if driverName == "overlay" || driverName == "overlay2" {
+		if driverName == "overlay" || driverName == "overlay2" || driverName == "overlayfs" {
 			// If driver is overlay or overlay2, make sure kernel
 			// supports selinux with overlay.
 			supported, err := overlaySupportsSelinux()
@@ -1387,10 +1387,13 @@ func copyBlkioEntry(entries []*statsV1.BlkIOEntry) []types.BlkioStatEntry {
 }
 
 func (daemon *Daemon) stats(c *container.Container) (*types.StatsJSON, error) {
-	if !c.IsRunning() {
-		return nil, errNotRunning(c.ID)
+	c.Lock()
+	task, err := c.GetRunningTask()
+	c.Unlock()
+	if err != nil {
+		return nil, err
 	}
-	cs, err := daemon.containerd.Stats(context.Background(), c.ID)
+	cs, err := task.Stats(context.Background())
 	if err != nil {
 		if strings.Contains(err.Error(), "container not found") {
 			return nil, containerNotFound(c.ID)
