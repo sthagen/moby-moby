@@ -25,6 +25,7 @@ import (
 	"github.com/docker/docker/pkg/pools"
 	"github.com/docker/docker/pkg/system"
 	"github.com/klauspost/compress/zstd"
+	"github.com/moby/sys/sequential"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	exec "golang.org/x/sys/execabs"
@@ -96,16 +97,6 @@ const (
 	// OverlayWhiteoutFormat formats whiteout according to the overlay
 	// standard.
 	OverlayWhiteoutFormat
-)
-
-const (
-	modeISDIR  = 040000  // Directory
-	modeISFIFO = 010000  // FIFO
-	modeISREG  = 0100000 // Regular file
-	modeISLNK  = 0120000 // Symbolic link
-	modeISBLK  = 060000  // Block special file
-	modeISCHR  = 020000  // Character special file
-	modeISSOCK = 0140000 // Socket
 )
 
 // IsArchivePath checks if the (possibly compressed) file at the given path
@@ -457,9 +448,7 @@ func FileInfoHeaderNoLookups(fi os.FileInfo, link string) (*tar.Header, error) {
 // but is safe to call from a chrooted process. The AccessTime and ChangeTime
 // fields are not set in the returned header, ModTime is truncated to one-second
 // precision, and the Uname and Gname fields are only set when fi is a FileInfo
-// value returned from tar.Header.FileInfo(). Also, regardless of Go version,
-// this function fills file type bits (e.g. hdr.Mode |= modeISDIR), which have
-// been deleted since Go 1.9 archive/tar.
+// value returned from tar.Header.FileInfo().
 func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, error) {
 	hdr, err := FileInfoHeaderNoLookups(fi, link)
 	if err != nil {
@@ -469,34 +458,9 @@ func FileInfoHeader(name string, fi os.FileInfo, link string) (*tar.Header, erro
 	hdr.ModTime = hdr.ModTime.Truncate(time.Second)
 	hdr.AccessTime = time.Time{}
 	hdr.ChangeTime = time.Time{}
-	hdr.Mode = fillGo18FileTypeBits(int64(chmodTarEntry(os.FileMode(hdr.Mode))), fi)
+	hdr.Mode = int64(chmodTarEntry(os.FileMode(hdr.Mode)))
 	hdr.Name = canonicalTarName(name, fi.IsDir())
 	return hdr, nil
-}
-
-// fillGo18FileTypeBits fills type bits which have been removed on Go 1.9 archive/tar
-// https://github.com/golang/go/commit/66b5a2f
-func fillGo18FileTypeBits(mode int64, fi os.FileInfo) int64 {
-	fm := fi.Mode()
-	switch {
-	case fm.IsRegular():
-		mode |= modeISREG
-	case fi.IsDir():
-		mode |= modeISDIR
-	case fm&os.ModeSymlink != 0:
-		mode |= modeISLNK
-	case fm&os.ModeDevice != 0:
-		if fm&os.ModeCharDevice != 0 {
-			mode |= modeISCHR
-		} else {
-			mode |= modeISBLK
-		}
-	case fm&os.ModeNamedPipe != 0:
-		mode |= modeISFIFO
-	case fm&os.ModeSocket != 0:
-		mode |= modeISSOCK
-	}
-	return mode
 }
 
 // ReadSecurityXattrToTarHeader reads security.capability xattr from filesystem
@@ -660,10 +624,9 @@ func (ta *tarAppender) addTarFile(path, name string) error {
 	}
 
 	if hdr.Typeflag == tar.TypeReg && hdr.Size > 0 {
-		// We use system.OpenSequential to ensure we use sequential file
-		// access on Windows to avoid depleting the standby list.
-		// On Linux, this equates to a regular os.Open.
-		file, err := system.OpenSequential(path)
+		// We use sequential file access to avoid depleting the standby list on
+		// Windows. On Linux, this equates to a regular os.Open.
+		file, err := sequential.Open(path)
 		if err != nil {
 			return err
 		}
@@ -701,10 +664,9 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, L
 		}
 
 	case tar.TypeReg, tar.TypeRegA:
-		// Source is regular file. We use system.OpenFileSequential to use sequential
-		// file access to avoid depleting the standby list on Windows.
-		// On Linux, this equates to a regular os.OpenFile
-		file, err := system.OpenFileSequential(path, os.O_CREATE|os.O_WRONLY, hdrInfo.Mode())
+		// Source is regular file. We use sequential file access to avoid depleting
+		// the standby list on Windows. On Linux, this equates to a regular os.OpenFile.
+		file, err := sequential.OpenFile(path, os.O_CREATE|os.O_WRONLY, hdrInfo.Mode())
 		if err != nil {
 			return err
 		}

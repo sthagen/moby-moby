@@ -2,7 +2,7 @@
 
 ARG CROSS="false"
 ARG SYSTEMD="false"
-ARG GO_VERSION=1.18.5
+ARG GO_VERSION=1.19.1
 ARG DEBIAN_FRONTEND=noninteractive
 ARG VPNKIT_VERSION=0.5.0
 
@@ -350,7 +350,8 @@ RUN update-alternatives --set iptables  /usr/sbin/iptables-legacy  || true \
  && update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy || true \
  && update-alternatives --set arptables /usr/sbin/arptables-legacy || true
 
-RUN pip3 install yamllint==1.26.1
+ARG YAMLLINT_VERSION=1.27.1
+RUN pip3 install yamllint==${YAMLLINT_VERSION}
 
 COPY --from=dockercli     /build/ /usr/local/cli
 COPY --from=frozen-images /build/ /docker-frozen-images

@@ -31,7 +31,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c
 	github.com/docker/go-metrics v0.0.1
-	github.com/docker/go-units v0.4.0
+	github.com/docker/go-units v0.5.0
 	github.com/docker/libkv v0.2.2-0.20211217103745-e480589147e3
 	github.com/docker/libtrust v0.0.0-20150526203908-9cbd2a1374f4
 	github.com/fluent/fluent-logger-golang v1.9.0
@@ -47,7 +47,7 @@ require (
 	github.com/hashicorp/serf v0.8.5
 	github.com/imdario/mergo v0.3.12
 	github.com/ishidawataru/sctp v0.0.0-20210707070123-9a39160e9062
-	github.com/klauspost/compress v1.15.1
+	github.com/klauspost/compress v1.15.9
 	github.com/miekg/dns v1.1.27
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible
 	github.com/moby/buildkit v0.10.4
@@ -56,6 +56,7 @@ require (
 	github.com/moby/swarmkit/v2 v2.0.0-20220721174824-48dd89375d0a
 	github.com/moby/sys/mount v0.3.3
 	github.com/moby/sys/mountinfo v0.6.2
+	github.com/moby/sys/sequential v0.0.0-20220829095930-b22ba8a69b30
 	github.com/moby/sys/signal v0.7.0
 	github.com/moby/sys/symlink v0.2.0
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
@@ -78,7 +79,7 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
 	go.etcd.io/bbolt v1.3.6
-	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
+	golang.org/x/net v0.0.0-20220906165146-f3363e06e74c
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
