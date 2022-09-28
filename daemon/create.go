@@ -18,7 +18,6 @@ import (
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/idtools"
-	"github.com/docker/docker/pkg/system"
 	"github.com/docker/docker/runconfig"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/selinux/go-selinux"
@@ -36,17 +35,16 @@ type createOpts struct {
 // CreateManagedContainer creates a container that is managed by a Service
 func (daemon *Daemon) CreateManagedContainer(params types.ContainerCreateConfig) (containertypes.CreateResponse, error) {
 	return daemon.containerCreate(createOpts{
-		params:                  params,
-		managed:                 true,
-		ignoreImagesArgsEscaped: false})
+		params:  params,
+		managed: true,
+	})
 }
 
 // ContainerCreate creates a regular container
 func (daemon *Daemon) ContainerCreate(params types.ContainerCreateConfig) (containertypes.CreateResponse, error) {
 	return daemon.containerCreate(createOpts{
-		params:                  params,
-		managed:                 false,
-		ignoreImagesArgsEscaped: false})
+		params: params,
+	})
 }
 
 // ContainerCreateIgnoreImagesArgsEscaped creates a regular container. This is called from the builder RUN case
@@ -54,8 +52,8 @@ func (daemon *Daemon) ContainerCreate(params types.ContainerCreateConfig) (conta
 func (daemon *Daemon) ContainerCreateIgnoreImagesArgsEscaped(params types.ContainerCreateConfig) (containertypes.CreateResponse, error) {
 	return daemon.containerCreate(createOpts{
 		params:                  params,
-		managed:                 false,
-		ignoreImagesArgsEscaped: true})
+		ignoreImagesArgsEscaped: true,
+	})
 }
 
 func (daemon *Daemon) containerCreate(opts createOpts) (containertypes.CreateResponse, error) {
@@ -132,9 +130,6 @@ func (daemon *Daemon) create(opts createOpts) (retC *container.Container, retErr
 			return nil, err
 		}
 		os = img.OperatingSystem()
-		if !system.IsOSSupported(os) {
-			return nil, system.ErrNotSupportedOperatingSystem
-		}
 		imgID = img.ID()
 	} else if isWindows {
 		os = "linux" // 'scratch' case.

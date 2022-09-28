@@ -4,7 +4,7 @@
 
 module github.com/docker/docker
 
-go 1.17
+go 1.18
 
 require (
 	cloud.google.com/go v0.93.3
@@ -24,7 +24,7 @@ require (
 	github.com/containerd/continuity v0.3.0
 	github.com/containerd/fifo v1.0.0
 	github.com/containerd/typeurl v1.0.2
-	github.com/coreos/go-systemd/v22 v22.3.2
+	github.com/coreos/go-systemd/v22 v22.4.0
 	github.com/creack/pty v1.1.11
 	github.com/deckarep/golang-set v0.0.0-20141123011944-ef32fa3046d9
 	github.com/docker/distribution v2.8.1+incompatible
@@ -56,7 +56,7 @@ require (
 	github.com/moby/swarmkit/v2 v2.0.0-20220721174824-48dd89375d0a
 	github.com/moby/sys/mount v0.3.3
 	github.com/moby/sys/mountinfo v0.6.2
-	github.com/moby/sys/sequential v0.0.0-20220829095930-b22ba8a69b30
+	github.com/moby/sys/sequential v0.5.0
 	github.com/moby/sys/signal v0.7.0
 	github.com/moby/sys/symlink v0.2.0
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
@@ -85,13 +85,13 @@ require (
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.45.0
-	gotest.tools/v3 v3.2.0
+	gotest.tools/v3 v3.3.0
 )
 
 require (
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2 // indirect
-	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
+	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cilium/ebpf v0.7.0 // indirect
@@ -112,7 +112,7 @@ require (
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/btree v1.0.1 // indirect
+	github.com/google/btree v1.1.2 // indirect
 	github.com/google/certificate-transparency-go v1.1.2 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect

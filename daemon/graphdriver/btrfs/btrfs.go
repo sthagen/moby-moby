@@ -51,7 +51,6 @@ type btrfsOptions struct {
 // Init returns a new BTRFS driver.
 // An error is returned if BTRFS is not supported.
 func Init(home string, options []string, idMap idtools.IdentityMapping) (graphdriver.Driver, error) {
-
 	// Perform feature detection on /var/lib/docker/btrfs if it's an existing directory.
 	// This covers situations where /var/lib/docker/btrfs is a mount, and on a different
 	// filesystem than /var/lib/docker.
@@ -627,29 +626,29 @@ func (d *Driver) Remove(id string) error {
 }
 
 // Get the requested filesystem id.
-func (d *Driver) Get(id, mountLabel string) (containerfs.ContainerFS, error) {
+func (d *Driver) Get(id, mountLabel string) (string, error) {
 	dir := d.subvolumesDirID(id)
 	st, err := os.Stat(dir)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if !st.IsDir() {
-		return nil, fmt.Errorf("%s: not a directory", dir)
+		return "", fmt.Errorf("%s: not a directory", dir)
 	}
 
 	if quota, err := os.ReadFile(d.quotasDirID(id)); err == nil {
 		if size, err := strconv.ParseUint(string(quota), 10, 64); err == nil && size >= d.options.minSpace {
 			if err := d.enableQuota(); err != nil {
-				return nil, err
+				return "", err
 			}
 			if err := subvolLimitQgroup(dir, size); err != nil {
-				return nil, err
+				return "", err
 			}
 		}
 	}
 
-	return containerfs.NewLocalContainerFS(dir), nil
+	return dir, nil
 }
 
 // Put is not implemented for BTRFS as there is no cleanup required for the id.

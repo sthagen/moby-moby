@@ -31,6 +31,18 @@ import (
 	exec "golang.org/x/sys/execabs"
 )
 
+// ImpliedDirectoryMode represents the mode (Unix permissions) applied to directories that are implied by files in a
+// tar, but that do not have their own header entry.
+//
+// The permissions mask is stored in a constant instead of locally to ensure that magic numbers do not
+// proliferate in the codebase. The default value 0755 has been selected based on the default umask of 0022, and
+// a convention of mkdir(1) calling mkdir(2) with permissions of 0777, resulting in a final value of 0755.
+//
+// This value is currently implementation-defined, and not captured in any cross-runtime specification. Thus, it is
+// subject to change in Moby at any time -- image authors who require consistent or known directory permissions
+// should explicitly control them by ensuring that header entries exist for any applicable path.
+const ImpliedDirectoryMode = 0755
+
 type (
 	// Compression is the state represents if compressed or not.
 	Compression int
@@ -373,7 +385,6 @@ func ReplaceFileTarWrapper(inputTarStream io.ReadCloser, mods map[string]TarModi
 		}
 
 		pipeWriter.Close()
-
 	}()
 	return pipeReader
 }
@@ -519,10 +530,17 @@ func newTarAppender(idMapping idtools.IdentityMapping, writer io.Writer, chownOp
 	}
 }
 
-// canonicalTarName provides a platform-independent and consistent posix-style
+// CanonicalTarNameForPath canonicalizes relativePath to a POSIX-style path using
+// forward slashes. It is an alias for filepath.ToSlash, which is a no-op on
+// Linux and Unix.
+func CanonicalTarNameForPath(relativePath string) string {
+	return filepath.ToSlash(relativePath)
+}
+
+// canonicalTarName provides a platform-independent and consistent POSIX-style
 // path for files and directories to be archived regardless of the platform.
 func canonicalTarName(name string, isDir bool) string {
-	name = CanonicalTarNameForPath(name)
+	name = filepath.ToSlash(name)
 
 	// suffix with '/' for directories
 	if isDir && !strings.HasSuffix(name, "/") {
@@ -753,7 +771,6 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, L
 			}
 			return err
 		}
-
 	}
 
 	if len(errors) > 0 {
@@ -803,7 +820,6 @@ func Tar(path string, compression Compression) (io.ReadCloser, error) {
 // TarWithOptions creates an archive from the directory at `path`, only including files whose relative
 // paths are included in `options.IncludeFiles` (if non-nil) or not in `options.ExcludePatterns`.
 func TarWithOptions(srcPath string, options *TarOptions) (io.ReadCloser, error) {
-
 	// Fix the source path to work with long path names. This is a no-op
 	// on platforms other than Windows.
 	srcPath = fixVolumePathPrefix(srcPath)
@@ -1011,7 +1027,6 @@ func Unpack(decompressedArchive io.Reader, dest string, options *TarOptions) err
 	defer pools.BufioReader32KPool.Put(trBuf)
 
 	var dirs []*tar.Header
-	rootIDs := options.IDMap.RootPair()
 	whiteoutConverter, err := getWhiteoutConverter(options.WhiteoutFormat, options.InUserNS)
 	if err != nil {
 		return err
@@ -1046,19 +1061,10 @@ loop:
 			}
 		}
 
-		// After calling filepath.Clean(hdr.Name) above, hdr.Name will now be in
-		// the filepath format for the OS on which the daemon is running. Hence
-		// the check for a slash-suffix MUST be done in an OS-agnostic way.
-		if !strings.HasSuffix(hdr.Name, string(os.PathSeparator)) {
-			// Not the root directory, ensure that the parent directory exists
-			parent := filepath.Dir(hdr.Name)
-			parentPath := filepath.Join(dest, parent)
-			if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
-				err = idtools.MkdirAllAndChownNew(parentPath, 0755, rootIDs)
-				if err != nil {
-					return err
-				}
-			}
+		// Ensure that the parent directory exists.
+		err = createImpliedDirectories(dest, hdr, options)
+		if err != nil {
+			return err
 		}
 
 		// #nosec G305 -- The joined path is checked for path traversal.
@@ -1133,6 +1139,35 @@ loop:
 			return err
 		}
 	}
+	return nil
+}
+
+// createImpliedDirectories will create all parent directories of the current path with default permissions, if they do
+// not already exist. This is possible as the tar format supports 'implicit' directories, where their existence is
+// defined by the paths of files in the tar, but there are no header entries for the directories themselves, and thus
+// we most both create them and choose metadata like permissions.
+//
+// The caller should have performed filepath.Clean(hdr.Name), so hdr.Name will now be in the filepath format for the OS
+// on which the daemon is running. This precondition is required because this function assumes a OS-specific path
+// separator when checking that a path is not the root.
+func createImpliedDirectories(dest string, hdr *tar.Header, options *TarOptions) error {
+	// Not the root directory, ensure that the parent directory exists
+	if !strings.HasSuffix(hdr.Name, string(os.PathSeparator)) {
+		parent := filepath.Dir(hdr.Name)
+		parentPath := filepath.Join(dest, parent)
+		if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
+			// RootPair() is confined inside this loop as most cases will not require a call, so we can spend some
+			// unneeded function calls in the uncommon case to encapsulate logic -- implied directories are a niche
+			// usage that reduces the portability of an image.
+			rootIDs := options.IDMap.RootPair()
+
+			err = idtools.MkdirAllAndChownNew(parentPath, ImpliedDirectoryMode, rootIDs)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 

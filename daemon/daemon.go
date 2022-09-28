@@ -73,7 +73,7 @@ type Daemon struct {
 	id                    string
 	repository            string
 	containers            container.Store
-	containersReplica     container.ViewDB
+	containersReplica     *container.ViewDB
 	execCommands          *container.ExecStore
 	imageService          ImageService
 	configStore           *config.Config
@@ -1270,7 +1270,7 @@ func (daemon *Daemon) Mount(container *container.Container) error {
 	}
 	logrus.WithField("container", container.ID).Debugf("container mounted via layerStore: %v", dir)
 
-	if container.BaseFS != nil && container.BaseFS.Path() != dir.Path() {
+	if container.BaseFS != "" && container.BaseFS != dir {
 		// The mount path reported by the graph driver should always be trusted on Windows, since the
 		// volume path for a given mounted layer may change over time.  This should only be an error
 		// on non-Windows operating systems.
@@ -1374,7 +1374,6 @@ func (daemon *Daemon) networkOptions(pg plugingetter.PluginGetter, activeSandbox
 	dd := runconfig.DefaultDaemonNetworkMode()
 
 	options = []nwconfig.Option{
-		nwconfig.OptionExperimental(conf.Experimental),
 		nwconfig.OptionDataDir(conf.Root),
 		nwconfig.OptionExecRoot(conf.GetExecRoot()),
 		nwconfig.OptionDefaultDriver(string(dd)),
