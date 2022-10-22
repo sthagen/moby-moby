@@ -52,16 +52,13 @@ jobs:
       fail-fast: false
       matrix:
         pkg:
-          - ./client
-          - ./cmd/buildctl
-          - ./solver
-          - ./frontend
-          - ./frontend/dockerfile
+          - client
+          - cmd/buildctl
+          - solver
+          - frontend
+          - frontend/dockerfile
         typ:
           - integration
-        include:
-          - pkg: ./...
-            skip-integration-tests: 1
     steps:
       -
         name: Checkout
@@ -72,9 +69,9 @@ jobs:
         name: BuildKit ref
         run: |
           ./hack/go-mod-prepare.sh
-          # FIXME(thaJeztah) temporarily overriding version to use for tests; see https://github.com/moby/moby/pull/44028#issuecomment-1225964929
+          # FIXME(thaJeztah) temporarily overriding version to use for tests; remove with the next release of buildkit
           # echo "BUILDKIT_REF=$(./hack/buildkit-ref)" >> $GITHUB_ENV
-          echo "BUILDKIT_REF=8e2d9b9006caadb74c1745608889a37ba139acc1" >> $GITHUB_ENV
+          echo "BUILDKIT_REF=e27c8e24bb9ee92a170567b8b597201925ae9b8a" >> $GITHUB_ENV
         working-directory: moby
       -
         name: Checkout BuildKit ${{ env.BUILDKIT_REF }}
@@ -110,7 +107,6 @@ jobs:
           CONTEXT: "."
           TEST_DOCKERD: "1"
           TEST_DOCKERD_BINARY: "./build/moby/binary-daemon/dockerd"
-          TESTPKGS: "${{ matrix.pkg }}"
+          TESTPKGS: "./${{ matrix.pkg }}"
           TESTFLAGS: "-v --parallel=1 --timeout=30m --run=//worker=dockerd$"
-          SKIP_INTEGRATION_TESTS: "${{ matrix.skip-integration-tests }}"
         working-directory: buildkit
