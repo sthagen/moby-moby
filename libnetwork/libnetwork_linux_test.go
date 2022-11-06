@@ -36,6 +36,23 @@ var (
 	testns  = netns.None()
 )
 
+var createTesthostNetworkOnce sync.Once
+
+func getTesthostNetwork(t *testing.T) libnetwork.Network {
+	t.Helper()
+	createTesthostNetworkOnce.Do(func() {
+		_, err := createTestNetwork("host", "testhost", options.Generic{}, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	n, err := controller.NetworkByName("testhost")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
 func createGlobalInstance(t *testing.T) {
 	var err error
 	defer close(start)
@@ -60,11 +77,7 @@ func createGlobalInstance(t *testing.T) {
 		},
 	}
 
-	net1, err := controller.NetworkByName("testhost")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	net1 := getTesthostNetwork(t)
 	net2, err := createTestNetwork("bridge", "network2", netOption, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -124,11 +137,7 @@ func TestHost(t *testing.T) {
 		}
 	}()
 
-	network, err := createTestNetwork("host", "testhost", options.Generic{}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	network := getTesthostNetwork(t)
 	ep1, err := network.CreateEndpoint("testep1")
 	if err != nil {
 		t.Fatal(err)
@@ -708,11 +717,7 @@ func TestResolvConfHost(t *testing.T) {
 		}
 	}()
 
-	n, err := controller.NetworkByName("testhost")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	n := getTesthostNetwork(t)
 	ep1, err := n.CreateEndpoint("ep1", libnetwork.CreateOptionDisableResolution())
 	if err != nil {
 		t.Fatal(err)
@@ -917,7 +922,6 @@ func parallelJoin(t *testing.T, rc libnetwork.Sandbox, ep libnetwork.Endpoint, t
 	sb := sboxes[thrNumber-1]
 	err = ep.Join(sb)
 
-	runtime.LockOSThread()
 	if err != nil {
 		if _, ok := err.(types.ForbiddenError); !ok {
 			t.Fatalf("thread %d: %v", thrNumber, err)
@@ -934,7 +938,6 @@ func parallelLeave(t *testing.T, rc libnetwork.Sandbox, ep libnetwork.Endpoint, 
 	sb := sboxes[thrNumber-1]
 
 	err = ep.Leave(sb)
-	runtime.LockOSThread()
 	if err != nil {
 		if _, ok := err.(types.ForbiddenError); !ok {
 			t.Fatalf("thread %d: %v", thrNumber, err)
@@ -966,13 +969,9 @@ func runParallelTests(t *testing.T, thrNumber int) {
 	}
 
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
 	if thrNumber == first {
 		createGlobalInstance(t)
-	}
-
-	if thrNumber != first {
+	} else {
 		<-start
 
 		thrdone := make(chan struct{})
@@ -985,25 +984,19 @@ func runParallelTests(t *testing.T, thrNumber int) {
 
 		err = netns.Set(testns)
 		if err != nil {
+			runtime.UnlockOSThread()
 			t.Fatal(err)
 		}
 	}
 	defer func() {
 		if err := netns.Set(origins); err != nil {
-			// NOTE(@cpuguy83): This...
-			// I touched this code because the linter found that we weren't checking the error...
-			// It returns an error because "origins" is a closed file handle *unless* createGlobalInstance is called.
-			// Which... this test is run in parallel and `createGlobalInstance` modifies `origins` without synchronization.
-			// I'm not sure what exactly the *intent* of this code was, but it looks very broken.
-			// Anyway that's why I'm only logging the error and not failing the test.
-			t.Log(err)
+			t.Fatalf("Error restoring the current thread's netns: %v", err)
+		} else {
+			runtime.UnlockOSThread()
 		}
 	}()
 
-	net1, err := controller.NetworkByName("testhost")
-	if err != nil {
-		t.Fatal(err)
-	}
+	net1 := getTesthostNetwork(t)
 	if net1 == nil {
 		t.Fatal("Could not find testhost")
 	}
@@ -1053,7 +1046,9 @@ func runParallelTests(t *testing.T, thrNumber int) {
 			<-thrdone
 		}
 
-		testns.Close()
+		if testns != origins {
+			testns.Close()
+		}
 		if err := net2.Delete(); err != nil {
 			t.Fatal(err)
 		}

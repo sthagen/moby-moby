@@ -32,7 +32,7 @@ import (
 	"github.com/docker/docker/daemon/events"
 	_ "github.com/docker/docker/daemon/graphdriver/register" // register graph drivers
 	"github.com/docker/docker/daemon/images"
-	"github.com/docker/docker/daemon/logger"
+	dlogger "github.com/docker/docker/daemon/logger"
 	"github.com/docker/docker/daemon/network"
 	"github.com/docker/docker/daemon/stats"
 	dmetadata "github.com/docker/docker/distribution/metadata"
@@ -526,7 +526,7 @@ func (daemon *Daemon) restore() error {
 			if err := daemon.prepareMountPoints(c); err != nil {
 				log.WithError(err).Error("failed to prepare mount points for container")
 			}
-			if err := daemon.containerStart(c, "", "", true); err != nil {
+			if err := daemon.containerStart(context.Background(), c, "", "", true); err != nil {
 				log.WithError(err).Error("failed to start container")
 			}
 			close(chNotify)
@@ -617,7 +617,7 @@ func (daemon *Daemon) RestartSwarmContainers() {
 						return
 					}
 
-					if err := daemon.containerStart(c, "", "", true); err != nil {
+					if err := daemon.containerStart(ctx, c, "", "", true); err != nil {
 						logrus.WithField("container", c.ID).WithError(err).Error("failed to start swarm container")
 					}
 
@@ -710,9 +710,10 @@ func (daemon *Daemon) IsSwarmCompatible() error {
 // NewDaemon sets up everything for the daemon to be able to service
 // requests from the webserver.
 func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.Store) (daemon *Daemon, err error) {
-	// Verify the platform is supported as a daemon
-	if !platformSupported {
-		return nil, errors.New("the Docker daemon is not supported on this platform")
+	// Verify platform-specific requirements.
+	// TODO(thaJeztah): this should be called before we try to create the daemon; perhaps together with the config validation.
+	if err := checkSystem(); err != nil {
+		return nil, err
 	}
 
 	registryService, err := registry.NewService(config.ServiceOptions)
@@ -736,11 +737,6 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	// Setup the resolv.conf
 	setupResolvConf(config)
 
-	// Validate platform-specific requirements
-	if err := checkSystem(); err != nil {
-		return nil, err
-	}
-
 	idMapping, err := setupRemappedRoot(config)
 	if err != nil {
 		return nil, err
@@ -760,10 +756,8 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		return nil, fmt.Errorf("Unable to get the full path to the TempDir (%s): %s", tmp, err)
 	}
 	if isWindows {
-		if _, err := os.Stat(realTmp); err != nil && os.IsNotExist(err) {
-			if err := system.MkdirAll(realTmp, 0700); err != nil {
-				return nil, fmt.Errorf("Unable to create the TempDir (%s): %s", realTmp, err)
-			}
+		if err := system.MkdirAll(realTmp, 0); err != nil {
+			return nil, fmt.Errorf("Unable to create the TempDir (%s): %s", realTmp, err)
 		}
 		os.Setenv("TEMP", realTmp)
 		os.Setenv("TMP", realTmp)
@@ -781,7 +775,8 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	// initialization
 	defer func() {
 		if err != nil {
-			if err := d.Shutdown(); err != nil {
+			// Use a fresh context here. Passed context could be cancelled.
+			if err := d.Shutdown(context.Background()); err != nil {
 				logrus.Error(err)
 			}
 		}
@@ -817,7 +812,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	}
 
 	daemonRepo := filepath.Join(config.Root, "containers")
-	if err := idtools.MkdirAllAndChown(daemonRepo, 0710, idtools.Identity{
+	if err := idtools.MkdirAllAndChown(daemonRepo, 0o710, idtools.Identity{
 		UID: idtools.CurrentIdentity().UID,
 		GID: rootIDs.GID,
 	}); err != nil {
@@ -826,8 +821,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 
 	// Create the directory where we'll store the runtime scripts (i.e. in
 	// order to support runtimeArgs)
-	daemonRuntimes := filepath.Join(config.Root, "runtimes")
-	if err := system.MkdirAll(daemonRuntimes, 0700); err != nil {
+	if err = os.Mkdir(filepath.Join(config.Root, "runtimes"), 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
 	}
 	if err := d.loadRuntimes(); err != nil {
@@ -835,13 +829,16 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	}
 
 	if isWindows {
-		if err := system.MkdirAll(filepath.Join(config.Root, "credentialspecs"), 0); err != nil {
+		// Note that permissions (0o700) are ignored on Windows; passing them to
+		// show intent only. We could consider using idtools.MkdirAndChown here
+		// to apply an ACL.
+		if err = os.Mkdir(filepath.Join(config.Root, "credentialspecs"), 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 			return nil, err
 		}
 	}
 
 	d.registryService = registryService
-	logger.RegisterPluginGetter(d.PluginStore)
+	dlogger.RegisterPluginGetter(d.PluginStore)
 
 	metricsSockPath, err := d.listenMetricsSock()
 	if err != nil {
@@ -1077,7 +1074,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 			if err != nil {
 				return nil, err
 			}
-			if err = system.MkdirAll(filepath.Join(config.Root, "trust"), 0700); err != nil {
+			if err = os.Mkdir(filepath.Join(config.Root, "trust"), 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 				return nil, err
 			}
 		}
@@ -1197,17 +1194,17 @@ func (daemon *Daemon) ShutdownTimeout() int {
 }
 
 // Shutdown stops the daemon.
-func (daemon *Daemon) Shutdown() error {
+func (daemon *Daemon) Shutdown(ctx context.Context) error {
 	daemon.shutdown = true
 	// Keep mounts and networking running on daemon shutdown if
 	// we are to keep containers running and restore them.
 
 	if daemon.configStore.LiveRestoreEnabled && daemon.containers != nil {
 		// check if there are any running containers, if none we should do some cleanup
-		if ls, err := daemon.Containers(&types.ContainerListOptions{}); len(ls) != 0 || err != nil {
+		if ls, err := daemon.Containers(ctx, &types.ContainerListOptions{}); len(ls) != 0 || err != nil {
 			// metrics plugins still need some cleanup
 			daemon.cleanupMetricsPlugins()
-			return nil
+			return err
 		}
 	}
 
@@ -1354,7 +1351,7 @@ func prepareTempDir(rootDir string) (string, error) {
 			}
 		}
 	}
-	return tmpDir, idtools.MkdirAllAndChown(tmpDir, 0700, idtools.CurrentIdentity())
+	return tmpDir, idtools.MkdirAllAndChown(tmpDir, 0o700, idtools.CurrentIdentity())
 }
 
 func (daemon *Daemon) setGenericResources(conf *config.Config) error {
