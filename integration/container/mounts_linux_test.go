@@ -3,7 +3,9 @@ package container // import "github.com/docker/docker/integration/container"
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -14,7 +16,6 @@ import (
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/integration/internal/container"
-	"github.com/docker/docker/pkg/system"
 	"github.com/moby/sys/mount"
 	"github.com/moby/sys/mountinfo"
 	"gotest.tools/v3/assert"
@@ -80,9 +81,10 @@ func TestContainerNetworkMountsNoChown(t *testing.T) {
 	// daemon. In all other volume/bind mount situations we have taken this
 	// same line--we don't chown host file content.
 	// See GitHub PR 34224 for details.
-	statT, err := system.Stat(tmpNWFileMount)
+	info, err := os.Stat(tmpNWFileMount)
 	assert.NilError(t, err)
-	assert.Check(t, is.Equal(uint32(0), statT.UID()), "bind mounted network file should not change ownership from root")
+	fi := info.Sys().(*syscall.Stat_t)
+	assert.Check(t, is.Equal(fi.Uid, uint32(0)), "bind mounted network file should not change ownership from root")
 }
 
 func TestMountDaemonRoot(t *testing.T) {
@@ -390,4 +392,39 @@ func TestContainerVolumesMountedAsSlave(t *testing.T) {
 	} else {
 		t.Fatal(err)
 	}
+}
+
+// Regression test for #38995 and #43390.
+func TestContainerCopyLeaksMounts(t *testing.T) {
+	defer setupTest(t)()
+
+	bindMount := mounttypes.Mount{
+		Type:   mounttypes.TypeBind,
+		Source: "/var",
+		Target: "/hostvar",
+		BindOptions: &mounttypes.BindOptions{
+			Propagation: mounttypes.PropagationRSlave,
+		},
+	}
+
+	ctx := context.Background()
+	client := testEnv.APIClient()
+	cid := container.Run(ctx, t, client, container.WithMount(bindMount), container.WithCmd("sleep", "120s"))
+
+	getMounts := func() string {
+		t.Helper()
+		res, err := container.Exec(ctx, client, cid, []string{"cat", "/proc/self/mountinfo"})
+		assert.NilError(t, err)
+		assert.Equal(t, res.ExitCode, 0)
+		return res.Stdout()
+	}
+
+	mountsBefore := getMounts()
+
+	_, _, err := client.CopyFromContainer(ctx, cid, "/etc/passwd")
+	assert.NilError(t, err)
+
+	mountsAfter := getMounts()
+
+	assert.Equal(t, mountsBefore, mountsAfter)
 }
