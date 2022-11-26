@@ -74,6 +74,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
         && git checkout -q "$GO_SWAGGER_COMMIT" \
         && go build -o /build/swagger github.com/go-swagger/go-swagger/cmd/swagger
 
+# frozen-images
+# See also frozenImages in "testutil/environment/protect.go" (which needs to
+# be updated when adding images to this list)
 FROM debian:${BASE_DEBIAN_DISTRO} AS frozen-images
 ARG DEBIAN_FRONTEND
 RUN --mount=type=cache,sharing=locked,id=moby-frozen-images-aptlib,target=/var/lib/apt \
@@ -85,13 +88,13 @@ RUN --mount=type=cache,sharing=locked,id=moby-frozen-images-aptlib,target=/var/l
 # Get useful and necessary Hub images so we can "docker load" locally instead of pulling
 COPY contrib/download-frozen-image-v2.sh /
 ARG TARGETARCH
+ARG TARGETVARIANT
 RUN /download-frozen-image-v2.sh /build \
         busybox:latest@sha256:95cf004f559831017cdf4628aaf1bb30133677be8702a8c5f2994629f637a209 \
         busybox:glibc@sha256:1f81263701cddf6402afe9f33fca0266d9fff379e59b1748f33d3072da71ee85 \
         debian:bullseye-slim@sha256:dacf278785a4daa9de07596ec739dbc07131e189942772210709c5c0777e8437 \
         hello-world:latest@sha256:d58e752213a51785838f9eed2b7a498ffa1cb3aa7f946dda11af39286c3db9a9 \
         arm32v7/hello-world:latest@sha256:50b8560ad574c779908da71f7ce370c0a2471c098d44d1c8f6b513c5a55eeeb1
-# See also frozenImages in "testutil/environment/protect.go" (which needs to be updated when adding images to this list)
 
 FROM base AS cross-false
 
@@ -183,7 +186,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM base AS gowinres
 # GOWINRES_VERSION defines go-winres tool version
-ARG GOWINRES_VERSION=v0.2.3
+ARG GOWINRES_VERSION=v0.3.0
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
         GOBIN=/build/ GO111MODULE=on go install "github.com/tc-hib/go-winres@${GOWINRES_VERSION}" \
@@ -210,7 +213,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
      && /build/golangci-lint --version
 
 FROM base AS gotestsum
-ARG GOTESTSUM_VERSION=v1.8.1
+ARG GOTESTSUM_VERSION=v1.8.2
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
         GOBIN=/build/ GO111MODULE=on go install "gotest.tools/gotestsum@${GOTESTSUM_VERSION}" \
@@ -289,13 +292,18 @@ RUN --mount=type=tmpfs,target=/tmp/crun-build \
     ./configure --bindir=/build && \
     make -j install
 
-FROM --platform=amd64 djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit-amd64
-
-FROM --platform=arm64 djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit-arm64
-
-FROM scratch AS vpnkit
-COPY --from=vpnkit-amd64 /vpnkit /build/vpnkit.x86_64
-COPY --from=vpnkit-arm64 /vpnkit /build/vpnkit.aarch64
+# vpnkit
+# use dummy scratch stage to avoid build to fail for unsupported platforms
+FROM scratch AS vpnkit-windows
+FROM scratch AS vpnkit-linux-386
+FROM scratch AS vpnkit-linux-arm
+FROM scratch AS vpnkit-linux-ppc64le
+FROM scratch AS vpnkit-linux-riscv64
+FROM scratch AS vpnkit-linux-s390x
+FROM djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit-linux-amd64
+FROM djs55/vpnkit:${VPNKIT_VERSION} AS vpnkit-linux-arm64
+FROM vpnkit-linux-${TARGETARCH} AS vpnkit-linux
+FROM vpnkit-${TARGETOS} AS vpnkit
 
 # TODO: Some of this is only really needed for testing, it would be nice to split this up
 FROM runtime-dev AS dev-systemd-false
@@ -369,7 +377,7 @@ COPY --from=shfmt         /build/ /usr/local/bin/
 COPY --from=runc          /build/ /usr/local/bin/
 COPY --from=containerd    /build/ /usr/local/bin/
 COPY --from=rootlesskit   /build/ /usr/local/bin/
-COPY --from=vpnkit        /build/ /usr/local/bin/
+COPY --from=vpnkit        /       /usr/local/bin/
 COPY --from=crun          /build/ /usr/local/bin/
 COPY hack/dockerfile/etc/docker/  /etc/docker/
 ENV PATH=/usr/local/cli:$PATH
@@ -416,7 +424,7 @@ COPY --from=tini          /build/ /usr/local/bin/
 COPY --from=runc          /build/ /usr/local/bin/
 COPY --from=containerd    /build/ /usr/local/bin/
 COPY --from=rootlesskit   /build/ /usr/local/bin/
-COPY --from=vpnkit        /build/ /usr/local/bin/
+COPY --from=vpnkit        /       /usr/local/bin/
 COPY --from=gowinres      /build/ /usr/local/bin/
 WORKDIR /go/src/github.com/docker/docker
 
