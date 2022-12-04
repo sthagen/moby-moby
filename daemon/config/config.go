@@ -168,12 +168,6 @@ type CommonConfig struct {
 	// Proxies holds the proxies that are configured for the daemon.
 	Proxies `json:"proxies"`
 
-	// TrustKeyPath is used to generate the daemon ID and for signing schema 1 manifests
-	// when pushing to a registry which does not support schema 2. This field is marked as
-	// deprecated because schema 1 manifests are deprecated in favor of schema 2 and the
-	// daemon ID will use a dedicated identifier not shared with exported signatures.
-	TrustKeyPath string `json:"deprecated-key-path,omitempty"`
-
 	// LiveRestoreEnabled determines whether we should keep containers
 	// alive upon daemon shutdown/start
 	LiveRestoreEnabled bool `json:"live-restore,omitempty"`
@@ -313,13 +307,13 @@ func New() (*Config, error) {
 func GetConflictFreeLabels(labels []string) ([]string, error) {
 	labelMap := map[string]string{}
 	for _, label := range labels {
-		stringSlice := strings.SplitN(label, "=", 2)
-		if len(stringSlice) > 1 {
+		key, val, ok := strings.Cut(label, "=")
+		if ok {
 			// If there is a conflict we will return an error
-			if v, ok := labelMap[stringSlice[0]]; ok && v != stringSlice[1] {
-				return nil, errors.Errorf("conflict labels for %s=%s and %s=%s", stringSlice[0], stringSlice[1], stringSlice[0], v)
+			if v, ok := labelMap[key]; ok && v != val {
+				return nil, errors.Errorf("conflict labels for %s=%s and %s=%s", key, val, key, v)
 			}
-			labelMap[stringSlice[0]] = stringSlice[1]
+			labelMap[key] = val
 		}
 	}
 
