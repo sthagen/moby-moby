@@ -34,6 +34,7 @@
 			"justincormack",
 			"kolyshkin",
 			"mhbauer",
+			"neersighted",
 			"runcom",
 			"samuelkarp",
 			"stevvooe",
@@ -63,10 +64,9 @@
 			"alexellis",
 			"andrewhsu",
 			"bsousaa",
+			"crazy-max",
 			"fntlnz",
 			"gianarb",
-			"ndeloof",
-			"neersighted",
 			"olljanat",
 			"programmerq",
 			"ripcurld",
@@ -335,6 +335,11 @@
 	Email = "cpuguy83@gmail.com"
 	GitHub = "cpuguy83"
 
+	[people.crazy-max]
+	Name = "Kevin Alvarez"
+	Email = "contact@crazymax.dev"
+	GitHub = "crazy-max"
+
 	[people.crosbymichael]
 	Name = "Michael Crosby"
 	Email = "crosbymichael@gmail.com"
@@ -439,11 +444,6 @@
 	Name = "Jana Radhakrishnan"
 	Email = "mrjana@docker.com"
 	GitHub = "mrjana"
-
-	[people.ndeloof]
-	Name = "Nicolas De Loof"
-	Email = "nicolas.deloof@gmail.com"
-	GitHub = "ndeloof"
 
 	[people.neersighted]
 	Name = "Bjorn Neergaard"
