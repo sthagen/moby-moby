@@ -13,7 +13,7 @@ on:
   pull_request:
 
 env:
-  BUNDLES_OUTPUT: ./bundles
+  DESTDIR: ./build
 
 jobs:
   validate-dco:
@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: binary
-          path: ${{ env.BUNDLES_OUTPUT }}
+          path: ${{ env.DESTDIR }}
           if-no-files-found: error
           retention-days: 1
 
@@ -71,7 +71,7 @@ jobs:
         run: |
           # FIXME(thaJeztah) temporarily overriding version to use for tests; remove with the next release of buildkit
           # echo "BUILDKIT_REF=$(./hack/buildkit-ref)" >> $GITHUB_ENV
-          echo "BUILDKIT_REF=0bfcd83e6db95e6c6877ee6e5224b994cea62ba1" >> $GITHUB_ENV
+          echo "BUILDKIT_REF=d77361423c88cc2a0d19e285ec3599022e92571f" >> $GITHUB_ENV
         working-directory: moby
       -
         name: Checkout BuildKit ${{ env.BUILDKIT_REF }}
@@ -106,7 +106,7 @@ jobs:
         env:
           CONTEXT: "."
           TEST_DOCKERD: "1"
-          TEST_DOCKERD_BINARY: "./build/moby/binary-daemon/dockerd"
+          TEST_DOCKERD_BINARY: "./build/moby/dockerd"
           TESTPKGS: "./${{ matrix.pkg }}"
           TESTFLAGS: "-v --parallel=1 --timeout=30m --run=//worker=dockerd$"
         working-directory: buildkit

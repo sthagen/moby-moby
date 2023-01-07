@@ -24,11 +24,11 @@ import (
 
 // ErrImageDoesNotExist is error returned when no image can be found for a reference.
 type ErrImageDoesNotExist struct {
-	ref reference.Reference
+	Ref reference.Reference
 }
 
 func (e ErrImageDoesNotExist) Error() string {
-	ref := e.ref
+	ref := e.Ref
 	if named, ok := ref.(reference.Named); ok {
 		ref = reference.TagNameOnly(named)
 	}
@@ -49,7 +49,7 @@ type manifest struct {
 func (i *ImageService) manifestMatchesPlatform(ctx context.Context, img *image.Image, platform specs.Platform) (bool, error) {
 	logger := logrus.WithField("image", img.ID).WithField("desiredPlatform", platforms.Format(platform))
 
-	ls, leaseErr := i.leases.ListResources(ctx, leases.Lease{ID: imageKey(img.ID().Digest())})
+	ls, leaseErr := i.leases.ListResources(ctx, leases.Lease{ID: imageKey(img.ID().String())})
 	if leaseErr != nil {
 		logger.WithError(leaseErr).Error("Error looking up image leases")
 		return false, leaseErr
@@ -176,6 +176,7 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 			return nil, err
 		}
 		img.Details = &image.Details{
+			References:  i.referenceStore.References(img.ID().Digest()),
 			Size:        size,
 			Metadata:    layerMetadata,
 			Driver:      i.layerStore.DriverName(),
@@ -230,17 +231,15 @@ func (i *ImageService) getImage(ctx context.Context, refOrID string, options ima
 		if !ok {
 			return nil, ErrImageDoesNotExist{ref}
 		}
-		id := image.IDFromDigest(digested.Digest())
-		if img, err := i.imageStore.Get(id); err == nil {
+		if img, err := i.imageStore.Get(image.ID(digested.Digest())); err == nil {
 			return img, nil
 		}
 		return nil, ErrImageDoesNotExist{ref}
 	}
 
-	if digest, err := i.referenceStore.Get(namedRef); err == nil {
+	if dgst, err := i.referenceStore.Get(namedRef); err == nil {
 		// Search the image stores to get the operating system, defaulting to host OS.
-		id := image.IDFromDigest(digest)
-		if img, err := i.imageStore.Get(id); err == nil {
+		if img, err := i.imageStore.Get(image.ID(dgst)); err == nil {
 			return img, nil
 		}
 	}
