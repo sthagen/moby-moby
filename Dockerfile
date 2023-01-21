@@ -547,10 +547,17 @@ WORKDIR /go/src/github.com/docker/docker
 ENV GO111MODULE=off
 ENV CGO_ENABLED=1
 ARG DEBIAN_FRONTEND
+RUN --mount=type=cache,sharing=locked,id=moby-build-aptlib,target=/var/lib/apt \
+    --mount=type=cache,sharing=locked,id=moby-build-aptcache,target=/var/cache/apt \
+        apt-get update && apt-get install --no-install-recommends -y \
+            clang \
+            lld \
+            llvm
 ARG TARGETPLATFORM
 RUN --mount=type=cache,sharing=locked,id=moby-build-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-build-aptcache,target=/var/cache/apt \
         xx-apt-get install --no-install-recommends -y \
+            dpkg-dev \
             gcc \
             libapparmor-dev \
             libc6-dev \
@@ -572,6 +579,12 @@ ARG PACKAGER_NAME
 # PREFIX overrides DEST dir in make.sh script otherwise it fails because of
 # read only mount in current work dir
 ENV PREFIX=/tmp
+RUN <<EOT
+  # in bullseye arm64 target does not link with lld so configure it to use ld instead
+  if [ "$(xx-info arch)" = "arm64" ]; then
+    XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple
+  fi
+EOT
 RUN --mount=type=bind,target=. \
     --mount=type=tmpfs,target=cli/winresources/dockerd \
     --mount=type=tmpfs,target=cli/winresources/docker-proxy \
@@ -579,7 +592,7 @@ RUN --mount=type=bind,target=. \
   set -e
   target=$([ "$DOCKER_STATIC" = "1" ] && echo "binary" || echo "dynbinary")
   xx-go --wrap
-  ./hack/make.sh $target
+  PKG_CONFIG=$(xx-go env PKG_CONFIG) ./hack/make.sh $target
   xx-verify $([ "$DOCKER_STATIC" = "1" ] && echo "--static") /tmp/bundles/${target}-daemon/dockerd$([ "$(xx-info os)" = "windows" ] && echo ".exe")
   xx-verify $([ "$DOCKER_STATIC" = "1" ] && echo "--static") /tmp/bundles/${target}-daemon/docker-proxy$([ "$(xx-info os)" = "windows" ] && echo ".exe")
   mkdir /build
@@ -605,6 +618,20 @@ COPY --from=rootlesskit   /build/ /
 COPY --from=containerutil /build/ /
 COPY --from=vpnkit        /       /
 COPY --from=build         /build  /
+
+# smoke tests
+# usage:
+# > docker buildx bake binary-smoketest
+FROM --platform=$TARGETPLATFORM base AS smoketest
+WORKDIR /usr/local/bin
+COPY --from=build /build .
+RUN <<EOT
+  set -ex
+  file dockerd
+  dockerd --version
+  file docker-proxy
+  docker-proxy --version
+EOT
 
 # usage:
 # > make shell
