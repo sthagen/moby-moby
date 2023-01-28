@@ -17,10 +17,7 @@ import (
 )
 
 const (
-	networkType  = "overlay"
-	vethPrefix   = "veth"
-	vethLen      = 7
-	secureOption = "encrypted"
+	networkType = "overlay"
 )
 
 type driver struct {
@@ -33,8 +30,8 @@ type driver struct {
 	sync.Mutex
 }
 
-// Init registers a new instance of overlay driver
-func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
+// Register registers a new instance of the overlay driver.
+func Register(r driverapi.Registerer, config map[string]interface{}) error {
 	c := driverapi.Capability{
 		DataScope:         datastore.GlobalScope,
 		ConnectivityScope: datastore.GlobalScope,
@@ -71,7 +68,7 @@ func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
 
 	d.restoreHNSNetworks()
 
-	return dc.RegisterDriver(networkType, d, c)
+	return r.RegisterDriver(networkType, d, c)
 }
 
 func (d *driver) restoreHNSNetworks() error {

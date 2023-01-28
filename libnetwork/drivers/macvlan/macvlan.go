@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	vethLen             = 7
 	containerVethPrefix = "eth"
 	vethPrefix          = "veth"
+	vethLen             = len(vethPrefix) + 7
 	driverName          = "macvlan"      // driver type name
 	modePrivate         = "private"      // macvlan mode private
 	modeVepa            = "vepa"         // macvlan mode vepa
@@ -56,8 +56,8 @@ type network struct {
 	sync.Mutex
 }
 
-// Init initializes and registers the libnetwork macvlan driver
-func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
+// Register initializes and registers the libnetwork macvlan driver
+func Register(r driverapi.Registerer, config map[string]interface{}) error {
 	c := driverapi.Capability{
 		DataScope:         datastore.LocalScope,
 		ConnectivityScope: datastore.GlobalScope,
@@ -69,7 +69,7 @@ func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
 		return err
 	}
 
-	return dc.RegisterDriver(driverName, d, c)
+	return r.RegisterDriver(driverName, d, c)
 }
 
 func (d *driver) NetworkAllocate(id string, option map[string]string, ipV4Data, ipV6Data []driverapi.IPAMData) (map[string]string, error) {
