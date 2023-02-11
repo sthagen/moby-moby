@@ -37,12 +37,15 @@ type ImageService interface {
 	CountImages() int
 	ImagesPrune(ctx context.Context, pruneFilters filters.Args) (*types.ImagesPruneReport, error)
 	ImportImage(ctx context.Context, ref reference.Named, platform *v1.Platform, msg string, layerReader io.Reader, changes []string) (image.ID, error)
-	TagImage(imageName, repository, tag string) (string, error)
-	TagImageWithReference(imageID image.ID, newTag reference.Named) error
+	TagImage(ctx context.Context, imageID image.ID, newTag reference.Named) error
 	GetImage(ctx context.Context, refOrID string, options imagetype.GetImageOpts) (*image.Image, error)
 	ImageHistory(ctx context.Context, name string) ([]*imagetype.HistoryResponseItem, error)
 	CommitImage(ctx context.Context, c backend.CommitConfig) (image.ID, error)
 	SquashImage(id, parent string) (string, error)
+
+	// Containerd related methods
+
+	PrepareSnapshot(ctx context.Context, id string, image string, platform *v1.Platform) error
 
 	// Layers
 
@@ -54,6 +57,8 @@ type ImageService interface {
 	ReleaseLayer(rwlayer layer.RWLayer) error
 	LayerDiskUsage(ctx context.Context) (int64, error)
 	GetContainerLayerSize(containerID string) (int64, int64)
+	Mount(ctx context.Context, container *container.Container) error
+	Unmount(ctx context.Context, container *container.Container) error
 
 	// Windows specific
 

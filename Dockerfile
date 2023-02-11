@@ -192,7 +192,7 @@ RUN git init . && git remote add origin "https://github.com/containerd/container
 # When updating the binary version you may also need to update the vendor
 # version to pick up bug fixes or new APIs, however, usually the Go packages
 # are built from a commit from the master branch.
-ARG CONTAINERD_VERSION=v1.7.0-beta.1
+ARG CONTAINERD_VERSION=v1.7.0-beta.3
 RUN git fetch -q --depth 1 origin "${CONTAINERD_VERSION}" +refs/tags/*:refs/tags/* && git checkout -q FETCH_HEAD
 
 FROM base AS containerd-build
@@ -460,6 +460,8 @@ COPY --from=containerutil /build/ /usr/local/bin/
 COPY --from=crun          /build/ /usr/local/bin/
 COPY hack/dockerfile/etc/docker/  /etc/docker/
 ENV PATH=/usr/local/cli:$PATH
+ENV CONTAINERD_ADDRESS=/run/docker/containerd/containerd.sock
+ENV CONTAINERD_NAMESPACE=moby
 WORKDIR /go/src/github.com/docker/docker
 VOLUME /var/lib/docker
 VOLUME /home/unprivilegeduser/.local/share/docker
@@ -488,6 +490,9 @@ RUN ln -sfv /go/src/github.com/docker/docker/.bashrc ~/.bashrc
 RUN echo "source /usr/share/bash-completion/bash_completion" >> /etc/bash.bashrc
 RUN ln -s /usr/local/completion/bash/docker /etc/bash_completion.d/docker
 RUN ldconfig
+# Set dev environment as safe git directory to prevent "dubious ownership" errors
+# when bind-mounting the source into the dev-container. See https://github.com/moby/moby/pull/44930
+RUN git config --global --add safe.directory $GOPATH/src/github.com/docker/docker
 # This should only install packages that are specifically needed for the dev environment and nothing else
 # Do you really need to add another package here? Can it be done in a different build stage?
 RUN --mount=type=cache,sharing=locked,id=moby-dev-aptlib,target=/var/lib/apt \

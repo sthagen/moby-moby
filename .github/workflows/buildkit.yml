@@ -9,7 +9,7 @@ on:
   push:
     branches:
       - 'master'
-      - '[0-9]+.[0-9]{2}'
+      - '[0-9]+.[0-9]+'
   pull_request:
 
 env:
@@ -69,15 +69,14 @@ jobs:
       -
         name: BuildKit ref
         run: |
-          # FIXME(thaJeztah) temporarily overriding version to use for tests; remove with the next release of buildkit
-          # echo "BUILDKIT_REF=$(./hack/buildkit-ref)" >> $GITHUB_ENV
-          echo "BUILDKIT_REF=3a391492c9d0b7428b6dcaa18c5aa3b5951fdacd" >> $GITHUB_ENV
+          echo "BUILDKIT_REPO=moby/buildkit" >> $GITHUB_ENV
+          echo "BUILDKIT_REF=$(./hack/buildkit-ref)" >> $GITHUB_ENV
         working-directory: moby
       -
         name: Checkout BuildKit ${{ env.BUILDKIT_REF }}
         uses: actions/checkout@v3
         with:
-          repository: "moby/buildkit"
+          repository: ${{ env.BUILDKIT_REPO }}
           ref: ${{ env.BUILDKIT_REF }}
           path: buildkit
       -
