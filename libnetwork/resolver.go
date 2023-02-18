@@ -93,10 +93,6 @@ type resolver struct {
 	startCh       chan struct{}
 }
 
-func init() {
-	rand.Seed(time.Now().Unix())
-}
-
 // NewResolver creates a new instance of the Resolver
 func NewResolver(address string, proxyDNS bool, backend DNSBackend) Resolver {
 	return &resolver{
@@ -210,9 +206,17 @@ func setCommonFlags(msg *dns.Msg) {
 	msg.RecursionAvailable = true
 }
 
+//nolint:gosec // The RNG is not used in a security-sensitive context.
+var (
+	shuffleRNG   = rand.New(rand.NewSource(time.Now().Unix()))
+	shuffleRNGMu sync.Mutex
+)
+
 func shuffleAddr(addr []net.IP) []net.IP {
+	shuffleRNGMu.Lock()
+	defer shuffleRNGMu.Unlock()
 	for i := len(addr) - 1; i > 0; i-- {
-		r := rand.Intn(i + 1) //nolint:gosec // gosec complains about the use of rand here. It should be fine.
+		r := shuffleRNG.Intn(i + 1) //nolint:gosec // gosec complains about the use of rand here. It should be fine.
 		addr[i], addr[r] = addr[r], addr[i]
 	}
 	return addr
@@ -394,7 +398,7 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 	}
 
 	if err != nil {
-		logrus.WithError(err).Errorf("[resolver] failed to handle query: %s (%s) from %s", queryName, dns.TypeToString[queryType], extConn.LocalAddr().String())
+		logrus.WithError(err).Errorf("[resolver] failed to handle query: %s (%s)", queryName, dns.TypeToString[queryType])
 		return
 	}
 
