@@ -17,7 +17,6 @@ import (
 
 	"github.com/containerd/containerd/runtime/v2/shim"
 	"github.com/docker/docker/opts"
-	"github.com/docker/docker/pkg/authorization"
 	"github.com/docker/docker/registry"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
@@ -126,6 +125,8 @@ type NetworkConfig struct {
 	DefaultAddressPools opts.PoolsOpt `json:"default-address-pools,omitempty"`
 	// NetworkControlPlaneMTU allows to specify the control plane MTU, this will allow to optimize the network use in some components
 	NetworkControlPlaneMTU int `json:"network-control-plane-mtu,omitempty"`
+	// Default options for newly created networks
+	DefaultNetworkOpts map[string]map[string]string `json:"default-network-opts,omitempty"`
 }
 
 // TLSOptions defines TLS configuration for the daemon server.
@@ -150,23 +151,22 @@ type DNSConfig struct {
 // It includes json tags to deserialize configuration from a file
 // using the same names that the flags in the command line use.
 type CommonConfig struct {
-	AuthzMiddleware       *authorization.Middleware `json:"-"`
-	AuthorizationPlugins  []string                  `json:"authorization-plugins,omitempty"` // AuthorizationPlugins holds list of authorization plugins
-	AutoRestart           bool                      `json:"-"`
-	Context               map[string][]string       `json:"-"`
-	DisableBridge         bool                      `json:"-"`
-	ExecOptions           []string                  `json:"exec-opts,omitempty"`
-	GraphDriver           string                    `json:"storage-driver,omitempty"`
-	GraphOptions          []string                  `json:"storage-opts,omitempty"`
-	Labels                []string                  `json:"labels,omitempty"`
-	Mtu                   int                       `json:"mtu,omitempty"`
-	NetworkDiagnosticPort int                       `json:"network-diagnostic-port,omitempty"`
-	Pidfile               string                    `json:"pidfile,omitempty"`
-	RawLogs               bool                      `json:"raw-logs,omitempty"`
-	Root                  string                    `json:"data-root,omitempty"`
-	ExecRoot              string                    `json:"exec-root,omitempty"`
-	SocketGroup           string                    `json:"group,omitempty"`
-	CorsHeaders           string                    `json:"api-cors-header,omitempty"`
+	AuthorizationPlugins  []string            `json:"authorization-plugins,omitempty"` // AuthorizationPlugins holds list of authorization plugins
+	AutoRestart           bool                `json:"-"`
+	Context               map[string][]string `json:"-"`
+	DisableBridge         bool                `json:"-"`
+	ExecOptions           []string            `json:"exec-opts,omitempty"`
+	GraphDriver           string              `json:"storage-driver,omitempty"`
+	GraphOptions          []string            `json:"storage-opts,omitempty"`
+	Labels                []string            `json:"labels,omitempty"`
+	Mtu                   int                 `json:"mtu,omitempty"`
+	NetworkDiagnosticPort int                 `json:"network-diagnostic-port,omitempty"`
+	Pidfile               string              `json:"pidfile,omitempty"`
+	RawLogs               bool                `json:"raw-logs,omitempty"`
+	Root                  string              `json:"data-root,omitempty"`
+	ExecRoot              string              `json:"exec-root,omitempty"`
+	SocketGroup           string              `json:"group,omitempty"`
+	CorsHeaders           string              `json:"api-cors-header,omitempty"`
 
 	// Proxies holds the proxies that are configured for the daemon.
 	Proxies `json:"proxies"`
@@ -289,6 +289,7 @@ func New() (*Config, error) {
 			Mtu:                    DefaultNetworkMtu,
 			NetworkConfig: NetworkConfig{
 				NetworkControlPlaneMTU: DefaultNetworkMtu,
+				DefaultNetworkOpts:     make(map[string]map[string]string),
 			},
 			ContainerdNamespace:       DefaultContainersNamespace,
 			ContainerdPluginNamespace: DefaultPluginNamespace,

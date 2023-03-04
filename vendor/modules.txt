@@ -33,7 +33,7 @@ github.com/Microsoft/go-winio/pkg/fs
 github.com/Microsoft/go-winio/pkg/guid
 github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.9.6
+# github.com/Microsoft/hcsshim v0.9.7
 ## explicit; go 1.13
 github.com/Microsoft/hcsshim
 github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options
@@ -207,7 +207,7 @@ github.com/containerd/cgroups/v2/stats
 # github.com/containerd/console v1.0.3
 ## explicit; go 1.13
 github.com/containerd/console
-# github.com/containerd/containerd v1.6.18
+# github.com/containerd/containerd v1.6.19
 ## explicit; go 1.17
 github.com/containerd/containerd
 github.com/containerd/containerd/api/events
@@ -259,6 +259,7 @@ github.com/containerd/containerd/pkg/apparmor
 github.com/containerd/containerd/pkg/cap
 github.com/containerd/containerd/pkg/dialer
 github.com/containerd/containerd/pkg/kmutex
+github.com/containerd/containerd/pkg/runtimeoptions/v1
 github.com/containerd/containerd/pkg/seccomp
 github.com/containerd/containerd/pkg/shutdown
 github.com/containerd/containerd/pkg/snapshotters
@@ -541,7 +542,7 @@ github.com/mistifyio/go-zfs
 # github.com/mitchellh/hashstructure/v2 v2.0.2
 ## explicit; go 1.14
 github.com/mitchellh/hashstructure/v2
-# github.com/moby/buildkit v0.11.3
+# github.com/moby/buildkit v0.11.4-0.20230228113103-218e934edfba
 ## explicit; go 1.18
 github.com/moby/buildkit/api/services/control
 github.com/moby/buildkit/api/types

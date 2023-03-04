@@ -65,7 +65,7 @@ type DaemonCli struct {
 	configFile *string
 	flags      *pflag.FlagSet
 
-	api             *apiserver.Server
+	api             apiserver.Server
 	d               *daemon.Daemon
 	authzMiddleware *authorization.Middleware // authzMiddleware enables to dynamically reload the authorization plugins
 }
@@ -80,7 +80,7 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 		return err
 	}
 
-	serverConfig, err := newAPIServerConfig(cli.Config)
+	tlsConfig, err := newAPIServerTLSConfig(cli.Config)
 	if err != nil {
 		return err
 	}
@@ -161,9 +161,7 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 		}
 	}
 
-	cli.api = apiserver.New(serverConfig)
-
-	hosts, err := loadListeners(cli, serverConfig)
+	hosts, err := loadListeners(cli, tlsConfig)
 	if err != nil {
 		return errors.Wrap(err, "failed to load listeners")
 	}
@@ -192,11 +190,9 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 
 	pluginStore := plugin.NewStore()
 
-	if err := cli.initMiddlewares(cli.api, serverConfig, pluginStore); err != nil {
-		logrus.Fatalf("Error creating middlewares: %v", err)
-	}
+	cli.authzMiddleware = initMiddlewares(&cli.api, cli.Config, pluginStore)
 
-	d, err := daemon.NewDaemon(ctx, cli.Config, pluginStore)
+	d, err := daemon.NewDaemon(ctx, cli.Config, pluginStore, cli.authzMiddleware)
 	if err != nil {
 		return errors.Wrap(err, "failed to start daemon")
 	}
@@ -230,7 +226,7 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 	if err != nil {
 		return err
 	}
-	routerOptions.api = cli.api
+	routerOptions.api = &cli.api
 	routerOptions.cluster = c
 
 	initRouter(routerOptions)
@@ -239,18 +235,16 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 
 	cli.setupConfigReloadTrap()
 
-	// The serve API routine never exits unless an error occurs
-	// We need to start it as a goroutine and wait on it so
-	// daemon doesn't exit
-	serveAPIWait := make(chan error)
-	go cli.api.Wait(serveAPIWait)
-
 	// after the daemon is done setting up we can notify systemd api
 	notifyReady()
 
-	// Daemon is fully initialized and handling API traffic
-	// Wait for serve API to complete
-	errAPI := <-serveAPIWait
+	// Daemon is fully initialized. Start handling API traffic
+	// and wait for serve API to complete.
+	errAPI := cli.api.Serve()
+	if errAPI != nil {
+		logrus.WithError(errAPI).Error("ServeAPI error")
+	}
+
 	c.Cleanup()
 
 	// notify systemd that we're shutting down
@@ -545,11 +539,10 @@ func initRouter(opts routerOptions) {
 	opts.api.InitRouter(routers...)
 }
 
-// TODO: remove this from cli and return the authzMiddleware
-func (cli *DaemonCli) initMiddlewares(s *apiserver.Server, cfg *apiserver.Config, pluginStore plugingetter.PluginGetter) error {
-	v := cfg.Version
+func initMiddlewares(s *apiserver.Server, cfg *config.Config, pluginStore plugingetter.PluginGetter) *authorization.Middleware {
+	v := dockerversion.Version
 
-	exp := middleware.NewExperimentalMiddleware(cli.Config.Experimental)
+	exp := middleware.NewExperimentalMiddleware(cfg.Experimental)
 	s.UseMiddleware(exp)
 
 	vm := middleware.NewVersionMiddleware(v, api.DefaultVersion, api.MinVersion)
@@ -560,10 +553,9 @@ func (cli *DaemonCli) initMiddlewares(s *apiserver.Server, cfg *apiserver.Config
 		s.UseMiddleware(c)
 	}
 
-	cli.authzMiddleware = authorization.NewMiddleware(cli.Config.AuthorizationPlugins, pluginStore)
-	cli.Config.AuthzMiddleware = cli.authzMiddleware
-	s.UseMiddleware(cli.authzMiddleware)
-	return nil
+	authzMiddleware := authorization.NewMiddleware(cfg.AuthorizationPlugins, pluginStore)
+	s.UseMiddleware(authzMiddleware)
+	return authzMiddleware
 }
 
 func (cli *DaemonCli) getContainerdDaemonOpts() ([]supervisor.DaemonOpt, error) {
@@ -597,7 +589,7 @@ func (cli *DaemonCli) getContainerdDaemonOpts() ([]supervisor.DaemonOpt, error) 
 	return opts, nil
 }
 
-func newAPIServerConfig(config *config.Config) (*apiserver.Config, error) {
+func newAPIServerTLSConfig(config *config.Config) (*tls.Config, error) {
 	var tlsConfig *tls.Config
 	if config.TLS != nil && *config.TLS {
 		var (
@@ -620,13 +612,7 @@ func newAPIServerConfig(config *config.Config) (*apiserver.Config, error) {
 		}
 	}
 
-	return &apiserver.Config{
-		SocketGroup: config.SocketGroup,
-		Version:     dockerversion.Version,
-		CorsHeaders: config.CorsHeaders,
-		TLSConfig:   tlsConfig,
-		Hosts:       config.Hosts,
-	}, nil
+	return tlsConfig, nil
 }
 
 // checkTLSAuthOK checks basically for an explicitly disabled TLS/TLSVerify
@@ -654,21 +640,21 @@ func checkTLSAuthOK(c *config.Config) bool {
 	return true
 }
 
-func loadListeners(cli *DaemonCli, serverConfig *apiserver.Config) ([]string, error) {
-	if len(serverConfig.Hosts) == 0 {
+func loadListeners(cli *DaemonCli, tlsConfig *tls.Config) ([]string, error) {
+	if len(cli.Config.Hosts) == 0 {
 		return nil, errors.New("no hosts configured")
 	}
 	var hosts []string
 
-	for i := 0; i < len(serverConfig.Hosts); i++ {
-		protoAddr := serverConfig.Hosts[i]
+	for i := 0; i < len(cli.Config.Hosts); i++ {
+		protoAddr := cli.Config.Hosts[i]
 		proto, addr, ok := strings.Cut(protoAddr, "://")
 		if !ok || addr == "" {
 			return nil, fmt.Errorf("bad format %s, expected PROTO://ADDR", protoAddr)
 		}
 
 		// It's a bad idea to bind to TCP without tlsverify.
-		authEnabled := serverConfig.TLSConfig != nil && serverConfig.TLSConfig.ClientAuth == tls.RequireAndVerifyClientCert
+		authEnabled := tlsConfig != nil && tlsConfig.ClientAuth == tls.RequireAndVerifyClientCert
 		if proto == "tcp" && !authEnabled {
 			logrus.WithField("host", protoAddr).Warn("Binding to IP address without --tlsverify is insecure and gives root access on this machine to everyone who has access to your network.")
 			logrus.WithField("host", protoAddr).Warn("Binding to an IP address, even on localhost, can also give access to scripts run in a browser. Be safe out there!")
@@ -712,7 +698,7 @@ func loadListeners(cli *DaemonCli, serverConfig *apiserver.Config) ([]string, er
 				return nil, err
 			}
 		}
-		ls, err := listeners.Init(proto, addr, serverConfig.SocketGroup, serverConfig.TLSConfig)
+		ls, err := listeners.Init(proto, addr, cli.Config.SocketGroup, tlsConfig)
 		if err != nil {
 			return nil, err
 		}
