@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/docker/distribution"
 	"github.com/docker/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/backend"
@@ -73,9 +72,8 @@ type ImageService interface {
 
 	// Other
 
-	GetRepository(ctx context.Context, ref reference.Named, authConfig *registry.AuthConfig) (distribution.Repository, error)
 	DistributionServices() images.DistributionServices
-	Children(id image.ID) []image.ID
+	Children(ctx context.Context, id image.ID) ([]image.ID, error)
 	Cleanup() error
 	StorageDriver() string
 	UpdateConfig(maxDownloads, maxUploads int)

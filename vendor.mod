@@ -25,7 +25,7 @@ require (
 	github.com/bsphere/le_go v0.0.0-20200109081728-fc06dab2caa8
 	github.com/cloudflare/cfssl v0.0.0-20180323000720-5d63dbd981b5
 	github.com/containerd/cgroups/v3 v3.0.1
-	github.com/containerd/containerd v1.6.20
+	github.com/containerd/containerd v1.6.21-0.20230406162538-c0efc63d3907
 	github.com/containerd/continuity v0.3.0
 	github.com/containerd/fifo v1.1.0
 	github.com/containerd/typeurl/v2 v2.1.0
@@ -52,11 +52,11 @@ require (
 	github.com/hashicorp/memberlist v0.4.0
 	github.com/hashicorp/serf v0.8.5
 	github.com/imdario/mergo v0.3.13
-	github.com/ishidawataru/sctp v0.0.0-20210707070123-9a39160e9062
+	github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2
 	github.com/klauspost/compress v1.16.3
 	github.com/miekg/dns v1.1.43
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible
-	github.com/moby/buildkit v0.11.5
+	github.com/moby/buildkit v0.11.5 // IMPORTANT: when updating, also update the version in builder/builder-next/worker/worker.go
 	github.com/moby/ipvs v1.1.0
 	github.com/moby/locker v1.0.1
 	github.com/moby/patternmatcher v0.5.0
@@ -71,7 +71,7 @@ require (
 	github.com/morikuni/aec v1.0.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b
-	github.com/opencontainers/runc v1.1.5
+	github.com/opencontainers/runc v1.1.6
 	github.com/opencontainers/runtime-spec v1.1.0-rc.1
 	github.com/opencontainers/selinux v1.11.0
 	github.com/pelletier/go-toml v1.9.5
@@ -87,10 +87,10 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/vishvananda/netns v0.0.2
 	go.etcd.io/bbolt v1.3.7
-	golang.org/x/net v0.7.0
+	golang.org/x/net v0.8.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.6.0
-	golang.org/x/text v0.7.0
+	golang.org/x/text v0.8.0
 	golang.org/x/time v0.3.0
 	google.golang.org/genproto v0.0.0-20220706185917-7780775163c4
 	google.golang.org/grpc v1.50.1
