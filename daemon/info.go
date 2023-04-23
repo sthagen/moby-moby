@@ -128,7 +128,7 @@ WARNING: The %s storage-driver is deprecated, and will be removed in a future re
          Refer to the documentation for more information: https://docs.docker.com/go/storage-driver/`
 
 	switch v.Driver {
-	case "aufs", "devicemapper", "overlay":
+	case "devicemapper", "overlay":
 		v.Warnings = append(v.Warnings, fmt.Sprintf(warnMsg, v.Driver))
 	}
 
@@ -169,6 +169,9 @@ func (daemon *Daemon) fillSecurityOptions(v *types.Info, sysInfo *sysinfo.SysInf
 	}
 	if daemon.cgroupNamespacesEnabled(sysInfo) {
 		securityOptions = append(securityOptions, "name=cgroupns")
+	}
+	if daemon.noNewPrivileges() {
+		securityOptions = append(securityOptions, "name=no-new-privileges")
 	}
 
 	v.SecurityOptions = securityOptions
