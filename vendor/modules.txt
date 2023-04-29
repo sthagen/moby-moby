@@ -350,7 +350,7 @@ github.com/coreos/go-systemd/v22/activation
 github.com/coreos/go-systemd/v22/daemon
 github.com/coreos/go-systemd/v22/dbus
 github.com/coreos/go-systemd/v22/journal
-# github.com/creack/pty v1.1.11
+# github.com/creack/pty v1.1.18
 ## explicit; go 1.13
 github.com/creack/pty
 # github.com/cyphar/filepath-securejoin v0.2.3
@@ -576,7 +576,7 @@ github.com/mistifyio/go-zfs
 # github.com/mitchellh/hashstructure/v2 v2.0.2
 ## explicit; go 1.14
 github.com/mitchellh/hashstructure/v2
-# github.com/moby/buildkit v0.11.5
+# github.com/moby/buildkit v0.11.6
 ## explicit; go 1.18
 github.com/moby/buildkit/api/services/control
 github.com/moby/buildkit/api/types
@@ -735,7 +735,7 @@ github.com/moby/patternmatcher
 # github.com/moby/pubsub v1.0.0
 ## explicit; go 1.19
 github.com/moby/pubsub
-# github.com/moby/swarmkit/v2 v2.0.0-20230315203717-e28e8ba9bc83
+# github.com/moby/swarmkit/v2 v2.0.0-20230406225228-75e92ce14ff7
 ## explicit; go 1.18
 github.com/moby/swarmkit/v2/agent
 github.com/moby/swarmkit/v2/agent/configs

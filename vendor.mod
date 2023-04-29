@@ -30,7 +30,7 @@ require (
 	github.com/containerd/fifo v1.1.0
 	github.com/containerd/typeurl/v2 v2.1.0
 	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/creack/pty v1.1.11
+	github.com/creack/pty v1.1.18
 	github.com/deckarep/golang-set/v2 v2.3.0
 	github.com/docker/distribution v2.8.1+incompatible
 	github.com/docker/go-connections v0.4.0
@@ -56,12 +56,12 @@ require (
 	github.com/klauspost/compress v1.16.3
 	github.com/miekg/dns v1.1.43
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible
-	github.com/moby/buildkit v0.11.5 // IMPORTANT: when updating, also update the version in builder/builder-next/worker/worker.go
+	github.com/moby/buildkit v0.11.6 // IMPORTANT: when updating, also update the version in builder/builder-next/worker/worker.go
 	github.com/moby/ipvs v1.1.0
 	github.com/moby/locker v1.0.1
 	github.com/moby/patternmatcher v0.5.0
 	github.com/moby/pubsub v1.0.0
-	github.com/moby/swarmkit/v2 v2.0.0-20230315203717-e28e8ba9bc83
+	github.com/moby/swarmkit/v2 v2.0.0-20230406225228-75e92ce14ff7
 	github.com/moby/sys/mount v0.3.3
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/moby/sys/sequential v0.5.0

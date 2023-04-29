@@ -77,7 +77,7 @@ func (i *ImageService) Images(ctx context.Context, opts types.ImageListOptions) 
 		layers    map[digest.Digest]int
 	)
 	if opts.SharedSize {
-		root = make([]*[]digest.Digest, len(imgs))
+		root = make([]*[]digest.Digest, 0, len(imgs))
 		layers = make(map[digest.Digest]int)
 	}
 
@@ -525,7 +525,7 @@ func getManifestPlatform(ctx context.Context, store content.Provider, manifestDe
 	return platforms.Normalize(platform), nil
 }
 
-// isImageManifests returns true if the manifest has any layer that is a known image layer.
+// isImageManifest returns true if the manifest has any layer that is a known image layer.
 // Some manifests use the image media type for compatibility, even if they are not a real image.
 func isImageManifest(mfst v1.Manifest) bool {
 	for _, l := range mfst.Layers {
