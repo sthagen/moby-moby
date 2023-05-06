@@ -25,7 +25,7 @@ require (
 	github.com/bsphere/le_go v0.0.0-20200109081728-fc06dab2caa8
 	github.com/cloudflare/cfssl v0.0.0-20180323000720-5d63dbd981b5
 	github.com/containerd/cgroups/v3 v3.0.1
-	github.com/containerd/containerd v1.6.21-0.20230406162538-c0efc63d3907
+	github.com/containerd/containerd v1.6.21
 	github.com/containerd/continuity v0.3.0
 	github.com/containerd/fifo v1.1.0
 	github.com/containerd/typeurl/v2 v2.1.0
@@ -67,12 +67,12 @@ require (
 	github.com/moby/sys/sequential v0.5.0
 	github.com/moby/sys/signal v0.7.0
 	github.com/moby/sys/symlink v0.2.0
-	github.com/moby/term v0.0.0-20221120202655-abb19827d345
+	github.com/moby/term v0.5.0
 	github.com/morikuni/aec v1.0.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b
-	github.com/opencontainers/runc v1.1.6
-	github.com/opencontainers/runtime-spec v1.1.0-rc.1
+	github.com/opencontainers/runc v1.1.7
+	github.com/opencontainers/runtime-spec v1.1.0-rc.2
 	github.com/opencontainers/selinux v1.11.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
