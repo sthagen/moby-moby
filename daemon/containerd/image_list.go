@@ -250,7 +250,6 @@ func (i *ImageService) singlePlatformImage(ctx context.Context, contentStore con
 		RepoDigests: repoDigests,
 		RepoTags:    repoTags,
 		Size:        totalSize,
-		VirtualSize: totalSize, //nolint:staticcheck // ignore SA1019: field is deprecated, but still set on API < v1.44.
 		// -1 indicates that the value has not been set (avoids ambiguity
 		// between 0 (default) and "not set". We cannot use a pointer (nil)
 		// for this, as the JSON representation uses "omitempty", which would
@@ -525,9 +524,12 @@ func getManifestPlatform(ctx context.Context, store content.Provider, manifestDe
 	return platforms.Normalize(platform), nil
 }
 
-// isImageManifest returns true if the manifest has any layer that is a known image layer.
+// isImageManifest returns true if the manifest has no layers or any of its layers is a known image layer.
 // Some manifests use the image media type for compatibility, even if they are not a real image.
 func isImageManifest(mfst ocispec.Manifest) bool {
+	if len(mfst.Layers) == 0 {
+		return true
+	}
 	for _, l := range mfst.Layers {
 		if images.IsLayerType(l.MediaType) {
 			return true

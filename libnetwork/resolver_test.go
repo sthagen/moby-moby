@@ -13,21 +13,28 @@ import (
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 	"gotest.tools/v3/assert"
+	is "gotest.tools/v3/assert/cmp"
 	"gotest.tools/v3/skip"
 )
 
 // a simple/null address type that will be used to fake a local address for unit testing
 type tstaddr struct {
+	network string
 }
 
-func (a *tstaddr) Network() string { return "tcp" }
+func (a *tstaddr) Network() string {
+	if a.network != "" {
+		return a.network
+	}
+	return "tcp"
+}
 
-func (a *tstaddr) String() string { return "127.0.0.1" }
+func (a *tstaddr) String() string { return "(fake)" }
 
 // a simple writer that implements dns.ResponseWriter for unit testing purposes
 type tstwriter struct {
-	localAddr net.Addr
-	msg       *dns.Msg
+	network string
+	msg     *dns.Msg
 }
 
 func (w *tstwriter) WriteMsg(m *dns.Msg) (err error) {
@@ -38,13 +45,12 @@ func (w *tstwriter) WriteMsg(m *dns.Msg) (err error) {
 func (w *tstwriter) Write(m []byte) (int, error) { return 0, nil }
 
 func (w *tstwriter) LocalAddr() net.Addr {
-	if w.localAddr != nil {
-		return w.localAddr
-	}
-	return new(tstaddr)
+	return &tstaddr{network: w.network}
 }
 
-func (w *tstwriter) RemoteAddr() net.Addr { return new(tstaddr) }
+func (w *tstwriter) RemoteAddr() net.Addr {
+	return &tstaddr{network: w.network}
+}
 
 func (w *tstwriter) TsigStatus() error { return nil }
 
@@ -371,15 +377,14 @@ func TestOversizedDNSReply(t *testing.T) {
 
 	srvAddr := srv.LocalAddr().(*net.UDPAddr)
 	rsv := NewResolver("", true, noopDNSBackend{})
+	// The resolver logs lots of valuable info at level debug. Redirect it
+	// to t.Log() so the log spew is emitted only if the test fails.
+	rsv.logger = testLogger(t)
 	rsv.SetExtServers([]extDNSEntry{
 		{IPStr: srvAddr.IP.String(), port: uint16(srvAddr.Port), HostLoopback: true},
 	})
 
-	// The resolver logs lots of valuable info at level debug. Redirect it
-	// to t.Log() so the log spew is emitted only if the test fails.
-	defer redirectLogrusTo(t)()
-
-	w := &tstwriter{localAddr: srv.LocalAddr()}
+	w := &tstwriter{network: srvAddr.Network()}
 	q := new(dns.Msg).SetQuestion("s3.amazonaws.com.", dns.TypeA)
 	rsv.serveDNS(w, q)
 	resp := w.GetResponse()
@@ -390,14 +395,11 @@ func TestOversizedDNSReply(t *testing.T) {
 	checkDNSRRType(t, resp.Answer[0].Header().Rrtype, dns.TypeA)
 }
 
-func redirectLogrusTo(t *testing.T) func() {
-	oldLevel, oldOut := logrus.StandardLogger().Level, logrus.StandardLogger().Out
-	logrus.StandardLogger().SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(tlogWriter{t})
-	return func() {
-		logrus.StandardLogger().SetLevel(oldLevel)
-		logrus.StandardLogger().SetOutput(oldOut)
-	}
+func testLogger(t *testing.T) *logrus.Logger {
+	logger := logrus.New()
+	logger.SetLevel(logrus.DebugLevel)
+	logger.SetOutput(tlogWriter{t})
+	return logger
 }
 
 type tlogWriter struct{ t *testing.T }
@@ -439,9 +441,8 @@ func TestReplySERVFAIL(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			defer redirectLogrusTo(t)
-
 			rsv := NewResolver("", tt.proxyDNS, badSRVDNSBackend{})
+			rsv.logger = testLogger(t)
 			w := &tstwriter{}
 			rsv.serveDNS(w, tt.q)
 			resp := w.GetResponse()
@@ -456,4 +457,68 @@ type badSRVDNSBackend struct{ noopDNSBackend }
 
 func (badSRVDNSBackend) ResolveService(name string) ([]*net.SRV, []net.IP) {
 	return []*net.SRV{nil, nil, nil}, nil // Mismatched slice lengths
+}
+
+func TestProxyNXDOMAIN(t *testing.T) {
+	mockSOA, err := dns.NewRR(".	86367	IN	SOA	a.root-servers.net. nstld.verisign-grs.com. 2023051800 1800 900 604800 86400\n")
+	assert.NilError(t, err)
+	assert.Assert(t, mockSOA != nil)
+
+	serveStarted := make(chan struct{})
+	srv := &dns.Server{
+		Net:  "udp",
+		Addr: "127.0.0.1:0",
+		Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
+			msg := new(dns.Msg).SetRcode(r, dns.RcodeNameError)
+			msg.Ns = append(msg.Ns, dns.Copy(mockSOA))
+			w.WriteMsg(msg)
+		}),
+		NotifyStartedFunc: func() { close(serveStarted) },
+	}
+	serveDone := make(chan error, 1)
+	go func() {
+		defer close(serveDone)
+		serveDone <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveDone:
+		t.Fatal(err)
+	case <-serveStarted:
+	}
+
+	defer func() {
+		if err := srv.Shutdown(); err != nil {
+			t.Error(err)
+		}
+		<-serveDone
+	}()
+
+	// This test, by virtue of running a server and client in different
+	// not-locked-to-thread goroutines, happens to be a good canary for
+	// whether we are leaking unlocked OS threads set to the wrong network
+	// namespace. Make a best-effort attempt to detect that situation so we
+	// are not left chasing ghosts next time.
+	testutils.AssertSocketSameNetNS(t, srv.PacketConn.(*net.UDPConn))
+
+	srvAddr := srv.PacketConn.LocalAddr().(*net.UDPAddr)
+	rsv := NewResolver("", true, noopDNSBackend{})
+	rsv.SetExtServers([]extDNSEntry{
+		{IPStr: srvAddr.IP.String(), port: uint16(srvAddr.Port), HostLoopback: true},
+	})
+
+	// The resolver logs lots of valuable info at level debug. Redirect it
+	// to t.Log() so the log spew is emitted only if the test fails.
+	rsv.logger = testLogger(t)
+
+	w := &tstwriter{network: srvAddr.Network()}
+	q := new(dns.Msg).SetQuestion("example.net.", dns.TypeA)
+	rsv.serveDNS(w, q)
+	resp := w.GetResponse()
+	checkNonNullResponse(t, resp)
+	t.Log("Response:\n" + resp.String())
+	checkDNSResponseCode(t, resp, dns.RcodeNameError)
+	assert.Assert(t, is.Len(resp.Answer, 0))
+	assert.Assert(t, is.Len(resp.Ns, 1))
+	assert.Equal(t, resp.Ns[0].String(), mockSOA.String())
 }

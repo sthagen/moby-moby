@@ -263,6 +263,10 @@ func (ir *imageRouter) getImagesByName(ctx context.Context, w http.ResponseWrite
 		return err
 	}
 
+	version := httputils.VersionFromContext(ctx)
+	if versions.LessThan(version, "1.44") {
+		imageInspect.VirtualSize = imageInspect.Size //nolint:staticcheck // ignore SA1019: field is deprecated, but still set on API < v1.44.
+	}
 	return httputils.WriteJSON(w, http.StatusOK, imageInspect)
 }
 
@@ -282,6 +286,14 @@ func (ir *imageRouter) toImageInspect(img *image.Image) (*types.ImageInspect, er
 		comment = img.History[len(img.History)-1].Comment
 	}
 
+	// Make sure we output empty arrays instead of nil.
+	if repoTags == nil {
+		repoTags = []string{}
+	}
+	if repoDigests == nil {
+		repoDigests = []string{}
+	}
+
 	return &types.ImageInspect{
 		ID:              img.ID().String(),
 		RepoTags:        repoTags,
@@ -299,7 +311,6 @@ func (ir *imageRouter) toImageInspect(img *image.Image) (*types.ImageInspect, er
 		Os:              img.OperatingSystem(),
 		OsVersion:       img.OSVersion,
 		Size:            img.Details.Size,
-		VirtualSize:     img.Details.Size, //nolint:staticcheck // ignore SA1019: field is deprecated, but still set on API < v1.44.
 		GraphDriver: types.GraphDriverData{
 			Name: img.Details.Driver,
 			Data: img.Details.Metadata,
@@ -357,6 +368,7 @@ func (ir *imageRouter) getImagesJSON(ctx context.Context, w http.ResponseWriter,
 	}
 
 	useNone := versions.LessThan(version, "1.43")
+	withVirtualSize := versions.LessThan(version, "1.44")
 	for _, img := range images {
 		if useNone {
 			if len(img.RepoTags) == 0 && len(img.RepoDigests) == 0 {
@@ -370,6 +382,9 @@ func (ir *imageRouter) getImagesJSON(ctx context.Context, w http.ResponseWriter,
 			if img.RepoDigests == nil {
 				img.RepoDigests = []string{}
 			}
+		}
+		if withVirtualSize {
+			img.VirtualSize = img.Size //nolint:staticcheck // ignore SA1019: field is deprecated, but still set on API < v1.44.
 		}
 	}
 
