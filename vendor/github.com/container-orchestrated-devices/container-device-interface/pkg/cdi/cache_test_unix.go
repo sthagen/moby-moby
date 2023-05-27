@@ -1,7 +1,8 @@
-//+build !windows
+//go:build !windows
+// +build !windows
 
 /*
-   Copyright The containerd Authors.
+   Copyright © 2021 The CDI Authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -16,23 +17,10 @@
    limitations under the License.
 */
 
-package runc
+package cdi
 
-import (
-	"golang.org/x/sys/unix"
-)
+import "syscall"
 
-// Runc is the client to the runc cli
-type Runc struct {
-	//If command is empty, DefaultCommand is used
-	Command       string
-	Root          string
-	Debug         bool
-	Log           string
-	LogFormat     Format
-	PdeathSignal  unix.Signal
-	Setpgid       bool
-	Criu          string
-	SystemdCgroup bool
-	Rootless      *bool // nil stands for "auto"
+func osSync() {
+	syscall.Sync()
 }

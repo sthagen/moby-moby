@@ -274,12 +274,6 @@ func programInput(vni uint32, add bool) error {
 		return a
 	}
 
-	// Accept incoming VXLAN datagrams for the VNI which were subjected to IPSec processing.
-	// Append to the bottom of the chain to give administrator-configured rules precedence.
-	if err := iptable.ProgramRule(iptables.Filter, chain, action(iptables.Append), rule("ipsec", "ACCEPT")); err != nil {
-		return fmt.Errorf("could not %s input accept rule: %w", msg, err)
-	}
-
 	// Drop incoming VXLAN datagrams for the VNI which were received in cleartext.
 	// Insert at the top of the chain so the packets are dropped even if an
 	// administrator-configured rule exists which would otherwise unconditionally
@@ -374,8 +368,8 @@ func programSP(fSA *netlink.XfrmState, rSA *netlink.XfrmState, add bool) error {
 		Src:     &net.IPNet{IP: s, Mask: fullMask},
 		Dst:     &net.IPNet{IP: d, Mask: fullMask},
 		Dir:     netlink.XFRM_DIR_OUT,
-		Proto:   17,
-		DstPort: 4789,
+		Proto:   syscall.IPPROTO_UDP,
+		DstPort: int(overlayutils.VXLANUDPPort()),
 		Mark:    &spMark,
 		Tmpls: []netlink.XfrmPolicyTmpl{
 			{
@@ -588,8 +582,8 @@ func updateNodeKey(lIP, aIP, rIP net.IP, idxs []*spi, curKeys []*key, newIdx, pr
 			Src:     &net.IPNet{IP: s, Mask: fullMask},
 			Dst:     &net.IPNet{IP: d, Mask: fullMask},
 			Dir:     netlink.XFRM_DIR_OUT,
-			Proto:   17,
-			DstPort: 4789,
+			Proto:   syscall.IPPROTO_UDP,
+			DstPort: int(overlayutils.VXLANUDPPort()),
 			Mark:    &spMark,
 			Tmpls: []netlink.XfrmPolicyTmpl{
 				{

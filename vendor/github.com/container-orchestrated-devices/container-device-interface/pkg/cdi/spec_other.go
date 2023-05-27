@@ -1,5 +1,8 @@
+//go:build !linux
+// +build !linux
+
 /*
-   Copyright The containerd Authors.
+   Copyright © 2022 The CDI Authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,18 +17,23 @@
    limitations under the License.
 */
 
-package runc
+package cdi
 
-// Runc is the client to the runc cli
-type Runc struct {
-	//If command is empty, DefaultCommand is used
-	Command       string
-	Root          string
-	Debug         bool
-	Log           string
-	LogFormat     Format
-	Setpgid       bool
-	Criu          string
-	SystemdCgroup bool
-	Rootless      *bool // nil stands for "auto"
+import (
+	"os"
+	"path/filepath"
+)
+
+// Rename src to dst, both relative to the directory dir. If dst already exists
+// refuse renaming with an error unless overwrite is explicitly asked for.
+func renameIn(dir, src, dst string, overwrite bool) error {
+	src = filepath.Join(dir, src)
+	dst = filepath.Join(dir, dst)
+
+	_, err := os.Stat(dst)
+	if err == nil && !overwrite {
+		return os.ErrExist
+	}
+
+	return os.Rename(src, dst)
 }

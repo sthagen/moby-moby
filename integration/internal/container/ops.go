@@ -94,6 +94,13 @@ func WithBind(src, target string) func(*TestContainerConfig) {
 	}
 }
 
+// WithBindRaw sets the bind mount of the container
+func WithBindRaw(s string) func(*TestContainerConfig) {
+	return func(c *TestContainerConfig) {
+		c.HostConfig.Binds = append(c.HostConfig.Binds, s)
+	}
+}
+
 // WithTmpfs sets a target path in the container to a tmpfs, with optional options
 // (separated with a colon).
 func WithTmpfs(targetAndOpts string) func(config *TestContainerConfig) {
@@ -235,5 +242,16 @@ func WithConsoleSize(width, height uint) func(*TestContainerConfig) {
 func WithRuntime(name string) func(*TestContainerConfig) {
 	return func(c *TestContainerConfig) {
 		c.HostConfig.Runtime = name
+	}
+}
+
+// WithCDIDevices sets the CDI devices to use to start the container
+func WithCDIDevices(cdiDeviceNames ...string) func(*TestContainerConfig) {
+	return func(c *TestContainerConfig) {
+		request := containertypes.DeviceRequest{
+			Driver:    "cdi",
+			DeviceIDs: cdiDeviceNames,
+		}
+		c.HostConfig.DeviceRequests = append(c.HostConfig.DeviceRequests, request)
 	}
 }
