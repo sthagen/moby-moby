@@ -1,26 +1,32 @@
 package containerd
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net/http"
 
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/containerd/containerd/version"
 	registrytypes "github.com/docker/docker/api/types/registry"
+	"github.com/docker/docker/dockerversion"
+	"github.com/docker/docker/pkg/useragent"
 	"github.com/docker/docker/registry"
 	"github.com/sirupsen/logrus"
 )
 
-func (i *ImageService) newResolverFromAuthConfig(authConfig *registrytypes.AuthConfig) (remotes.Resolver, docker.StatusTracker) {
+func (i *ImageService) newResolverFromAuthConfig(ctx context.Context, authConfig *registrytypes.AuthConfig) (remotes.Resolver, docker.StatusTracker) {
 	tracker := docker.NewInMemoryTracker()
-	hostsFn := i.registryHosts.RegistryHosts()
 
-	hosts := hostsWrapper(hostsFn, authConfig, i.registryService)
+	hosts := hostsWrapper(i.registryHosts, authConfig, i.registryService)
+	headers := http.Header{}
+	headers.Set("User-Agent", dockerversion.DockerUserAgent(ctx, useragent.VersionInfo{Name: "containerd-client", Version: version.Version}, useragent.VersionInfo{Name: "storage-driver", Version: i.snapshotter}))
 
 	return docker.NewResolver(docker.ResolverOptions{
 		Hosts:   hosts,
 		Tracker: tracker,
+		Headers: headers,
 	}), tracker
 }
 
