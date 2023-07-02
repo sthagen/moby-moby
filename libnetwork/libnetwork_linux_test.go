@@ -2,6 +2,7 @@ package libnetwork_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork"
 	"github.com/docker/docker/libnetwork/ipamapi"
 	"github.com/docker/docker/libnetwork/netlabel"
@@ -20,7 +22,6 @@ import (
 	"github.com/docker/docker/libnetwork/types"
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sync/errgroup"
@@ -491,7 +492,7 @@ func externalKeyTest(t *testing.T, reexec bool) {
 	} else {
 		defer func() {
 			if err := extOsBox.Destroy(); err != nil {
-				logrus.Warnf("Failed to remove os sandbox: %v", err)
+				log.G(context.TODO()).Warnf("Failed to remove os sandbox: %v", err)
 			}
 		}()
 	}
@@ -564,7 +565,7 @@ func TestEnableIPv6(t *testing.T) {
 	}
 	// cleanup
 	defer func() {
-		if err := os.WriteFile("/etc/resolv.conf", resolvConfSystem, 0644); err != nil {
+		if err := os.WriteFile("/etc/resolv.conf", resolvConfSystem, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -592,7 +593,7 @@ func TestEnableIPv6(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf, 0644); err != nil {
+	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -641,7 +642,7 @@ func TestResolvConfHost(t *testing.T) {
 	}
 	// cleanup
 	defer func() {
-		if err := os.WriteFile("/etc/resolv.conf", resolvConfSystem, 0644); err != nil {
+		if err := os.WriteFile("/etc/resolv.conf", resolvConfSystem, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -652,7 +653,7 @@ func TestResolvConfHost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf, 0644); err != nil {
+	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -688,7 +689,7 @@ func TestResolvConfHost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmode := (os.FileMode)(0644)
+	fmode := (os.FileMode)(0o644)
 	if finfo.Mode() != fmode {
 		t.Fatalf("Expected file mode %s, got %s", fmode.String(), finfo.Mode().String())
 	}
@@ -719,7 +720,7 @@ func TestResolvConf(t *testing.T) {
 	}
 	// cleanup
 	defer func() {
-		if err := os.WriteFile("/etc/resolv.conf", resolvConfSystem, 0644); err != nil {
+		if err := os.WriteFile("/etc/resolv.conf", resolvConfSystem, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -744,7 +745,7 @@ func TestResolvConf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf1, 0644); err != nil {
+	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf1, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -771,7 +772,7 @@ func TestResolvConf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmode := (os.FileMode)(0644)
+	fmode := (os.FileMode)(0o644)
 	if finfo.Mode() != fmode {
 		t.Fatalf("Expected file mode %s, got %s", fmode.String(), finfo.Mode().String())
 	}
@@ -791,7 +792,7 @@ func TestResolvConf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf2, 0644); err != nil {
+	if err := os.WriteFile("/etc/resolv.conf", tmpResolvConf2, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -819,7 +820,7 @@ func TestResolvConf(t *testing.T) {
 		t.Fatalf("Expected:\n%s\nGot:\n%s", string(expectedResolvConf1), string(content))
 	}
 
-	if err := os.WriteFile(resolvConfPath, tmpResolvConf3, 0644); err != nil {
+	if err := os.WriteFile(resolvConfPath, tmpResolvConf3, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1051,7 +1052,7 @@ func isV6Listenable() bool {
 			// When the kernel was booted with `ipv6.disable=1`,
 			// we get err "listen tcp6 [::1]:0: socket: address family not supported by protocol"
 			// https://github.com/moby/moby/issues/42288
-			logrus.Debugf("port_mapping: v6Listenable=false (%v)", err)
+			log.G(context.TODO()).Debugf("port_mapping: v6Listenable=false (%v)", err)
 		} else {
 			v6ListenableCached = true
 			ln.Close()

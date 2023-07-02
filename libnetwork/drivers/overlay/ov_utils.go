@@ -3,13 +3,14 @@
 package overlay
 
 import (
+	"context"
 	"fmt"
 	"syscall"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/drivers/overlay/overlayutils"
 	"github.com/docker/docker/libnetwork/netutils"
 	"github.com/docker/docker/libnetwork/ns"
-	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 )
@@ -46,7 +47,8 @@ func createVethPair() (string, string, error) {
 	// Generate and add the interface pipe host <-> sandbox
 	veth := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{Name: name1, TxQLen: 0},
-		PeerName:  name2}
+		PeerName:  name2,
+	}
 	if err := nlh.LinkAdd(veth); err != nil {
 		return "", "", fmt.Errorf("error creating veth pair: %v", err)
 	}
@@ -101,7 +103,7 @@ func deleteVxlanByVNI(path string, vni uint32) error {
 		defer nlh.Close()
 		err = nlh.SetSocketTimeout(soTimeout)
 		if err != nil {
-			logrus.Warnf("Failed to set the timeout on the netlink handle sockets for vxlan deletion: %v", err)
+			log.G(context.TODO()).Warnf("Failed to set the timeout on the netlink handle sockets for vxlan deletion: %v", err)
 		}
 	}
 

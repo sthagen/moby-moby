@@ -1,19 +1,20 @@
 package ovmanager
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
 	"github.com/docker/docker/libnetwork/idm"
 	"github.com/docker/docker/libnetwork/netlabel"
 	"github.com/docker/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -25,7 +26,6 @@ const (
 type networkTable map[string]*network
 
 type driver struct {
-	config   map[string]interface{}
 	networks networkTable
 	vxlanIdm *idm.Idm
 	sync.Mutex
@@ -47,21 +47,15 @@ type network struct {
 // Init registers a new instance of the overlay driver.
 //
 // Deprecated: use [Register].
-func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
-	return Register(dc, config)
+func Init(dc driverapi.DriverCallback, _ map[string]interface{}) error {
+	return Register(dc, nil)
 }
 
 // Register registers a new instance of the overlay driver.
-func Register(r driverapi.DriverCallback, config map[string]interface{}) error {
+func Register(r driverapi.Registerer, _ map[string]interface{}) error {
 	var err error
-	c := driverapi.Capability{
-		DataScope:         datastore.GlobalScope,
-		ConnectivityScope: datastore.GlobalScope,
-	}
-
 	d := &driver{
 		networks: networkTable{},
-		config:   config,
 	}
 
 	d.vxlanIdm, err = idm.New(nil, "vxlan-id", 0, vxlanIDEnd)
@@ -69,7 +63,10 @@ func Register(r driverapi.DriverCallback, config map[string]interface{}) error {
 		return fmt.Errorf("failed to initialize vxlan id manager: %v", err)
 	}
 
-	return r.RegisterDriver(networkType, d, c)
+	return r.RegisterDriver(networkType, d, driverapi.Capability{
+		DataScope:         datastore.GlobalScope,
+		ConnectivityScope: datastore.GlobalScope,
+	})
 }
 
 func (d *driver) NetworkAllocate(id string, option map[string]string, ipV4Data, ipV6Data []driverapi.IPAMData) (map[string]string, error) {
@@ -91,7 +88,7 @@ func (d *driver) NetworkAllocate(id string, option map[string]string, ipV4Data, 
 	vxlanIDList := make([]uint32, 0, len(ipV4Data))
 	for key, val := range option {
 		if key == netlabel.OverlayVxlanIDList {
-			logrus.Debugf("overlay network option: %s", val)
+			log.G(context.TODO()).Debugf("overlay network option: %s", val)
 			valStrList := strings.Split(val, ",")
 			for _, idStr := range valStrList {
 				vni, err := strconv.Atoi(idStr)

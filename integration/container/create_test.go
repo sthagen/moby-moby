@@ -176,6 +176,7 @@ func TestCreateTmpfsMountsTarget(t *testing.T) {
 		assert.Check(t, errdefs.IsInvalidParameter(err))
 	}
 }
+
 func TestCreateWithCustomMaskedPaths(t *testing.T) {
 	skip.If(t, testEnv.DaemonInfo.OSType != "linux")
 
@@ -514,7 +515,7 @@ func TestCreatePlatformSpecificImageNoPlatform(t *testing.T) {
 	defer setupTest(t)()
 
 	skip.If(t, testEnv.DaemonInfo.Architecture == "arm", "test only makes sense to run on non-arm systems")
-	skip.If(t, testEnv.OSType != "linux", "test image is only available on linux")
+	skip.If(t, testEnv.DaemonInfo.OSType != "linux", "test image is only available on linux")
 	cli := testEnv.APIClient()
 
 	_, err := cli.ContainerCreate(

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/platforms"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
@@ -23,7 +24,6 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	archvariant "github.com/tonistiigi/go-archvariant"
 )
 
@@ -135,7 +135,7 @@ func (daemon *Daemon) create(ctx context.Context, daemonCfg *config.Config, opts
 		if daemon.UsesSnapshotter() {
 			imgManifest, err = daemon.imageService.GetImageManifest(ctx, opts.params.Config.Image, imagetypes.GetImageOpts{Platform: opts.params.Platform})
 			if err != nil {
-				logrus.WithError(err).Error("failed to find image manifest")
+				log.G(ctx).WithError(err).Error("failed to find image manifest")
 				return nil, err
 			}
 		}
@@ -171,7 +171,7 @@ func (daemon *Daemon) create(ctx context.Context, daemonCfg *config.Config, opts
 				RemoveVolume: true,
 			})
 			if err != nil {
-				logrus.WithError(err).Error("failed to cleanup container on create error")
+				log.G(ctx).WithError(err).Error("failed to cleanup container on create error")
 			}
 		}
 	}()
@@ -197,10 +197,10 @@ func (daemon *Daemon) create(ctx context.Context, daemonCfg *config.Config, opts
 	}
 
 	current := idtools.CurrentIdentity()
-	if err := idtools.MkdirAndChown(ctr.Root, 0710, idtools.Identity{UID: current.UID, GID: daemon.IdentityMapping().RootPair().GID}); err != nil {
+	if err := idtools.MkdirAndChown(ctr.Root, 0o710, idtools.Identity{UID: current.UID, GID: daemon.IdentityMapping().RootPair().GID}); err != nil {
 		return nil, err
 	}
-	if err := idtools.MkdirAndChown(ctr.CheckpointDir(), 0700, current); err != nil {
+	if err := idtools.MkdirAndChown(ctr.CheckpointDir(), 0o700, current); err != nil {
 		return nil, err
 	}
 

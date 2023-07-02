@@ -12,6 +12,7 @@
 package windows
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -20,13 +21,13 @@ import (
 	"sync"
 
 	"github.com/Microsoft/hcsshim"
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
 	"github.com/docker/docker/libnetwork/netlabel"
 	"github.com/docker/docker/libnetwork/portmapper"
 	"github.com/docker/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
 )
 
 // networkConfiguration for network specific configuration
@@ -325,7 +326,6 @@ func (d *driver) CreateNetwork(id string, option map[string]interface{}, nInfo d
 				Type: "VLAN",
 				VLAN: config.VLAN,
 			})
-
 			if err != nil {
 				return err
 			}
@@ -337,7 +337,6 @@ func (d *driver) CreateNetwork(id string, option map[string]interface{}, nInfo d
 				Type: "VSID",
 				VSID: config.VSID,
 			})
-
 			if err != nil {
 				return err
 			}
@@ -354,7 +353,7 @@ func (d *driver) CreateNetwork(id string, option map[string]interface{}, nInfo d
 		}
 
 		configuration := string(configurationb)
-		logrus.Debugf("HNSNetwork Request =%v Address Space=%v", configuration, subnets)
+		log.G(context.TODO()).Debugf("HNSNetwork Request =%v Address Space=%v", configuration, subnets)
 
 		hnsresponse, err := hcsshim.HNSNetworkRequest("POST", "", configuration)
 		if err != nil {
@@ -399,15 +398,15 @@ func (d *driver) CreateNetwork(id string, option map[string]interface{}, nInfo d
 		if endpoints, err := hcsshim.HNSListEndpointRequest(); err == nil {
 			for _, ep := range endpoints {
 				if ep.VirtualNetwork == config.HnsID {
-					logrus.Infof("Removing stale HNS endpoint %s", ep.Id)
+					log.G(context.TODO()).Infof("Removing stale HNS endpoint %s", ep.Id)
 					_, err = hcsshim.HNSEndpointRequest("DELETE", ep.Id, "")
 					if err != nil {
-						logrus.Warnf("Error removing HNS endpoint %s", ep.Id)
+						log.G(context.TODO()).Warnf("Error removing HNS endpoint %s", ep.Id)
 					}
 				}
 			}
 		} else {
-			logrus.Warnf("Error listing HNS endpoints for network %s", config.HnsID)
+			log.G(context.TODO()).Warnf("Error listing HNS endpoints for network %s", config.HnsID)
 		}
 
 		n.created = true
@@ -440,7 +439,7 @@ func (d *driver) DeleteNetwork(nid string) error {
 	// delele endpoints belong to this network
 	for _, ep := range n.endpoints {
 		if err := d.storeDelete(ep); err != nil {
-			logrus.Warnf("Failed to remove bridge endpoint %.7s from store: %v", ep.id, err)
+			log.G(context.TODO()).Warnf("Failed to remove bridge endpoint %.7s from store: %v", ep.id, err)
 		}
 	}
 
@@ -458,7 +457,6 @@ func convertQosPolicies(qosPolicies []types.QosPolicy) ([]json.RawMessage, error
 			Type:                            "QOS",
 			MaximumOutgoingBandwidthInBytes: elem.MaxEgressBandwidth,
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -495,7 +493,6 @@ func ConvertPortBindings(portBindings []types.PortBinding) ([]json.RawMessage, e
 			Protocol:             elem.Proto.String(),
 			ExternalPortReserved: true,
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -675,13 +672,13 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 
 	// overwrite the ep DisableDNS option if DisableGatewayDNS was set to true during the network creation option
 	if n.config.DisableGatewayDNS {
-		logrus.Debugf("n.config.DisableGatewayDNS[%v] overwrites epOption.DisableDNS[%v]", n.config.DisableGatewayDNS, epOption.DisableDNS)
+		log.G(context.TODO()).Debugf("n.config.DisableGatewayDNS[%v] overwrites epOption.DisableDNS[%v]", n.config.DisableGatewayDNS, epOption.DisableDNS)
 		epOption.DisableDNS = n.config.DisableGatewayDNS
 	}
 
 	if n.driver.name == "nat" && !epOption.DisableDNS {
 		endpointStruct.EnableInternalDNS = true
-		logrus.Debugf("endpointStruct.EnableInternalDNS =[%v]", endpointStruct.EnableInternalDNS)
+		log.G(context.TODO()).Debugf("endpointStruct.EnableInternalDNS =[%v]", endpointStruct.EnableInternalDNS)
 	}
 
 	endpointStruct.DisableICC = epOption.DisableICC
@@ -692,7 +689,6 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 			Policy:     hcsshim.Policy{Type: hcsshim.OutboundNat},
 			Exceptions: n.config.OutboundNatExceptions,
 		})
-
 		if err != nil {
 			return err
 		}
@@ -750,7 +746,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	}
 
 	if err = d.storeUpdate(endpoint); err != nil {
-		logrus.Errorf("Failed to save endpoint %.7s to store: %v", endpoint.id, err)
+		log.G(context.TODO()).Errorf("Failed to save endpoint %.7s to store: %v", endpoint.id, err)
 	}
 
 	return nil
@@ -781,7 +777,7 @@ func (d *driver) DeleteEndpoint(nid, eid string) error {
 	}
 
 	if err := d.storeDelete(ep); err != nil {
-		logrus.Warnf("Failed to remove bridge endpoint %.7s from store: %v", ep.id, err)
+		log.G(context.TODO()).Warnf("Failed to remove bridge endpoint %.7s from store: %v", ep.id, err)
 	}
 	return nil
 }

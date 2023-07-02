@@ -33,8 +33,7 @@ FROM --platform=$BUILDPLATFORM ${GOLANG_IMAGE} AS base
 COPY --from=xx / /
 RUN echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 ARG APT_MIRROR
-RUN sed -ri "s/(httpredir|deb).debian.org/${APT_MIRROR:-deb.debian.org}/g" /etc/apt/sources.list \
- && sed -ri "s/(security).debian.org/${APT_MIRROR:-security.debian.org}/g" /etc/apt/sources.list
+RUN test -n "$APT_MIRROR" && sed -ri "s/(httpredir|deb|security).debian.org/${APT_MIRROR}/g" /etc/apt/sources.list || true
 ARG DEBIAN_FRONTEND
 RUN apt-get update && apt-get install --no-install-recommends -y file
 ENV GO111MODULE=off
@@ -255,9 +254,11 @@ COPY hack/dockerfile/cli.sh /download-or-build-cli.sh
 ARG DOCKERCLI_REPOSITORY
 ARG DOCKERCLI_VERSION
 ARG TARGETPLATFORM
-RUN --mount=type=cache,id=dockercli-git-$TARGETPLATFORM,target=./.git \
+RUN --mount=type=cache,id=dockercli-git-$TARGETPLATFORM,sharing=locked,target=./.git \
     --mount=type=cache,target=/root/.cache/go-build,id=dockercli-build-$TARGETPLATFORM \
-    /download-or-build-cli.sh ${DOCKERCLI_VERSION} ${DOCKERCLI_REPOSITORY} /build
+        rm -f ./.git/*.lock \
+     && /download-or-build-cli.sh ${DOCKERCLI_VERSION} ${DOCKERCLI_REPOSITORY} /build \
+     && /build/docker --version
 
 FROM base AS dockercli-integration
 WORKDIR /go/src/github.com/docker/cli
@@ -265,9 +266,11 @@ COPY hack/dockerfile/cli.sh /download-or-build-cli.sh
 ARG DOCKERCLI_INTEGRATION_REPOSITORY
 ARG DOCKERCLI_INTEGRATION_VERSION
 ARG TARGETPLATFORM
-RUN --mount=type=cache,id=dockercli-integration-git-$TARGETPLATFORM,target=./.git \
+RUN --mount=type=cache,id=dockercli-integration-git-$TARGETPLATFORM,sharing=locked,target=./.git \
     --mount=type=cache,target=/root/.cache/go-build,id=dockercli-integration-build-$TARGETPLATFORM \
-    /download-or-build-cli.sh ${DOCKERCLI_INTEGRATION_VERSION} ${DOCKERCLI_INTEGRATION_REPOSITORY} /build
+        rm -f ./.git/*.lock \
+     && /download-or-build-cli.sh ${DOCKERCLI_INTEGRATION_VERSION} ${DOCKERCLI_INTEGRATION_REPOSITORY} /build \
+     && /build/docker --version
 
 # runc
 FROM base AS runc-src

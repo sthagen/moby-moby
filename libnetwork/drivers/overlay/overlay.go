@@ -5,13 +5,14 @@ package overlay
 //go:generate protoc -I=. -I=../../../vendor/ --gogofaster_out=import_path=github.com/docker/docker/libnetwork/drivers/overlay:. overlay.proto
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -38,10 +39,6 @@ type driver struct {
 
 // Register registers a new instance of the overlay driver.
 func Register(r driverapi.Registerer, config map[string]interface{}) error {
-	c := driverapi.Capability{
-		DataScope:         datastore.GlobalScope,
-		ConnectivityScope: datastore.GlobalScope,
-	}
 	d := &driver{
 		networks: networkTable{},
 		peerDb: peerNetworkMap{
@@ -50,8 +47,10 @@ func Register(r driverapi.Registerer, config map[string]interface{}) error {
 		secMap: &encrMap{nodes: map[string][]*spi{}},
 		config: config,
 	}
-
-	return r.RegisterDriver(networkType, d, c)
+	return r.RegisterDriver(networkType, d, driverapi.Capability{
+		DataScope:         datastore.GlobalScope,
+		ConnectivityScope: datastore.GlobalScope,
+	})
 }
 
 func (d *driver) configure() error {
@@ -107,7 +106,7 @@ func (d *driver) DiscoverNew(dType discoverapi.DiscoveryType, data interface{}) 
 			keys = append(keys, k)
 		}
 		if err := d.setKeys(keys); err != nil {
-			logrus.Warn(err)
+			log.G(context.TODO()).Warn(err)
 		}
 	case discoverapi.EncryptionKeysUpdate:
 		var newKey, delKey, priKey *key

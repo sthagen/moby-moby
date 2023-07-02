@@ -52,7 +52,7 @@ func (s *DockerCLIBuildSuite) TestBuildJSONEmptyRun(c *testing.T) {
 func (s *DockerCLIBuildSuite) TestBuildShCmdJSONEntrypoint(c *testing.T) {
 	name := "testbuildshcmdjsonentrypoint"
 	expected := "/bin/sh -c echo test"
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = "cmd /S /C echo test"
 	}
 
@@ -90,7 +90,7 @@ func (s *DockerCLIBuildSuite) TestBuildEnvironmentReplacementVolume(c *testing.T
 
 	var volumePath string
 
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		volumePath = "c:/quux"
 	} else {
 		volumePath = "/quux"
@@ -145,7 +145,7 @@ func (s *DockerCLIBuildSuite) TestBuildEnvironmentReplacementWorkdir(c *testing.
 	res := inspectFieldJSON(c, name, "Config.WorkingDir")
 
 	expected := `"/work"`
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = `"C:\\work"`
 	}
 	if res != expected {
@@ -933,9 +933,7 @@ func (s *DockerCLIBuildSuite) TestBuildAddBadLinks(c *testing.T) {
 		ADD foo.txt /symlink/
 		`
 	targetFile := "foo.txt"
-	var (
-		name = "test-link-absolute"
-	)
+	name := "test-link-absolute"
 	ctx := fakecontext.New(c, "", fakecontext.WithDockerfile(dockerfile))
 	defer ctx.Close()
 
@@ -974,7 +972,7 @@ func (s *DockerCLIBuildSuite) TestBuildAddBadLinks(c *testing.T) {
 		Name:     "symlink",
 		Typeflag: tar.TypeSymlink,
 		Linkname: symlinkTarget,
-		Mode:     0755,
+		Mode:     0o755,
 		Uid:      0,
 		Gid:      0,
 	}
@@ -1061,7 +1059,7 @@ func (s *DockerCLIBuildSuite) TestBuildWithInaccessibleFilesInContext(c *testing
 		if err := os.Chown(pathToFileWithoutReadAccess, 0, 0); err != nil {
 			c.Fatalf("failed to chown file to root: %s", err)
 		}
-		if err := os.Chmod(pathToFileWithoutReadAccess, 0700); err != nil {
+		if err := os.Chmod(pathToFileWithoutReadAccess, 0o700); err != nil {
 			c.Fatalf("failed to chmod file to 700: %s", err)
 		}
 		result := icmd.RunCmd(icmd.Cmd{
@@ -1095,10 +1093,10 @@ func (s *DockerCLIBuildSuite) TestBuildWithInaccessibleFilesInContext(c *testing
 		if err := os.Chown(pathToDirectoryWithoutReadAccess, 0, 0); err != nil {
 			c.Fatalf("failed to chown directory to root: %s", err)
 		}
-		if err := os.Chmod(pathToDirectoryWithoutReadAccess, 0444); err != nil {
+		if err := os.Chmod(pathToDirectoryWithoutReadAccess, 0o444); err != nil {
 			c.Fatalf("failed to chmod directory to 444: %s", err)
 		}
-		if err := os.Chmod(pathToFileInDirectoryWithoutReadAccess, 0700); err != nil {
+		if err := os.Chmod(pathToFileInDirectoryWithoutReadAccess, 0o700); err != nil {
 			c.Fatalf("failed to chmod file to 700: %s", err)
 		}
 
@@ -1149,17 +1147,19 @@ func (s *DockerCLIBuildSuite) TestBuildWithInaccessibleFilesInContext(c *testing
 		if err := os.Chown(pathToDirectoryWithoutReadAccess, 0, 0); err != nil {
 			c.Fatalf("failed to chown directory to root: %s", err)
 		}
-		if err := os.Chmod(pathToDirectoryWithoutReadAccess, 0444); err != nil {
+		if err := os.Chmod(pathToDirectoryWithoutReadAccess, 0o444); err != nil {
 			c.Fatalf("failed to chmod directory to 444: %s", err)
 		}
-		if err := os.Chmod(pathToFileInDirectoryWithoutReadAccess, 0700); err != nil {
+		if err := os.Chmod(pathToFileInDirectoryWithoutReadAccess, 0o700); err != nil {
 			c.Fatalf("failed to chmod file to 700: %s", err)
 		}
 
 		result := icmd.RunCmd(icmd.Cmd{
 			Dir: ctx.Dir,
-			Command: []string{"su", "unprivilegeduser", "-c",
-				fmt.Sprintf("%s build -t %s .", dockerBinary, name)},
+			Command: []string{
+				"su", "unprivilegeduser", "-c",
+				fmt.Sprintf("%s build -t %s .", dockerBinary, name),
+			},
 		})
 		result.Assert(c, icmd.Expected{})
 	}
@@ -1298,7 +1298,7 @@ func (s *DockerCLIBuildSuite) TestBuildRelativeWorkdir(c *testing.T) {
 		expectedFinal string
 	)
 
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected1 = `C:/`
 		expected2 = `C:/test1`
 		expected3 = `C:/test2`
@@ -1377,7 +1377,7 @@ func (s *DockerCLIBuildSuite) TestBuildWorkdirWithEnvVariables(c *testing.T) {
 	name := "testbuildworkdirwithenvvariables"
 
 	var expected string
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = `C:\test1\test2`
 	} else {
 		expected = `/test1/test2`
@@ -1399,7 +1399,7 @@ func (s *DockerCLIBuildSuite) TestBuildRelativeCopy(c *testing.T) {
 	testRequires(c, NotUserNamespace)
 
 	var expected string
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = `C:/test1/test2`
 	} else {
 		expected = `/test1/test2`
@@ -2061,7 +2061,7 @@ func (s *DockerCLIBuildSuite) TestBuildDockerfileStdin(c *testing.T) {
 	name := "stdindockerfile"
 	tmpDir, err := os.MkdirTemp("", "fake-context")
 	assert.NilError(c, err)
-	err = os.WriteFile(filepath.Join(tmpDir, "foo"), []byte("bar"), 0600)
+	err = os.WriteFile(filepath.Join(tmpDir, "foo"), []byte("bar"), 0o600)
 	assert.NilError(c, err)
 
 	icmd.RunCmd(icmd.Cmd{
@@ -2106,7 +2106,7 @@ func (s *DockerCLIBuildSuite) testBuildDockerfileStdinNoExtraFiles(c *testing.T,
 	defer os.RemoveAll(tmpDir)
 
 	writeFile := func(filename, content string) {
-		err = os.WriteFile(filepath.Join(tmpDir, filename), []byte(content), 0600)
+		err = os.WriteFile(filepath.Join(tmpDir, filename), []byte(content), 0o600)
 		assert.NilError(c, err)
 	}
 
@@ -2230,7 +2230,7 @@ func (s *DockerCLIBuildSuite) TestBuildOnBuild(c *testing.T) {
 // gh #2446
 func (s *DockerCLIBuildSuite) TestBuildAddToSymlinkDest(c *testing.T) {
 	makeLink := `ln -s /foo /bar`
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		makeLink = `mklink /D C:\bar C:\foo`
 	}
 	name := "testbuildaddtosymlinkdest"
@@ -2856,7 +2856,7 @@ RUN cat /existing-directory-trailing-slash/test/foo | grep Hi`
 			c.Fatalf("failed to close tar archive: %v", err)
 		}
 
-		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 			c.Fatalf("failed to open destination dockerfile: %v", err)
 		}
 		return fakecontext.New(c, tmpDir)
@@ -2905,7 +2905,7 @@ ADD test.tar /`
 			c.Fatalf("failed to truncate tar archive: %v", err)
 		}
 
-		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 			c.Fatalf("failed to open destination dockerfile: %v", err)
 		}
 		return fakecontext.New(c, tmpDir)
@@ -2968,7 +2968,7 @@ func (s *DockerCLIBuildSuite) TestBuildAddTarXz(c *testing.T) {
 			Command: []string{"xz", "-k", "test.tar"},
 			Dir:     tmpDir,
 		}).Assert(c, icmd.Success)
-		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 			c.Fatalf("failed to open destination dockerfile: %v", err)
 		}
 		return fakecontext.New(c, tmpDir)
@@ -3020,7 +3020,7 @@ func (s *DockerCLIBuildSuite) TestBuildAddTarXzGz(c *testing.T) {
 			Command: []string{"gzip", "test.tar.xz"},
 			Dir:     tmpDir,
 		})
-		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 			c.Fatalf("failed to open destination dockerfile: %v", err)
 		}
 		return fakecontext.New(c, tmpDir)
@@ -3186,7 +3186,7 @@ func (s *DockerCLIBuildSuite) TestBuildCmdShDashC(c *testing.T) {
 
 	res := inspectFieldJSON(c, name, "Config.Cmd")
 	expected := `["/bin/sh","-c","echo cmd"]`
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = `["cmd /S /C echo cmd"]`
 	}
 	if res != expected {
@@ -3258,7 +3258,7 @@ func (s *DockerCLIBuildSuite) TestBuildEntrypointCanBeOverriddenByChildInspect(c
 		expected = `["/bin/sh","-c","echo quux"]`
 	)
 
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = `["cmd /S /C echo quux"]`
 	}
 
@@ -3328,7 +3328,7 @@ func (s *DockerCLIBuildSuite) TestBuildVerboseOut(c *testing.T) {
 	name := "testbuildverboseout"
 	expected := "\n123\n"
 
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = "\n123\r\n"
 	}
 
@@ -3344,7 +3344,7 @@ func (s *DockerCLIBuildSuite) TestBuildWithTabs(c *testing.T) {
 	res := inspectFieldJSON(c, name, "ContainerConfig.Cmd")
 	expected1 := `["/bin/sh","-c","echo\tone\t\ttwo"]`
 	expected2 := `["/bin/sh","-c","echo\u0009one\u0009\u0009two"]` // syntactically equivalent, and what Go 1.3 generates
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected1 = `["cmd /S /C echo\tone\t\ttwo"]`
 		expected2 = `["cmd /S /C echo\u0009one\u0009\u0009two"]` // syntactically equivalent, and what Go 1.3 generates
 	}
@@ -3542,7 +3542,7 @@ func (s *DockerCLIBuildSuite) TestBuildStderr(c *testing.T) {
 	result.Assert(c, icmd.Success)
 
 	// Windows to non-Windows should have a security warning
-	if runtime.GOOS == "windows" && testEnv.OSType != "windows" && !strings.Contains(result.Stdout(), "SECURITY WARNING:") {
+	if runtime.GOOS == "windows" && testEnv.DaemonInfo.OSType != "windows" && !strings.Contains(result.Stdout(), "SECURITY WARNING:") {
 		c.Fatalf("Stdout contains unexpected output: %q", result.Stdout())
 	}
 
@@ -3587,18 +3587,18 @@ func (s *DockerCLIBuildSuite) TestBuildSymlinkBreakout(c *testing.T) {
 
 	defer os.RemoveAll(tmpdir)
 	ctx := filepath.Join(tmpdir, "context")
-	if err := os.MkdirAll(ctx, 0755); err != nil {
+	if err := os.MkdirAll(ctx, 0o755); err != nil {
 		c.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(ctx, "Dockerfile"), []byte(`
 	from busybox
 	add symlink.tar /
 	add inject /symlink/
-	`), 0644); err != nil {
+	`), 0o644); err != nil {
 		c.Fatal(err)
 	}
 	inject := filepath.Join(ctx, "inject")
-	if err := os.WriteFile(inject, nil, 0644); err != nil {
+	if err := os.WriteFile(inject, nil, 0o644); err != nil {
 		c.Fatal(err)
 	}
 	f, err := os.Create(filepath.Join(ctx, "symlink.tar"))
@@ -3659,7 +3659,7 @@ func (s *DockerCLIBuildSuite) TestBuildVolumesRetainContents(c *testing.T) {
 		volName  = "/foo"
 	)
 
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		volName = "C:/foo"
 	}
 
@@ -3842,7 +3842,7 @@ RUN echo "  \
 
 	expected := "\n    foo  \n"
 	// Windows uses the builtin echo, which preserves quotes
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = "\"    foo  \""
 	}
 
@@ -3876,7 +3876,7 @@ func (s *DockerCLIBuildSuite) TestBuildMissingArgs(c *testing.T) {
 		"INSERT":     {},
 	}
 
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		skipCmds = map[string]struct{}{
 			"CMD":        {},
 			"RUN":        {},
@@ -4008,7 +4008,7 @@ func (s *DockerCLIBuildSuite) TestBuildRUNErrMsg(c *testing.T) {
 	name := "testbuildbadrunerrmsg"
 	shell := "/bin/sh -c"
 	exitCode := 127
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		shell = "cmd /S /C"
 		// architectural - Windows has to start the container to determine the exe is bad, Linux does not
 		exitCode = 1
@@ -4027,7 +4027,7 @@ func (s *DockerCLIBuildSuite) TestBuildRUNErrMsg(c *testing.T) {
 func (s *DockerCLIBuildSuite) TestBuildNullStringInAddCopyVolume(c *testing.T) {
 	name := "testbuildnullstringinaddcopyvolume"
 	volName := "nullvolume"
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		volName = `C:\\nullvolume`
 	}
 
@@ -4067,7 +4067,7 @@ func (s *DockerCLIBuildSuite) TestBuildBuildTimeArg(c *testing.T) {
 	envKey := "foo"
 	envVal := "bar"
 	var dockerfile string
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		// Bugs in Windows busybox port - use the default base image and native cmd stuff
 		dockerfile = fmt.Sprintf(`FROM `+minimalBaseImage()+`
 			ARG %s
@@ -4678,7 +4678,7 @@ func (s *DockerCLIBuildSuite) TestBuildMultiStageUnusedArg(c *testing.T) {
 func (s *DockerCLIBuildSuite) TestBuildNoNamedVolume(c *testing.T) {
 	volName := "testname:/foo"
 
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		volName = "testname:C:\\foo"
 	}
 	dockerCmd(c, "run", "-v", volName, "busybox", "sh", "-c", "touch /foo/oops")
@@ -4747,7 +4747,7 @@ func (s *DockerCLIBuildSuite) TestBuildCacheBrokenSymlink(c *testing.T) {
 	cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 
 	// add new file to context, should invalidate cache
-	err = os.WriteFile(filepath.Join(ctx.Dir, "newfile"), []byte("foo"), 0644)
+	err = os.WriteFile(filepath.Join(ctx.Dir, "newfile"), []byte("foo"), 0o644)
 	assert.NilError(c, err)
 
 	result := cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
@@ -4776,14 +4776,13 @@ func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToFile(c *testing.T) {
 	assert.Assert(c, cmp.Regexp("^bar$", out))
 
 	// change target file should invalidate cache
-	err = os.WriteFile(filepath.Join(ctx.Dir, "foo"), []byte("baz"), 0644)
+	err = os.WriteFile(filepath.Join(ctx.Dir, "foo"), []byte("baz"), 0o644)
 	assert.NilError(c, err)
 
 	result := cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 	assert.Assert(c, !strings.Contains(result.Combined(), "Using cache"))
 	out = cli.DockerCmd(c, "run", "--rm", name, "cat", "target").Combined()
 	assert.Assert(c, cmp.Regexp("^baz$", out))
-
 }
 
 func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToDir(c *testing.T) {
@@ -4807,7 +4806,7 @@ func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToDir(c *testing.T) {
 	assert.Assert(c, cmp.Regexp("^barbaz$", out))
 
 	// change target file should invalidate cache
-	err = os.WriteFile(filepath.Join(ctx.Dir, "foo/def"), []byte("bax"), 0644)
+	err = os.WriteFile(filepath.Join(ctx.Dir, "foo/def"), []byte("bax"), 0o644)
 	assert.NilError(c, err)
 
 	result := cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
@@ -4854,7 +4853,7 @@ func (s *DockerCLIBuildSuite) TestBuildCacheRootSource(c *testing.T) {
 	cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 
 	// change file, should invalidate cache
-	err := os.WriteFile(filepath.Join(ctx.Dir, "foo"), []byte("baz"), 0644)
+	err := os.WriteFile(filepath.Join(ctx.Dir, "foo"), []byte("baz"), 0o644)
 	assert.NilError(c, err)
 
 	result := cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
@@ -5004,7 +5003,7 @@ func (s *DockerRegistryAuthHtpasswdSuite) TestBuildWithExternalAuth(c *testing.T
 	externalAuthConfig := `{ "credsStore": "shell-test" }`
 
 	configPath := filepath.Join(tmp, "config.json")
-	err = os.WriteFile(configPath, []byte(externalAuthConfig), 0644)
+	err = os.WriteFile(configPath, []byte(externalAuthConfig), 0o644)
 	assert.NilError(c, err)
 
 	dockerCmd(c, "--config", tmp, "login", "-u", s.reg.Username(), "-p", s.reg.Password(), privateRegistryURL)
@@ -5464,7 +5463,7 @@ func (s *DockerCLIBuildSuite) TestBuildCacheFrom(c *testing.T) {
 		ENV FOO=bar
 		ADD baz /
 		RUN touch newfile`
-	err = os.WriteFile(filepath.Join(ctx.Dir, "Dockerfile"), []byte(dockerfile), 0644)
+	err = os.WriteFile(filepath.Join(ctx.Dir, "Dockerfile"), []byte(dockerfile), 0o644)
 	assert.NilError(c, err)
 
 	result = cli.BuildCmd(c, "build2", cli.WithFlags("--cache-from=build1"), build.WithExternalBuildContext(ctx))
@@ -5621,14 +5620,14 @@ func (s *DockerCLIBuildSuite) TestBuildMultiStageCopyFromSyntax(c *testing.T) {
 	assert.Equal(c, strings.Count(result.Combined(), "Using cache"), 7)
 	assert.Equal(c, getIDByName(c, "build1"), getIDByName(c, "build2"))
 
-	err := os.WriteFile(filepath.Join(ctx.Dir, "Dockerfile"), []byte(fmt.Sprintf(dockerfile, "COPY baz/aa foo")), 0644)
+	err := os.WriteFile(filepath.Join(ctx.Dir, "Dockerfile"), []byte(fmt.Sprintf(dockerfile, "COPY baz/aa foo")), 0o644)
 	assert.NilError(c, err)
 
 	// changing file in parent block should not affect last block
 	result = cli.BuildCmd(c, "build3", build.WithExternalBuildContext(ctx))
 	assert.Equal(c, strings.Count(result.Combined(), "Using cache"), 5)
 
-	err = os.WriteFile(filepath.Join(ctx.Dir, "foo"), []byte("pqr"), 0644)
+	err = os.WriteFile(filepath.Join(ctx.Dir, "foo"), []byte("pqr"), 0o644)
 	assert.NilError(c, err)
 
 	// changing file in parent block should affect both first and last block
@@ -6105,7 +6104,7 @@ CMD echo foo
 
 	out, _ := dockerCmd(c, "inspect", "--format", "{{ json .Config.Cmd }}", "build2")
 	expected := `["/bin/sh","-c","echo foo"]`
-	if testEnv.OSType == "windows" {
+	if testEnv.DaemonInfo.OSType == "windows" {
 		expected = `["/bin/sh -c echo foo"]`
 	}
 	assert.Equal(c, strings.TrimSpace(out), expected)
@@ -6145,7 +6144,7 @@ func (s *DockerCLIBuildSuite) TestBuildIidFileCleanupOnFail(c *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	tmpIidFile := filepath.Join(tmpDir, "iid")
 
-	err = os.WriteFile(tmpIidFile, []byte("Dummy"), 0666)
+	err = os.WriteFile(tmpIidFile, []byte("Dummy"), 0o666)
 	assert.NilError(c, err)
 
 	cli.Docker(cli.Args("build", "-t", "testbuildiidfilecleanuponfail"),

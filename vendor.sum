@@ -531,8 +531,6 @@ github.com/docker/go-units v0.3.3/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDD
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/docker/go-units v0.5.0 h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4=
 github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
-github.com/docker/libkv v0.2.2-0.20211217103745-e480589147e3 h1:q6MhOaE4xsrl6cAiFYrazobNFSQN6ckhD6Et9zYbcrU=
-github.com/docker/libkv v0.2.2-0.20211217103745-e480589147e3/go.mod h1:r5hEwHwW8dr0TFBYGCarMNbrQOiwL1xoqDYZ/JqoTK0=
 github.com/docker/libnetwork v0.8.0-dev.2.0.20200917202933-d0951081b35f/go.mod h1:93m0aTqz6z+g32wla4l4WxTrdtvBRmVzYRkYvasA5Z8=
 github.com/docker/libtrust v0.0.0-20150114040149-fa567046d9b1/go.mod h1:cyGadeNEkKy96OOhEzfZl+yxihPEzKnqJwvfuSUqbZE=
 github.com/docker/libtrust v0.0.0-20150526203908-9cbd2a1374f4 h1:k8TfKGeAcDQFFQOGCQMRN04N4a9YrPlRMMKnzAuvM9Q=
@@ -1066,8 +1064,8 @@ github.com/moby/patternmatcher v0.5.0 h1:YCZgJOeULcxLw1Q+sVR636pmS7sPEn1Qo2iAN6M
 github.com/moby/patternmatcher v0.5.0/go.mod h1:hDPoyOpDY7OrrMDLaYoY3hf52gNCR/YOUYxkhApJIxc=
 github.com/moby/pubsub v1.0.0 h1:jkp/imWsmJz2f6LyFsk7EkVeN2HxR/HTTOY8kHrsxfA=
 github.com/moby/pubsub v1.0.0/go.mod h1:bXSO+3h5MNXXCaEG+6/NlAIk7MMZbySZlnB+cUQhKKc=
-github.com/moby/swarmkit/v2 v2.0.0-20230607145746-36334ed18760 h1:LbUvmXIeCCsPwayNUD/TeYiu14iBMnIN1DrOn6ND2O8=
-github.com/moby/swarmkit/v2 v2.0.0-20230607145746-36334ed18760/go.mod h1:bFJgtsZIsxE+Zf+hhKQpDcFRS98R13oxruudp0k5v/w=
+github.com/moby/swarmkit/v2 v2.0.0-20230627115642-ad0f3ae162fa h1:9IilX0rZvnrQA+a0Cr9a9LKpudNrOWhT3Fy7T4yKcPc=
+github.com/moby/swarmkit/v2 v2.0.0-20230627115642-ad0f3ae162fa/go.mod h1:pC/nyFbvVvSV+Gm1rARMgMR3FrCumwEyoMjqVwEzJvA=
 github.com/moby/sys/mount v0.1.0/go.mod h1:FVQFLDRWwyBjDTBNQXDlWnSFREqOo3OKX9aqhmeoo74=
 github.com/moby/sys/mount v0.1.1/go.mod h1:FVQFLDRWwyBjDTBNQXDlWnSFREqOo3OKX9aqhmeoo74=
 github.com/moby/sys/mount v0.3.3 h1:fX1SVkXFJ47XWDoeFW4Sq7PdQJnV2QIDZAqjNqgEjUs=

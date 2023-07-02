@@ -3,12 +3,14 @@
 package daemon // import "github.com/docker/docker/daemon"
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"syscall"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/daemon/links"
@@ -139,7 +141,7 @@ func (daemon *Daemon) setupIpcDirs(c *container.Container) error {
 				return err
 			}
 
-			if err := idtools.MkdirAllAndChown(shmPath, 0700, rootIDs); err != nil {
+			if err := idtools.MkdirAllAndChown(shmPath, 0o700, rootIDs); err != nil {
 				return err
 			}
 
@@ -184,7 +186,7 @@ func (daemon *Daemon) setupSecretDir(c *container.Container) (setupErr error) {
 	for _, s := range c.SecretReferences {
 		// TODO (ehazlett): use type switch when more are supported
 		if s.File == nil {
-			logrus.Error("secret target type is not a file target")
+			log.G(context.TODO()).Error("secret target type is not a file target")
 			continue
 		}
 
@@ -194,11 +196,11 @@ func (daemon *Daemon) setupSecretDir(c *container.Container) (setupErr error) {
 		if err != nil {
 			return errors.Wrap(err, "error getting secret file path")
 		}
-		if err := idtools.MkdirAllAndChown(filepath.Dir(fPath), 0700, rootIDs); err != nil {
+		if err := idtools.MkdirAllAndChown(filepath.Dir(fPath), 0o700, rootIDs); err != nil {
 			return errors.Wrap(err, "error creating secret mount path")
 		}
 
-		logrus.WithFields(logrus.Fields{
+		log.G(context.TODO()).WithFields(logrus.Fields{
 			"name": s.File.Name,
 			"path": fPath,
 		}).Debug("injecting secret")
@@ -234,7 +236,7 @@ func (daemon *Daemon) setupSecretDir(c *container.Container) (setupErr error) {
 			// a valid type of config so we should not error when we encounter
 			// one.
 			if configRef.Runtime == nil {
-				logrus.Error("config target type is not a file or runtime target")
+				log.G(context.TODO()).Error("config target type is not a file or runtime target")
 			}
 			// However, in any case, this isn't a file config, so we have no
 			// further work to do
@@ -245,11 +247,11 @@ func (daemon *Daemon) setupSecretDir(c *container.Container) (setupErr error) {
 		if err != nil {
 			return errors.Wrap(err, "error getting config file path for container")
 		}
-		if err := idtools.MkdirAllAndChown(filepath.Dir(fPath), 0700, rootIDs); err != nil {
+		if err := idtools.MkdirAllAndChown(filepath.Dir(fPath), 0o700, rootIDs); err != nil {
 			return errors.Wrap(err, "error creating config mount path")
 		}
 
-		logrus.WithFields(logrus.Fields{
+		log.G(context.TODO()).WithFields(logrus.Fields{
 			"name": configRef.File.Name,
 			"path": fPath,
 		}).Debug("injecting config")
@@ -292,7 +294,7 @@ func (daemon *Daemon) createSecretsDir(c *container.Container) error {
 	}
 
 	// create tmpfs
-	if err := idtools.MkdirAllAndChown(dir, 0700, rootIDs); err != nil {
+	if err := idtools.MkdirAllAndChown(dir, 0o700, rootIDs); err != nil {
 		return errors.Wrap(err, "error creating secret local mount path")
 	}
 
@@ -309,7 +311,7 @@ func (daemon *Daemon) remountSecretDir(c *container.Container) error {
 		return errors.Wrap(err, "error getting container secrets path")
 	}
 	if err := label.Relabel(dir, c.MountLabel, false); err != nil {
-		logrus.WithError(err).WithField("dir", dir).Warn("Error while attempting to set selinux label")
+		log.G(context.TODO()).WithError(err).WithField("dir", dir).Warn("Error while attempting to set selinux label")
 	}
 	rootIDs := daemon.idMapping.RootPair()
 	tmpfsOwnership := fmt.Sprintf("uid=%d,gid=%d", rootIDs.UID, rootIDs.GID)
@@ -325,13 +327,13 @@ func (daemon *Daemon) remountSecretDir(c *container.Container) error {
 func (daemon *Daemon) cleanupSecretDir(c *container.Container) {
 	dir, err := c.SecretMountPath()
 	if err != nil {
-		logrus.WithError(err).WithField("container", c.ID).Warn("error getting secrets mount path for container")
+		log.G(context.TODO()).WithError(err).WithField("container", c.ID).Warn("error getting secrets mount path for container")
 	}
 	if err := mount.RecursiveUnmount(dir); err != nil {
-		logrus.WithField("dir", dir).WithError(err).Warn("Error while attempting to unmount dir, this may prevent removal of container.")
+		log.G(context.TODO()).WithField("dir", dir).WithError(err).Warn("Error while attempting to unmount dir, this may prevent removal of container.")
 	}
 	if err := os.RemoveAll(dir); err != nil {
-		logrus.WithField("dir", dir).WithError(err).Error("Error removing dir.")
+		log.G(context.TODO()).WithField("dir", dir).WithError(err).Error("Error removing dir.")
 	}
 }
 
@@ -347,7 +349,7 @@ func killProcessDirectly(container *container.Container) error {
 			return errdefs.System(err)
 		}
 		err = errNoSuchProcess{pid, syscall.SIGKILL}
-		logrus.WithError(err).WithField("container", container.ID).Debug("no such process")
+		log.G(context.TODO()).WithError(err).WithField("container", container.ID).Debug("no such process")
 		return err
 	}
 
@@ -356,7 +358,7 @@ func killProcessDirectly(container *container.Container) error {
 		// Since we can not kill a zombie pid, add zombie check here
 		isZombie, err := process.Zombie(pid)
 		if err != nil {
-			logrus.WithError(err).WithField("container", container.ID).Warn("Container state is invalid")
+			log.G(context.TODO()).WithError(err).WithField("container", container.ID).Warn("Container state is invalid")
 			return err
 		}
 		if isZombie {
@@ -459,5 +461,5 @@ func (daemon *Daemon) setupContainerMountsRoot(c *container.Container) error {
 	if err != nil {
 		return err
 	}
-	return idtools.MkdirAllAndChown(p, 0710, idtools.Identity{UID: idtools.CurrentIdentity().UID, GID: daemon.IdentityMapping().RootPair().GID})
+	return idtools.MkdirAllAndChown(p, 0o710, idtools.Identity{UID: idtools.CurrentIdentity().UID, GID: daemon.IdentityMapping().RootPair().GID})
 }

@@ -3,16 +3,17 @@ package overlay
 //go:generate protoc -I=. -I=../../../../vendor/ --gogo_out=import_path=github.com/docker/docker/libnetwork/drivers/overlay:. overlay.proto
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"sync"
 
 	"github.com/Microsoft/hcsshim"
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
 	"github.com/docker/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -20,30 +21,26 @@ const (
 )
 
 type driver struct {
-	config   map[string]interface{}
 	networks networkTable
 	sync.Mutex
 }
 
 // Register registers a new instance of the overlay driver.
-func Register(r driverapi.Registerer, config map[string]interface{}) error {
-	c := driverapi.Capability{
-		DataScope:         datastore.GlobalScope,
-		ConnectivityScope: datastore.GlobalScope,
-	}
-
+func Register(r driverapi.Registerer, _ map[string]interface{}) error {
 	d := &driver{
 		networks: networkTable{},
-		config:   config,
 	}
 
 	d.restoreHNSNetworks()
 
-	return r.RegisterDriver(networkType, d, c)
+	return r.RegisterDriver(networkType, d, driverapi.Capability{
+		DataScope:         datastore.GlobalScope,
+		ConnectivityScope: datastore.GlobalScope,
+	})
 }
 
 func (d *driver) restoreHNSNetworks() error {
-	logrus.Infof("Restoring existing overlay networks from HNS into docker")
+	log.G(context.TODO()).Infof("Restoring existing overlay networks from HNS into docker")
 
 	hnsresponse, err := hcsshim.HNSListNetworkRequest("GET", "", "")
 	if err != nil {
@@ -55,7 +52,7 @@ func (d *driver) restoreHNSNetworks() error {
 			continue
 		}
 
-		logrus.Infof("Restoring overlay network: %s", v.Name)
+		log.G(context.TODO()).Infof("Restoring overlay network: %s", v.Name)
 		n := d.convertToOverlayNetwork(&v)
 		d.addNetwork(n)
 
@@ -63,7 +60,7 @@ func (d *driver) restoreHNSNetworks() error {
 		// We assume that any network will be recreated on daemon restart
 		// and therefore don't restore hns endpoints for now
 		//
-		//n.restoreNetworkEndpoints()
+		// n.restoreNetworkEndpoints()
 	}
 
 	return nil
@@ -94,9 +91,8 @@ func (d *driver) convertToOverlayNetwork(v *hcsshim.HNSNetwork) *network {
 		}
 
 		_, subnetIP, err := net.ParseCIDR(hnsSubnet.AddressPrefix)
-
 		if err != nil {
-			logrus.Errorf("Error parsing subnet address %s ", hnsSubnet.AddressPrefix)
+			log.G(context.TODO()).Errorf("Error parsing subnet address %s ", hnsSubnet.AddressPrefix)
 			continue
 		}
 

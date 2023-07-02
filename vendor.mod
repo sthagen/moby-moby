@@ -39,7 +39,6 @@ require (
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c
 	github.com/docker/go-metrics v0.0.1
 	github.com/docker/go-units v0.5.0
-	github.com/docker/libkv v0.2.2-0.20211217103745-e480589147e3
 	github.com/docker/libtrust v0.0.0-20150526203908-9cbd2a1374f4
 	github.com/fluent/fluent-logger-golang v1.9.0
 	github.com/godbus/dbus/v5 v5.1.0
@@ -66,7 +65,7 @@ require (
 	github.com/moby/locker v1.0.1
 	github.com/moby/patternmatcher v0.5.0
 	github.com/moby/pubsub v1.0.0
-	github.com/moby/swarmkit/v2 v2.0.0-20230607145746-36334ed18760
+	github.com/moby/swarmkit/v2 v2.0.0-20230627115642-ad0f3ae162fa
 	github.com/moby/sys/mount v0.3.3
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/moby/sys/sequential v0.5.0

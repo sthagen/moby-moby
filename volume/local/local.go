@@ -4,6 +4,7 @@
 package local // import "github.com/docker/docker/volume/local"
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/daemon/names"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/idtools"
@@ -35,6 +37,8 @@ var (
 	// This name is used to create the bind directory, so we need to avoid characters that
 	// would make the path to escape the root directory.
 	volumeNameRegex = names.RestrictedNamePattern
+
+	_ volume.LiveRestorer = (*localVolume)(nil)
 )
 
 type activeMount struct {
@@ -52,7 +56,7 @@ func New(scope string, rootIdentity idtools.Identity) (*Root, error) {
 		rootIdentity: rootIdentity,
 	}
 
-	if err := idtools.MkdirAllAndChown(r.path, 0701, idtools.CurrentIdentity()); err != nil {
+	if err := idtools.MkdirAllAndChown(r.path, 0o701, idtools.CurrentIdentity()); err != nil {
 		return nil, err
 	}
 
@@ -62,7 +66,7 @@ func New(scope string, rootIdentity idtools.Identity) (*Root, error) {
 	}
 
 	if r.quotaCtl, err = quota.NewControl(r.path); err != nil {
-		logrus.Debugf("No quota support for local volumes in %s: %v", r.path, err)
+		log.G(context.TODO()).Debugf("No quota support for local volumes in %s: %v", r.path, err)
 	}
 
 	for _, d := range dirs {
@@ -147,12 +151,12 @@ func (r *Root) Create(name string, opts map[string]string) (volume.Volume, error
 	}
 
 	// Root dir does not need to be accessed by the remapped root
-	if err := idtools.MkdirAllAndChown(v.rootPath, 0701, idtools.CurrentIdentity()); err != nil {
+	if err := idtools.MkdirAllAndChown(v.rootPath, 0o701, idtools.CurrentIdentity()); err != nil {
 		return nil, errors.Wrapf(errdefs.System(err), "error while creating volume root path '%s'", v.rootPath)
 	}
 
 	// Remapped root does need access to the data path
-	if err := idtools.MkdirAllAndChown(v.path, 0755, r.rootIdentity); err != nil {
+	if err := idtools.MkdirAllAndChown(v.path, 0o755, r.rootIdentity); err != nil {
 		return nil, errors.Wrapf(errdefs.System(err), "error while creating volume data path '%s'", v.path)
 	}
 
@@ -296,14 +300,17 @@ func (v *localVolume) CachedPath() string {
 func (v *localVolume) Mount(id string) (string, error) {
 	v.m.Lock()
 	defer v.m.Unlock()
+	logger := log.G(context.TODO()).WithField("volume", v.name)
 	if v.needsMount() {
 		if !v.active.mounted {
+			logger.Debug("Mounting volume")
 			if err := v.mount(); err != nil {
 				return "", errdefs.System(err)
 			}
 			v.active.mounted = true
 		}
 		v.active.count++
+		logger.WithField("active mounts", v.active).Debug("Decremented active mount count")
 	}
 	if err := v.postMount(); err != nil {
 		return "", err
@@ -316,6 +323,7 @@ func (v *localVolume) Mount(id string) (string, error) {
 func (v *localVolume) Unmount(id string) error {
 	v.m.Lock()
 	defer v.m.Unlock()
+	logger := log.G(context.TODO()).WithField("volume", v.name)
 
 	// Always decrement the count, even if the unmount fails
 	// Essentially docker doesn't care if this fails, it will send an error, but
@@ -323,12 +331,14 @@ func (v *localVolume) Unmount(id string) error {
 	// this volume can never be removed until a daemon restart occurs.
 	if v.needsMount() {
 		v.active.count--
+		logger.WithField("active mounts", v.active).Debug("Decremented active mount count")
 	}
 
 	if v.active.count > 0 {
 		return nil
 	}
 
+	logger.Debug("Unmounting volume")
 	return v.unmount()
 }
 
@@ -340,7 +350,7 @@ func (v *localVolume) loadOpts() error {
 	b, err := os.ReadFile(filepath.Join(v.rootPath, "opts.json"))
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			logrus.WithError(err).Warnf("error while loading volume options for volume: %s", v.name)
+			log.G(context.TODO()).WithError(err).Warnf("error while loading volume options for volume: %s", v.name)
 		}
 		return nil
 	}
@@ -362,10 +372,28 @@ func (v *localVolume) saveOpts() error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(filepath.Join(v.rootPath, "opts.json"), b, 0600)
+	err = os.WriteFile(filepath.Join(v.rootPath, "opts.json"), b, 0o600)
 	if err != nil {
 		return errdefs.System(errors.Wrap(err, "error while persisting volume options"))
 	}
+	return nil
+}
+
+// LiveRestoreVolume restores reference counts for mounts
+// It is assumed that the volume is already mounted since this is only called for active, live-restored containers.
+func (v *localVolume) LiveRestoreVolume(ctx context.Context, _ string) error {
+	v.m.Lock()
+	defer v.m.Unlock()
+
+	if !v.needsMount() {
+		return nil
+	}
+	v.active.count++
+	v.active.mounted = true
+	log.G(ctx).WithFields(logrus.Fields{
+		"volume":        v.name,
+		"active mounts": v.active,
+	}).Debugf("Live restored volume")
 	return nil
 }
 

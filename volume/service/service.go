@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	volumetypes "github.com/docker/docker/api/types/volume"
@@ -17,7 +18,6 @@ import (
 	"github.com/docker/docker/volume/drivers"
 	"github.com/docker/docker/volume/service/opts"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type ds interface {
@@ -239,10 +239,10 @@ func (s *VolumesService) Prune(ctx context.Context, filter filters.Args) (*types
 
 		vSize, err := directory.Size(ctx, v.Path())
 		if err != nil {
-			logrus.WithField("volume", v.Name()).WithError(err).Warn("could not determine size of volume")
+			log.G(ctx).WithField("volume", v.Name()).WithError(err).Warn("could not determine size of volume")
 		}
 		if err := s.vs.Remove(ctx, v); err != nil {
-			logrus.WithError(err).WithField("volume", v.Name()).Warnf("Could not determine size of volume")
+			log.G(ctx).WithError(err).WithField("volume", v.Name()).Warnf("Could not determine size of volume")
 			continue
 		}
 		rep.SpaceReclaimed += uint64(vSize)
@@ -273,4 +273,19 @@ func (s *VolumesService) List(ctx context.Context, filter filters.Args) (volumes
 // Shutdown shuts down the image service and dependencies
 func (s *VolumesService) Shutdown() error {
 	return s.vs.Shutdown()
+}
+
+// LiveRestoreVolume passes through the LiveRestoreVolume call to the volume if it is implemented
+// otherwise it is a no-op.
+func (s *VolumesService) LiveRestoreVolume(ctx context.Context, vol *volumetypes.Volume, ref string) error {
+	v, err := s.vs.Get(ctx, vol.Name, opts.WithGetDriver(vol.Driver))
+	if err != nil {
+		return err
+	}
+	rlv, ok := v.(volume.LiveRestorer)
+	if !ok {
+		log.G(ctx).WithField("volume", vol.Name).Debugf("volume does not implement LiveRestoreVolume: %T", v)
+		return nil
+	}
+	return rlv.LiveRestoreVolume(ctx, ref)
 }

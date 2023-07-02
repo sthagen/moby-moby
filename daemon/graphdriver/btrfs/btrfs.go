@@ -23,6 +23,7 @@ static void set_name_btrfs_ioctl_vol_args_v2(struct btrfs_ioctl_vol_args_v2* btr
 import "C"
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/pkg/userns"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/pkg/containerfs"
@@ -42,7 +44,6 @@ import (
 	"github.com/moby/sys/mount"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -82,7 +83,7 @@ func Init(home string, options []string, idMap idtools.IdentityMapping) (graphdr
 		GID: idMap.RootPair().GID,
 	}
 
-	if err := idtools.MkdirAllAndChown(home, 0710, dirID); err != nil {
+	if err := idtools.MkdirAllAndChown(home, 0o710, dirID); err != nil {
 		return nil, err
 	}
 
@@ -236,7 +237,7 @@ func subvolSnapshot(src, dest, name string) error {
 	var args C.struct_btrfs_ioctl_vol_args_v2
 	args.fd = C.__s64(getDirFd(srcDir))
 
-	var cs = C.CString(name)
+	cs := C.CString(name)
 	C.set_name_btrfs_ioctl_vol_args_v2(&args, cs)
 	free(cs)
 
@@ -305,10 +306,10 @@ func subvolDelete(dirpath, name string, quotaEnabled bool) error {
 			_, _, errno := unix.Syscall(unix.SYS_IOCTL, getDirFd(dir), C.BTRFS_IOC_QGROUP_CREATE,
 				uintptr(unsafe.Pointer(&args)))
 			if errno != 0 {
-				logrus.WithField("storage-driver", "btrfs").Errorf("Failed to delete btrfs qgroup %v for %s: %v", qgroupid, fullPath, errno.Error())
+				log.G(context.TODO()).WithField("storage-driver", "btrfs").Errorf("Failed to delete btrfs qgroup %v for %s: %v", qgroupid, fullPath, errno.Error())
 			}
 		} else {
-			logrus.WithField("storage-driver", "btrfs").Errorf("Failed to lookup btrfs qgroup for %s: %v", fullPath, err.Error())
+			log.G(context.TODO()).WithField("storage-driver", "btrfs").Errorf("Failed to lookup btrfs qgroup for %s: %v", fullPath, err.Error())
 		}
 	}
 
@@ -494,7 +495,7 @@ func (d *Driver) Create(id, parent string, opts *graphdriver.CreateOpts) error {
 		GID: root.GID,
 	}
 
-	if err := idtools.MkdirAllAndChown(subvolumes, 0710, dirID); err != nil {
+	if err := idtools.MkdirAllAndChown(subvolumes, 0o710, dirID); err != nil {
 		return err
 	}
 	if parent == "" {
@@ -529,10 +530,10 @@ func (d *Driver) Create(id, parent string, opts *graphdriver.CreateOpts) error {
 		if err := d.setStorageSize(path.Join(subvolumes, id), driver); err != nil {
 			return err
 		}
-		if err := idtools.MkdirAllAndChown(quotas, 0700, idtools.CurrentIdentity()); err != nil {
+		if err := idtools.MkdirAllAndChown(quotas, 0o700, idtools.CurrentIdentity()); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path.Join(quotas, id), []byte(fmt.Sprint(driver.options.size)), 0644); err != nil {
+		if err := os.WriteFile(path.Join(quotas, id), []byte(fmt.Sprint(driver.options.size)), 0o644); err != nil {
 			return err
 		}
 	}

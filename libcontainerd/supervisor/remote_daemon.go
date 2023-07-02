@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/services/server/config"
 	"github.com/containerd/containerd/sys"
 	"github.com/docker/docker/pkg/pidfile"
@@ -76,7 +77,7 @@ func Start(ctx context.Context, rootDir, stateDir string, opts ...DaemonOpt) (Da
 		configFile:    filepath.Join(stateDir, configFile),
 		daemonPid:     -1,
 		pidFile:       filepath.Join(stateDir, pidFile),
-		logger:        logrus.WithField("module", "libcontainerd"),
+		logger:        log.G(ctx).WithField("module", "libcontainerd"),
 		daemonStartCh: make(chan error, 1),
 		daemonStopCh:  make(chan struct{}),
 	}
@@ -88,7 +89,7 @@ func Start(ctx context.Context, rootDir, stateDir string, opts ...DaemonOpt) (Da
 	}
 	r.setDefaults()
 
-	if err := system.MkdirAll(stateDir, 0700); err != nil {
+	if err := system.MkdirAll(stateDir, 0o700); err != nil {
 		return nil, err
 	}
 
@@ -108,6 +109,7 @@ func Start(ctx context.Context, rootDir, stateDir string, opts ...DaemonOpt) (Da
 
 	return r, nil
 }
+
 func (r *remote) WaitTimeout(d time.Duration) error {
 	timeout := time.NewTimer(d)
 	defer timeout.Stop()
@@ -126,7 +128,7 @@ func (r *remote) Address() string {
 }
 
 func (r *remote) getContainerdConfig() (string, error) {
-	f, err := os.OpenFile(r.configFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(r.configFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to open containerd config file (%s)", r.configFile)
 	}

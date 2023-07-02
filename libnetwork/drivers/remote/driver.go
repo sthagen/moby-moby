@@ -1,9 +1,11 @@
 package remote
 
 import (
+	"context"
 	"fmt"
 	"net"
 
+	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
@@ -12,7 +14,6 @@ import (
 	"github.com/docker/docker/pkg/plugingetter"
 	"github.com/docker/docker/pkg/plugins"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type driver struct {
@@ -32,7 +33,7 @@ func newDriver(name string, client *plugins.Client) driverapi.Driver {
 // plugin is activated.
 //
 // Deprecated: use [Register].
-func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
+func Init(dc driverapi.DriverCallback, _ map[string]interface{}) error {
 	return Register(dc, dc.GetPluginGetter())
 }
 
@@ -44,11 +45,11 @@ func Register(r driverapi.Registerer, pg plugingetter.PluginGetter) error {
 		d := newDriver(name, client)
 		c, err := d.(*driver).getCapabilities()
 		if err != nil {
-			logrus.Errorf("error getting capability for %s due to %v", name, err)
+			log.G(context.TODO()).Errorf("error getting capability for %s due to %v", name, err)
 			return
 		}
 		if err = r.RegisterDriver(name, d, *c); err != nil {
-			logrus.Errorf("error registering driver for %s due to %v", name, err)
+			log.G(context.TODO()).Errorf("error registering driver for %s due to %v", name, err)
 		}
 	}
 
@@ -392,7 +393,7 @@ func (d *driver) DiscoverDelete(dType discoverapi.DiscoveryType, data interface{
 }
 
 func parseStaticRoutes(r api.JoinResponse) ([]*types.StaticRoute, error) {
-	var routes = make([]*types.StaticRoute, len(r.StaticRoutes))
+	routes := make([]*types.StaticRoute, len(r.StaticRoutes))
 	for i, inRoute := range r.StaticRoutes {
 		var err error
 		outRoute := &types.StaticRoute{RouteType: inRoute.RouteType}

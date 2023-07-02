@@ -23,7 +23,7 @@ func ensureSyscallTest(c *testing.T) {
 
 	// if no match, must build in docker, which is significantly slower
 	// (slower mostly because of the vfs graphdriver)
-	if testEnv.OSType != runtime.GOOS {
+	if testEnv.DaemonInfo.OSType != runtime.GOOS {
 		ensureSyscallTestBuild(c)
 		return
 	}
@@ -51,7 +51,7 @@ func ensureSyscallTest(c *testing.T) {
 	FROM debian:bullseye-slim
 	COPY . /usr/bin/
 	`)
-	err = os.WriteFile(dockerFile, content, 0600)
+	err = os.WriteFile(dockerFile, content, 0o600)
 	assert.NilError(c, err)
 
 	var buildArgs []string
@@ -86,7 +86,7 @@ func ensureNNPTest(c *testing.T) {
 
 	// if no match, must build in docker, which is significantly slower
 	// (slower mostly because of the vfs graphdriver)
-	if testEnv.OSType != runtime.GOOS {
+	if testEnv.DaemonInfo.OSType != runtime.GOOS {
 		ensureNNPTestBuild(c)
 		return
 	}
@@ -106,7 +106,7 @@ func ensureNNPTest(c *testing.T) {
 	COPY . /usr/bin
 	RUN chmod +s /usr/bin/nnp-test
 	`
-	err = os.WriteFile(dockerfile, []byte(content), 0600)
+	err = os.WriteFile(dockerfile, []byte(content), 0o600)
 	assert.NilError(c, err, "could not write Dockerfile for nnp-test image")
 
 	var buildArgs []string

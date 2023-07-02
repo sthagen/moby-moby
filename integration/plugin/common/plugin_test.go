@@ -90,7 +90,7 @@ func TestPluginInvalidJSON(t *testing.T) {
 
 func TestPluginInstall(t *testing.T) {
 	skip.If(t, testEnv.IsRemoteDaemon, "cannot run daemon when remote daemon")
-	skip.If(t, testEnv.OSType == "windows")
+	skip.If(t, testEnv.DaemonInfo.OSType == "windows")
 	skip.If(t, testEnv.IsRootless, "rootless mode has different view of localhost")
 
 	ctx := context.Background()
@@ -199,7 +199,7 @@ func TestPluginInstall(t *testing.T) {
 func TestPluginsWithRuntimes(t *testing.T) {
 	skip.If(t, testEnv.IsRemoteDaemon, "cannot run daemon when remote daemon")
 	skip.If(t, testEnv.IsRootless, "Test not supported on rootless due to buggy daemon setup in rootless mode due to daemon restart")
-	skip.If(t, testEnv.OSType == "windows")
+	skip.If(t, testEnv.DaemonInfo.OSType == "windows")
 
 	dir, err := os.MkdirTemp("", t.Name())
 	assert.NilError(t, err)
@@ -231,7 +231,7 @@ func TestPluginsWithRuntimes(t *testing.T) {
 	exec runc $@
 	`, dir)
 
-	assert.NilError(t, os.WriteFile(p, []byte(script), 0777))
+	assert.NilError(t, os.WriteFile(p, []byte(script), 0o777))
 
 	type config struct {
 		Runtimes map[string]types.Runtime `json:"runtimes"`
@@ -244,7 +244,7 @@ func TestPluginsWithRuntimes(t *testing.T) {
 		},
 	})
 	configPath := filepath.Join(dir, "config.json")
-	os.WriteFile(configPath, cfg, 0644)
+	os.WriteFile(configPath, cfg, 0o644)
 
 	t.Run("No Args", func(t *testing.T) {
 		d.Restart(t, "--default-runtime=myrt", "--config-file="+configPath)
@@ -261,7 +261,7 @@ func TestPluginsWithRuntimes(t *testing.T) {
 
 func TestPluginBackCompatMediaTypes(t *testing.T) {
 	skip.If(t, testEnv.IsRemoteDaemon, "cannot run daemon when remote daemon")
-	skip.If(t, testEnv.OSType == "windows")
+	skip.If(t, testEnv.DaemonInfo.OSType == "windows")
 	skip.If(t, testEnv.IsRootless, "Rootless has a different view of localhost (needed for test registry access)")
 
 	defer setupTest(t)()

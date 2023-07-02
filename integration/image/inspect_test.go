@@ -13,18 +13,15 @@ import (
 
 // Regression test for: https://github.com/moby/moby/issues/45556
 func TestImageInspectEmptyTagsAndDigests(t *testing.T) {
-	skip.If(t, testEnv.OSType == "windows", "build-empty-images is not called on Windows")
+	skip.If(t, testEnv.DaemonInfo.OSType == "windows", "build-empty-images is not called on Windows")
 	defer setupTest(t)()
 
 	client := testEnv.APIClient()
 	ctx := context.Background()
 
-	danglingId := environment.DanglingImageIdGraphDriver
-	if testEnv.UsingSnapshotter() {
-		danglingId = environment.DanglingImageIdSnapshotter
-	}
+	danglingID := environment.GetTestDanglingImageId(testEnv)
 
-	inspect, raw, err := client.ImageInspectWithRaw(ctx, danglingId)
+	inspect, raw, err := client.ImageInspectWithRaw(ctx, danglingID)
 	assert.NilError(t, err)
 
 	// Must be a zero length array, not null.

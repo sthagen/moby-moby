@@ -10,6 +10,7 @@ import (
 	cerrdefs "github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/labels"
+	"github.com/containerd/containerd/log"
 	"github.com/docker/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -91,7 +92,7 @@ func (i *ImageService) Images(ctx context.Context, opts types.ImageListOptions) 
 
 			available, err := img.CheckContentAvailable(ctx)
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
+				log.G(ctx).WithFields(logrus.Fields{
 					logrus.ErrorKey: err,
 					"manifest":      img.Target(),
 					"image":         img.Name(),
@@ -119,7 +120,6 @@ func (i *ImageService) Images(ctx context.Context, opts types.ImageListOptions) 
 
 			return nil
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +182,7 @@ func (i *ImageService) singlePlatformImage(ctx context.Context, contentStore con
 	rawImg := image.Metadata()
 	target := rawImg.Target.Digest
 
-	logger := logrus.WithFields(logrus.Fields{
+	logger := log.G(ctx).WithFields(logrus.Fields{
 		"name":   rawImg.Name,
 		"digest": target,
 	})
@@ -234,9 +234,7 @@ type imageFilterFunc func(image images.Image) bool
 // containerdListFilters is a slice of filters which should be passed to ImageService.List()
 // filterFunc is a function that checks whether given image matches the filters.
 // TODO(thaJeztah): reimplement filters using containerd filters: see https://github.com/moby/moby/issues/43845
-func (i *ImageService) setupFilters(ctx context.Context, imageFilters filters.Args) (
-	containerdListFilters []string, filterFunc imageFilterFunc, outErr error) {
-
+func (i *ImageService) setupFilters(ctx context.Context, imageFilters filters.Args) (containerdListFilters []string, filterFunc imageFilterFunc, outErr error) {
 	var fltrs []imageFilterFunc
 	err := imageFilters.WalkValues("before", func(value string) error {
 		ref, err := reference.ParseDockerRef(value)
@@ -434,7 +432,7 @@ func setupLabelFilter(store content.Store, fltrs filters.Args) (func(image image
 			return true
 		}
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
+			log.G(ctx).WithFields(logrus.Fields{
 				logrus.ErrorKey: err,
 				"image":         image.Name,
 				"checks":        checks,
