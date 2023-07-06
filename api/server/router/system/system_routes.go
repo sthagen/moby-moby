@@ -57,46 +57,41 @@ func (s *systemRouter) swarmStatus() string {
 }
 
 func (s *systemRouter) getInfo(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
-	info := s.backend.SystemInfo()
-
-	if s.cluster != nil {
-		info.Swarm = s.cluster.Info()
-		info.Warnings = append(info.Warnings, info.Swarm.Warnings...)
-	}
-
 	version := httputils.VersionFromContext(ctx)
-	if versions.LessThan(version, "1.25") {
-		// TODO: handle this conversion in engine-api
-		type oldInfo struct {
-			*types.Info
-			ExecutionDriver string
+	info, _, _ := s.collectSystemInfo.Do(ctx, version, func(ctx context.Context) (*types.Info, error) {
+		info := s.backend.SystemInfo()
+
+		if s.cluster != nil {
+			info.Swarm = s.cluster.Info()
+			info.Warnings = append(info.Warnings, info.Swarm.Warnings...)
 		}
-		old := &oldInfo{
-			Info:            info,
-			ExecutionDriver: "<not supported>",
+
+		if versions.LessThan(version, "1.25") {
+			// TODO: handle this conversion in engine-api
+			kvSecOpts, err := types.DecodeSecurityOptions(info.SecurityOptions)
+			if err != nil {
+				info.Warnings = append(info.Warnings, err.Error())
+			}
+			var nameOnly []string
+			for _, so := range kvSecOpts {
+				nameOnly = append(nameOnly, so.Name)
+			}
+			info.SecurityOptions = nameOnly
+			info.ExecutionDriver = "<not supported>" //nolint:staticcheck // ignore SA1019 (ExecutionDriver is deprecated)
 		}
-		nameOnlySecurityOptions := []string{}
-		kvSecOpts, err := types.DecodeSecurityOptions(old.SecurityOptions)
-		if err != nil {
-			return err
+		if versions.LessThan(version, "1.39") {
+			if info.KernelVersion == "" {
+				info.KernelVersion = "<unknown>"
+			}
+			if info.OperatingSystem == "" {
+				info.OperatingSystem = "<unknown>"
+			}
 		}
-		for _, s := range kvSecOpts {
-			nameOnlySecurityOptions = append(nameOnlySecurityOptions, s.Name)
+		if versions.GreaterThanOrEqualTo(version, "1.42") {
+			info.KernelMemory = false
 		}
-		old.SecurityOptions = nameOnlySecurityOptions
-		return httputils.WriteJSON(w, http.StatusOK, old)
-	}
-	if versions.LessThan(version, "1.39") {
-		if info.KernelVersion == "" {
-			info.KernelVersion = "<unknown>"
-		}
-		if info.OperatingSystem == "" {
-			info.OperatingSystem = "<unknown>"
-		}
-	}
-	if versions.GreaterThanOrEqualTo(version, "1.42") {
-		info.KernelMemory = false
-	}
+		return info, nil
+	})
 	return httputils.WriteJSON(w, http.StatusOK, info)
 }
 

@@ -24,6 +24,8 @@ keywords: "API, Docker, rcli, REST, documentation"
   with runtimes which support the feature.
   `POST /containers/create`, `GET /containers/{id}/json`, and `GET /containers/json` now supports
   `BindOptions.ReadOnlyNonRecursive` and `BindOptions.ReadOnlyForceRecursive` to customize the behavior.
+* `POST /containers/create` now accepts a `HealthConfig.StartInterval` to set the
+  interval for health checks during the start period.
 
 ## v1.43 API changes
 
@@ -487,6 +489,7 @@ keywords: "API, Docker, rcli, REST, documentation"
 * `POST /services/create` and `POST /services/(id or name)/update` now accept an optional `RollbackConfig` object which specifies rollback options.
 * `GET /services` now supports a `mode` filter to filter services based on the service mode (either `global` or `replicated`).
 * `POST /containers/(name)/update` now supports updating `NanoCpus` that represents CPU quota in units of 10<sup>-9</sup> CPUs.
+* `POST /plugins/{name}/disable` now accepts a `force` query-parameter to disable a plugin even if still in use.
 
 ## v1.27 API changes
 
