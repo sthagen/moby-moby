@@ -200,7 +200,7 @@ github.com/cloudflare/cfssl/log
 github.com/cloudflare/cfssl/ocsp/config
 github.com/cloudflare/cfssl/signer
 github.com/cloudflare/cfssl/signer/local
-# github.com/container-orchestrated-devices/container-device-interface v0.5.5-0.20230516140309-1e6752771dc5
+# github.com/container-orchestrated-devices/container-device-interface v0.6.0
 ## explicit; go 1.17
 github.com/container-orchestrated-devices/container-device-interface/internal/multierror
 github.com/container-orchestrated-devices/container-device-interface/internal/validation
@@ -618,7 +618,7 @@ github.com/mitchellh/hashstructure/v2
 # github.com/mitchellh/reflectwalk v1.0.2
 ## explicit
 github.com/mitchellh/reflectwalk
-# github.com/moby/buildkit v0.11.7-0.20230525183624-798ad6b0ce9f
+# github.com/moby/buildkit v0.11.7-0.20230712171151-0a15675913b7
 ## explicit; go 1.18
 github.com/moby/buildkit/api/services/control
 github.com/moby/buildkit/api/types
@@ -777,7 +777,7 @@ github.com/moby/patternmatcher
 # github.com/moby/pubsub v1.0.0
 ## explicit; go 1.19
 github.com/moby/pubsub
-# github.com/moby/swarmkit/v2 v2.0.0-20230707182847-6f78b8199b05
+# github.com/moby/swarmkit/v2 v2.0.0-20230713153928-bc71908479e5
 ## explicit; go 1.18
 github.com/moby/swarmkit/v2/agent
 github.com/moby/swarmkit/v2/agent/configs

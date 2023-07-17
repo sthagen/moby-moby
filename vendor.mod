@@ -24,7 +24,7 @@ require (
 	github.com/aws/smithy-go v1.13.1
 	github.com/bsphere/le_go v0.0.0-20200109081728-fc06dab2caa8
 	github.com/cloudflare/cfssl v0.0.0-20180323000720-5d63dbd981b5
-	github.com/container-orchestrated-devices/container-device-interface v0.5.5-0.20230516140309-1e6752771dc5
+	github.com/container-orchestrated-devices/container-device-interface v0.6.0
 	github.com/containerd/cgroups/v3 v3.0.2
 	github.com/containerd/containerd v1.6.21
 	github.com/containerd/continuity v0.3.0
@@ -60,12 +60,12 @@ require (
 	github.com/miekg/dns v1.1.43
 	github.com/mistifyio/go-zfs/v3 v3.0.1
 	github.com/mitchellh/copystructure v1.2.0
-	github.com/moby/buildkit v0.11.7-0.20230525183624-798ad6b0ce9f
+	github.com/moby/buildkit v0.11.7-0.20230712171151-0a15675913b7 // v0.11
 	github.com/moby/ipvs v1.1.0
 	github.com/moby/locker v1.0.1
 	github.com/moby/patternmatcher v0.5.0
 	github.com/moby/pubsub v1.0.0
-	github.com/moby/swarmkit/v2 v2.0.0-20230707182847-6f78b8199b05
+	github.com/moby/swarmkit/v2 v2.0.0-20230713153928-bc71908479e5
 	github.com/moby/sys/mount v0.3.3
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/moby/sys/sequential v0.5.0

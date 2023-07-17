@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.20.5
+ARG GO_VERSION=1.20.6
 ARG BASE_DEBIAN_DISTRO="bullseye"
 ARG GOLANG_IMAGE="golang:${GO_VERSION}-${BASE_DEBIAN_DISTRO}"
 ARG XX_VERSION=1.2.1
@@ -13,6 +13,7 @@ ARG DOCKERCLI_VERSION=v24.0.2
 ARG DOCKERCLI_INTEGRATION_REPOSITORY="https://github.com/docker/cli.git"
 ARG DOCKERCLI_INTEGRATION_VERSION=v17.06.2-ce
 ARG BUILDX_VERSION=0.11.0
+ARG COMPOSE_VERSION=v2.20.0
 
 ARG SYSTEMD="false"
 ARG DEBIAN_FRONTEND=noninteractive
@@ -438,6 +439,7 @@ FROM containerutil-build AS containerutil-windows-amd64
 FROM containerutil-windows-${TARGETARCH} AS containerutil-windows
 FROM containerutil-${TARGETOS} AS containerutil
 FROM docker/buildx-bin:${BUILDX_VERSION} as buildx
+FROM docker/compose-bin:${COMPOSE_VERSION} as compose
 
 FROM base AS dev-systemd-false
 COPY --link --from=frozen-images /build/ /docker-frozen-images
@@ -464,6 +466,7 @@ COPY --link --from=containerutil /build/ /usr/local/bin/
 COPY --link --from=crun          /build/ /usr/local/bin/
 COPY --link hack/dockerfile/etc/docker/  /etc/docker/
 COPY --link --from=buildx        /buildx /usr/local/libexec/docker/cli-plugins/docker-buildx
+COPY --link --from=compose       /docker-compose /usr/libexec/docker/cli-plugins/docker-compose
 
 ENV PATH=/usr/local/cli:$PATH
 ENV TEST_CLIENT_BINARY=/usr/local/cli-integration/docker
