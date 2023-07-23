@@ -12,8 +12,8 @@ ARG DOCKERCLI_VERSION=v24.0.2
 # cli version used for integration-cli tests
 ARG DOCKERCLI_INTEGRATION_REPOSITORY="https://github.com/docker/cli.git"
 ARG DOCKERCLI_INTEGRATION_VERSION=v17.06.2-ce
-ARG BUILDX_VERSION=0.11.0
-ARG COMPOSE_VERSION=v2.20.0
+ARG BUILDX_VERSION=0.11.2
+ARG COMPOSE_VERSION=v2.20.1
 
 ARG SYSTEMD="false"
 ARG DEBIAN_FRONTEND=noninteractive
@@ -34,7 +34,7 @@ FROM --platform=$BUILDPLATFORM ${GOLANG_IMAGE} AS base
 COPY --from=xx / /
 RUN echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 ARG APT_MIRROR
-RUN test -n "$APT_MIRROR" && sed -ri "s/(httpredir|deb|security).debian.org/${APT_MIRROR}/g" /etc/apt/sources.list || true
+RUN test -n "$APT_MIRROR" && sed -ri "s#(httpredir|deb|security).debian.org#${APT_MIRROR}#g" /etc/apt/sources.list || true
 ARG DEBIAN_FRONTEND
 RUN apt-get update && apt-get install --no-install-recommends -y file
 ENV GO111MODULE=off
@@ -251,11 +251,11 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM base AS dockercli
 WORKDIR /go/src/github.com/docker/cli
-COPY hack/dockerfile/cli.sh /download-or-build-cli.sh
 ARG DOCKERCLI_REPOSITORY
 ARG DOCKERCLI_VERSION
 ARG TARGETPLATFORM
-RUN --mount=type=cache,id=dockercli-git-$TARGETPLATFORM,sharing=locked,target=./.git \
+RUN --mount=source=hack/dockerfile/cli.sh,target=/download-or-build-cli.sh \
+    --mount=type=cache,id=dockercli-git-$TARGETPLATFORM,sharing=locked,target=./.git \
     --mount=type=cache,target=/root/.cache/go-build,id=dockercli-build-$TARGETPLATFORM \
         rm -f ./.git/*.lock \
      && /download-or-build-cli.sh ${DOCKERCLI_VERSION} ${DOCKERCLI_REPOSITORY} /build \
@@ -263,12 +263,12 @@ RUN --mount=type=cache,id=dockercli-git-$TARGETPLATFORM,sharing=locked,target=./
 
 FROM base AS dockercli-integration
 WORKDIR /go/src/github.com/docker/cli
-COPY hack/dockerfile/cli.sh /download-or-build-cli.sh
 ARG DOCKERCLI_INTEGRATION_REPOSITORY
 ARG DOCKERCLI_INTEGRATION_VERSION
 ARG TARGETPLATFORM
-RUN --mount=type=cache,id=dockercli-integration-git-$TARGETPLATFORM,sharing=locked,target=./.git \
-    --mount=type=cache,target=/root/.cache/go-build,id=dockercli-integration-build-$TARGETPLATFORM \
+RUN --mount=source=hack/dockerfile/cli.sh,target=/download-or-build-cli.sh \
+    --mount=type=cache,id=dockercli-git-$TARGETPLATFORM,sharing=locked,target=./.git \
+    --mount=type=cache,target=/root/.cache/go-build,id=dockercli-build-$TARGETPLATFORM \
         rm -f ./.git/*.lock \
      && /download-or-build-cli.sh ${DOCKERCLI_INTEGRATION_VERSION} ${DOCKERCLI_INTEGRATION_REPOSITORY} /build \
      && /build/docker --version
@@ -281,7 +281,7 @@ RUN git init . && git remote add origin "https://github.com/opencontainers/runc.
 # that is used. If you need to update runc, open a pull request in the containerd
 # project first, and update both after that is merged. When updating RUNC_VERSION,
 # consider updating runc in vendor.mod accordingly.
-ARG RUNC_VERSION=v1.1.7
+ARG RUNC_VERSION=v1.1.8
 RUN git fetch -q --depth 1 origin "${RUNC_VERSION}" +refs/tags/*:refs/tags/* && git checkout -q FETCH_HEAD
 
 FROM base AS runc-build
@@ -369,8 +369,8 @@ RUN --mount=from=rootlesskit-src,src=/usr/src/rootlesskit,rw \
   xx-go build -o /build/rootlesskit-docker-proxy -ldflags="$([ "$DOCKER_STATIC" != "1" ] && echo "-linkmode=external")" ./cmd/rootlesskit-docker-proxy
   xx-verify $([ "$DOCKER_STATIC" = "1" ] && echo "--static") /build/rootlesskit-docker-proxy
 EOT
-COPY ./contrib/dockerd-rootless.sh /build/
-COPY ./contrib/dockerd-rootless-setuptool.sh /build/
+COPY --link ./contrib/dockerd-rootless.sh /build/
+COPY --link ./contrib/dockerd-rootless-setuptool.sh /build/
 
 FROM rootlesskit-build AS rootlesskit-linux
 FROM binary-dummy AS rootlesskit-windows

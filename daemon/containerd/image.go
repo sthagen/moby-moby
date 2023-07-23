@@ -83,6 +83,7 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 		ID:           string(desc.Target.Digest),
 		OS:           ociimage.OS,
 		Architecture: ociimage.Architecture,
+		Variant:      ociimage.Variant,
 		Created:      ociimage.Created,
 		Config: &containertypes.Config{
 			Entrypoint:   ociimage.Config.Entrypoint,
@@ -112,7 +113,7 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 			return nil, err
 		}
 
-		// Each image will result in 2 references (named and digested).
+		// Usually each image will result in 2 references (named and digested).
 		refs := make([]reference.Named, 0, len(tagged)*2)
 		for _, i := range tagged {
 			if i.UpdatedAt.After(lastUpdated) {
@@ -136,6 +137,11 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 				continue
 			}
 			refs = append(refs, name)
+
+			if _, ok := name.(reference.Digested); ok {
+				// Image name already contains a digest, so no need to create a digested reference.
+				continue
+			}
 
 			digested, err := reference.WithDigest(reference.TrimNamed(name), desc.Target.Digest)
 			if err != nil {
@@ -253,6 +259,24 @@ func (i *ImageService) resolveImage(ctx context.Context, refOrID string) (contai
 			return containerdimages.Image{}, errors.Wrap(err, "failed to lookup digest")
 		}
 		if len(imgs) == 0 {
+			return containerdimages.Image{}, images.ErrImageDoesNotExist{Ref: parsed}
+		}
+
+		// If reference is both Named and Digested, make sure we don't match
+		// images with a different repository even if digest matches.
+		// For example, busybox@sha256:abcdef..., shouldn't match asdf@sha256:abcdef...
+		if parsedNamed, ok := parsed.(reference.Named); ok {
+			for _, img := range imgs {
+				imgNamed, err := reference.ParseNormalizedNamed(img.Name)
+				if err != nil {
+					log.G(ctx).WithError(err).WithField("image", img.Name).Warn("image with invalid name encountered")
+					continue
+				}
+
+				if parsedNamed.Name() == imgNamed.Name() {
+					return img, nil
+				}
+			}
 			return containerdimages.Image{}, images.ErrImageDoesNotExist{Ref: parsed}
 		}
 

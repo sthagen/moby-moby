@@ -9,13 +9,15 @@
 set -e
 
 SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOTDIR="$(git -C "$SCRIPTDIR" rev-parse --show-toplevel)"
+ROOTDIR="$(cd "${SCRIPTDIR}/.." && pwd)"
 
 if test -e "${ROOTDIR}/go.mod"; then
 	{
 		scriptname=$(basename "$0")
-		echo "${scriptname}: WARN: go.mod exists in the repository root!"
-		echo "${scriptname}: WARN: Using your go.mod instead of our generated version -- this may misbehave!"
+		cat >&2 <<- EOF
+			$scriptname: WARN: go.mod exists in the repository root!
+			$scriptname: WARN: Using your go.mod instead of our generated version -- this may misbehave!
+		EOF
 	} >&2
 else
 	set -x
