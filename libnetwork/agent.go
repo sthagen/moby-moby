@@ -12,10 +12,10 @@ import (
 
 	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/cluster"
-	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
 	"github.com/docker/docker/libnetwork/networkdb"
+	"github.com/docker/docker/libnetwork/scope"
 	"github.com/docker/docker/libnetwork/types"
 	"github.com/docker/go-events"
 	"github.com/gogo/protobuf/proto"
@@ -182,8 +182,11 @@ func (c *Controller) handleKeyChange(keys []*types.EncryptionKey) error {
 	}
 
 	c.drvRegistry.WalkDrivers(func(name string, driver driverapi.Driver, capability driverapi.Capability) bool {
-		err := driver.DiscoverNew(discoverapi.EncryptionKeysUpdate, drvEnc)
-		if err != nil {
+		dr, ok := driver.(discoverapi.Discover)
+		if !ok {
+			return false
+		}
+		if err := dr.DiscoverNew(discoverapi.EncryptionKeysUpdate, drvEnc); err != nil {
 			log.G(context.TODO()).Warnf("Failed to update datapath keys in driver %s: %v", name, err)
 			// Attempt to reconfigure keys in case of a update failure
 			// which can arise due to a mismatch of keys
@@ -191,7 +194,7 @@ func (c *Controller) handleKeyChange(keys []*types.EncryptionKey) error {
 			log.G(context.TODO()).Warnf("Reconfiguring datapath keys for  %s", name)
 			drvCfgEnc := discoverapi.DriverEncryptionConfig{}
 			drvCfgEnc.Keys, drvCfgEnc.Tags = c.getKeys(subsysIPSec)
-			err = driver.DiscoverNew(discoverapi.EncryptionKeysConfig, drvCfgEnc)
+			err = dr.DiscoverNew(discoverapi.EncryptionKeysConfig, drvCfgEnc)
 			if err != nil {
 				log.G(context.TODO()).Warnf("Failed to reset datapath keys in driver %s: %v", name, err)
 			}
@@ -231,8 +234,10 @@ func (c *Controller) agentSetup(clusterProvider cluster.Provider) error {
 			return err
 		}
 		c.drvRegistry.WalkDrivers(func(name string, driver driverapi.Driver, capability driverapi.Capability) bool {
-			if capability.ConnectivityScope == datastore.GlobalScope {
-				c.agentDriverNotify(driver)
+			if capability.ConnectivityScope == scope.Global {
+				if d, ok := driver.(discoverapi.Discover); ok {
+					c.agentDriverNotify(d)
+				}
 			}
 			return false
 		})
@@ -337,9 +342,10 @@ func (c *Controller) agentInit(listenAddr, bindAddrOrInterface, advertiseAddr, d
 	drvEnc.Tags = tags
 
 	c.drvRegistry.WalkDrivers(func(name string, driver driverapi.Driver, capability driverapi.Capability) bool {
-		err := driver.DiscoverNew(discoverapi.EncryptionKeysConfig, drvEnc)
-		if err != nil {
-			log.G(context.TODO()).Warnf("Failed to set datapath keys in driver %s: %v", name, err)
+		if dr, ok := driver.(discoverapi.Discover); ok {
+			if err := dr.DiscoverNew(discoverapi.EncryptionKeysConfig, drvEnc); err != nil {
+				log.G(context.TODO()).Warnf("Failed to set datapath keys in driver %s: %v", name, err)
+			}
 		}
 		return false
 	})
@@ -357,7 +363,7 @@ func (c *Controller) agentJoin(remoteAddrList []string) error {
 	return agent.networkDB.Join(remoteAddrList)
 }
 
-func (c *Controller) agentDriverNotify(d driverapi.Driver) {
+func (c *Controller) agentDriverNotify(d discoverapi.Discover) {
 	agent := c.getAgent()
 	if agent == nil {
 		return
@@ -436,7 +442,7 @@ type epRecord struct {
 	lbIndex int
 }
 
-func (n *network) Services() map[string]ServiceInfo {
+func (n *Network) Services() map[string]ServiceInfo {
 	eps := make(map[string]epRecord)
 
 	if !n.isClusterEligible() {
@@ -519,14 +525,14 @@ func (n *network) Services() map[string]ServiceInfo {
 	return sinfo
 }
 
-func (n *network) isClusterEligible() bool {
-	if n.scope != datastore.SwarmScope || !n.driverIsMultihost() {
+func (n *Network) isClusterEligible() bool {
+	if n.scope != scope.Swarm || !n.driverIsMultihost() {
 		return false
 	}
 	return n.getController().getAgent() != nil
 }
 
-func (n *network) joinCluster() error {
+func (n *Network) joinCluster() error {
 	if !n.isClusterEligible() {
 		return nil
 	}
@@ -539,7 +545,7 @@ func (n *network) joinCluster() error {
 	return agent.networkDB.JoinNetwork(n.ID())
 }
 
-func (n *network) leaveCluster() error {
+func (n *Network) leaveCluster() error {
 	if !n.isClusterEligible() {
 		return nil
 	}
@@ -743,7 +749,7 @@ func (ep *Endpoint) deleteServiceInfoFromCluster(sb *Sandbox, fullRemove bool, m
 	return nil
 }
 
-func disableServiceInNetworkDB(a *agent, n *network, ep *Endpoint) {
+func disableServiceInNetworkDB(a *agent, n *Network, ep *Endpoint) {
 	var epRec EndpointRecord
 
 	log.G(context.TODO()).Debugf("disableServiceInNetworkDB for %s %s", ep.svcName, ep.ID())
@@ -772,7 +778,7 @@ func disableServiceInNetworkDB(a *agent, n *network, ep *Endpoint) {
 	}
 }
 
-func (n *network) addDriverWatches() {
+func (n *Network) addDriverWatches() {
 	if !n.isClusterEligible() {
 		return
 	}
@@ -808,7 +814,7 @@ func (n *network) addDriverWatches() {
 	}
 }
 
-func (n *network) cancelDriverWatches() {
+func (n *Network) cancelDriverWatches() {
 	if !n.isClusterEligible() {
 		return
 	}
@@ -839,7 +845,7 @@ func (c *Controller) handleTableEvents(ch *events.Channel, fn func(events.Event)
 	}
 }
 
-func (n *network) handleDriverTableEvent(ev events.Event) {
+func (n *Network) handleDriverTableEvent(ev events.Event) {
 	d, err := n.driver(false)
 	if err != nil {
 		log.G(context.TODO()).Errorf("Could not resolve driver %s while handling driver table event: %v", n.networkType, err)

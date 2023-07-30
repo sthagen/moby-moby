@@ -64,8 +64,8 @@ import (
 	"github.com/docker/docker/libnetwork/drvregistry"
 	"github.com/docker/docker/libnetwork/ipamapi"
 	"github.com/docker/docker/libnetwork/netlabel"
-	"github.com/docker/docker/libnetwork/options"
 	"github.com/docker/docker/libnetwork/osl"
+	"github.com/docker/docker/libnetwork/scope"
 	"github.com/docker/docker/libnetwork/types"
 	"github.com/docker/docker/pkg/plugingetter"
 	"github.com/docker/docker/pkg/plugins"
@@ -76,7 +76,7 @@ import (
 
 // NetworkWalker is a client provided function which will be used to walk the Networks.
 // When the function returns true, the walk will stop.
-type NetworkWalker func(nw Network) bool
+type NetworkWalker func(nw *Network) bool
 
 // SandboxWalker is a client provided function which will be used to walk the Sandboxes.
 // When the function returns true, the walk will stop.
@@ -91,7 +91,7 @@ type Controller struct {
 	ipamRegistry     drvregistry.IPAMs
 	sandboxes        sandboxTable
 	cfg              *config.Config
-	store            datastore.DataStore
+	store            *datastore.Store
 	extKeyListener   net.Listener
 	watchCh          chan *Endpoint
 	unWatchCh        chan *Endpoint
@@ -344,7 +344,7 @@ func (c *Controller) makeDriverConfig(ntype string) map[string]interface{} {
 		// FIXME: every driver instance constructs a new DataStore
 		// instance against the same database. Yikes!
 		cfg[netlabel.LocalKVClient] = discoverapi.DatastoreConfigData{
-			Scope:    datastore.LocalScope,
+			Scope:    scope.Local,
 			Provider: c.cfg.Scope.Client.Provider,
 			Address:  c.cfg.Scope.Client.Address,
 			Config:   c.cfg.Scope.Client.Config,
@@ -385,19 +385,21 @@ func (c *Controller) BuiltinIPAMDrivers() []string {
 
 func (c *Controller) processNodeDiscovery(nodes []net.IP, add bool) {
 	c.drvRegistry.WalkDrivers(func(name string, driver driverapi.Driver, capability driverapi.Capability) bool {
-		c.pushNodeDiscovery(driver, capability, nodes, add)
+		if d, ok := driver.(discoverapi.Discover); ok {
+			c.pushNodeDiscovery(d, capability, nodes, add)
+		}
 		return false
 	})
 }
 
-func (c *Controller) pushNodeDiscovery(d driverapi.Driver, cap driverapi.Capability, nodes []net.IP, add bool) {
+func (c *Controller) pushNodeDiscovery(d discoverapi.Discover, cap driverapi.Capability, nodes []net.IP, add bool) {
 	var self net.IP
 	// try swarm-mode config
 	if agent := c.getAgent(); agent != nil {
 		self = net.ParseIP(agent.advertiseAddr)
 	}
 
-	if d == nil || cap.ConnectivityScope != datastore.GlobalScope || nodes == nil {
+	if d == nil || cap.ConnectivityScope != scope.Global || nodes == nil {
 		return
 	}
 
@@ -452,7 +454,9 @@ func (c *Controller) GetPluginGetter() plugingetter.PluginGetter {
 }
 
 func (c *Controller) RegisterDriver(networkType string, driver driverapi.Driver, capability driverapi.Capability) error {
-	c.agentDriverNotify(driver)
+	if d, ok := driver.(discoverapi.Discover); ok {
+		c.agentDriverNotify(d)
+	}
 	return nil
 }
 
@@ -461,11 +465,11 @@ const overlayDSROptionString = "dsr"
 
 // NewNetwork creates a new network of the specified network type. The options
 // are network specific and modeled in a generic way.
-func (c *Controller) NewNetwork(networkType, name string, id string, options ...NetworkOption) (Network, error) {
+func (c *Controller) NewNetwork(networkType, name string, id string, options ...NetworkOption) (*Network, error) {
 	var (
 		caps           driverapi.Capability
 		err            error
-		t              *network
+		t              *Network
 		skipCfgEpCount bool
 	)
 
@@ -488,7 +492,7 @@ func (c *Controller) NewNetwork(networkType, name string, id string, options ...
 
 	defaultIpam := defaultIpamForNetworkType(networkType)
 	// Construct the network object
-	nw := &network{
+	nw := &Network{
 		name:             name,
 		networkType:      networkType,
 		generic:          map[string]interface{}{netlabel.GenericData: make(map[string]string)},
@@ -511,7 +515,7 @@ func (c *Controller) NewNetwork(networkType, name string, id string, options ...
 	// network drivers is needed so that this special network is not
 	// usable by old engine versions.
 	if nw.configOnly {
-		nw.scope = datastore.LocalScope
+		nw.scope = scope.Local
 		nw.networkType = "null"
 		goto addToStore
 	}
@@ -521,15 +525,15 @@ func (c *Controller) NewNetwork(networkType, name string, id string, options ...
 		return nil, err
 	}
 
-	if nw.scope == datastore.LocalScope && caps.DataScope == datastore.GlobalScope {
+	if nw.scope == scope.Local && caps.DataScope == scope.Global {
 		return nil, types.ForbiddenErrorf("cannot downgrade network scope for %s networks", networkType)
 	}
-	if nw.ingress && caps.DataScope != datastore.GlobalScope {
+	if nw.ingress && caps.DataScope != scope.Global {
 		return nil, types.ForbiddenErrorf("Ingress network can only be global scope network")
 	}
 
 	// At this point the network scope is still unknown if not set by user
-	if (caps.DataScope == datastore.GlobalScope || nw.scope == datastore.SwarmScope) &&
+	if (caps.DataScope == scope.Global || nw.scope == scope.Swarm) &&
 		!c.isDistributedControl() && !nw.dynamic {
 		if c.isManager() {
 			// For non-distributed controlled environment, globalscoped non-dynamic networks are redirected to Manager
@@ -538,7 +542,7 @@ func (c *Controller) NewNetwork(networkType, name string, id string, options ...
 		return nil, types.ForbiddenErrorf("Cannot create a multi-host network from a worker node. Please create the network from a manager node.")
 	}
 
-	if nw.scope == datastore.SwarmScope && c.isDistributedControl() {
+	if nw.scope == scope.Swarm && c.isDistributedControl() {
 		return nil, types.ForbiddenErrorf("cannot create a swarm scoped network when swarm is not active")
 	}
 
@@ -603,7 +607,7 @@ func (c *Controller) NewNetwork(networkType, name string, id string, options ...
 	// time pressure to get this in without adding changes to moby,
 	// swarm and CLI, it is being implemented as a driver-specific
 	// option.  Unfortunately, drivers can't influence the core
-	// "libnetwork.network" data type.  Hence we need this hack code
+	// "libnetwork.Network" data type.  Hence we need this hack code
 	// to implement in this manner.
 	if gval, ok := nw.generic[netlabel.GenericData]; ok && nw.networkType == "overlay" {
 		optMap := gval.(map[string]string)
@@ -665,20 +669,26 @@ addToStore:
 		arrangeIngressFilterRule()
 		c.mu.Unlock()
 	}
-	arrangeUserFilterRule()
+
+	// Sets up the DOCKER-USER chain for each iptables version (IPv4, IPv6)
+	// that's enabled in the controller's configuration.
+	for _, ipVersion := range c.enabledIptablesVersions() {
+		if err := setupUserChain(ipVersion); err != nil {
+			log.G(context.TODO()).WithError(err).Warnf("Controller.NewNetwork %s:", name)
+		}
+	}
 
 	return nw, nil
 }
 
-var joinCluster NetworkWalker = func(nw Network) bool {
-	n := nw.(*network)
-	if n.configOnly {
+var joinCluster NetworkWalker = func(nw *Network) bool {
+	if nw.configOnly {
 		return false
 	}
-	if err := n.joinCluster(); err != nil {
-		log.G(context.TODO()).Errorf("Failed to join network %s (%s) into agent cluster: %v", n.Name(), n.ID(), err)
+	if err := nw.joinCluster(); err != nil {
+		log.G(context.TODO()).Errorf("Failed to join network %s (%s) into agent cluster: %v", nw.Name(), nw.ID(), err)
 	}
-	n.addDriverWatches()
+	nw.addDriverWatches()
 	return false
 }
 
@@ -746,7 +756,7 @@ func (c *Controller) reservePools() {
 	}
 }
 
-func doReplayPoolReserve(n *network) bool {
+func doReplayPoolReserve(n *Network) bool {
 	_, caps, err := n.getController().getIPAMDriver(n.ipamType)
 	if err != nil {
 		log.G(context.TODO()).Warnf("Failed to retrieve ipam driver for network %q (%s): %v", n.Name(), n.ID(), err)
@@ -755,7 +765,7 @@ func doReplayPoolReserve(n *network) bool {
 	return caps.RequiresRequestReplay
 }
 
-func (c *Controller) addNetwork(n *network) error {
+func (c *Controller) addNetwork(n *Network) error {
 	d, err := n.driver(true)
 	if err != nil {
 		return err
@@ -772,8 +782,8 @@ func (c *Controller) addNetwork(n *network) error {
 }
 
 // Networks returns the list of Network(s) managed by this controller.
-func (c *Controller) Networks() []Network {
-	var list []Network
+func (c *Controller) Networks() []*Network {
+	var list []*Network
 
 	for _, n := range c.getNetworksFromStore() {
 		if n.inDelete {
@@ -796,21 +806,19 @@ func (c *Controller) WalkNetworks(walker NetworkWalker) {
 
 // NetworkByName returns the Network which has the passed name.
 // If not found, the error [ErrNoSuchNetwork] is returned.
-func (c *Controller) NetworkByName(name string) (Network, error) {
+func (c *Controller) NetworkByName(name string) (*Network, error) {
 	if name == "" {
 		return nil, ErrInvalidName(name)
 	}
-	var n Network
+	var n *Network
 
-	s := func(current Network) bool {
+	c.WalkNetworks(func(current *Network) bool {
 		if current.Name() == name {
 			n = current
 			return true
 		}
 		return false
-	}
-
-	c.WalkNetworks(s)
+	})
 
 	if n == nil {
 		return nil, ErrNoSuchNetwork(name)
@@ -821,7 +829,7 @@ func (c *Controller) NetworkByName(name string) (Network, error) {
 
 // NetworkByID returns the Network which has the passed id.
 // If not found, the error [ErrNoSuchNetwork] is returned.
-func (c *Controller) NetworkByID(id string) (Network, error) {
+func (c *Controller) NetworkByID(id string) (*Network, error) {
 	if id == "" {
 		return nil, ErrInvalidID(id)
 	}
@@ -1134,42 +1142,4 @@ func (c *Controller) IsDiagnosticEnabled() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.DiagnosticServer.IsDiagnosticEnabled()
-}
-
-func (c *Controller) iptablesEnabled() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cfg == nil {
-		return false
-	}
-	// parse map cfg["bridge"]["generic"]["EnableIPTable"]
-	cfgBridge := c.cfg.DriverConfig("bridge")
-	cfgGeneric, ok := cfgBridge[netlabel.GenericData].(options.Generic)
-	if !ok {
-		return false
-	}
-	enabled, ok := cfgGeneric["EnableIPTables"].(bool)
-	if !ok {
-		// unless user explicitly stated, assume iptable is enabled
-		enabled = true
-	}
-	return enabled
-}
-
-func (c *Controller) ip6tablesEnabled() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cfg == nil {
-		return false
-	}
-	// parse map cfg["bridge"]["generic"]["EnableIP6Table"]
-	cfgBridge := c.cfg.DriverConfig("bridge")
-	cfgGeneric, ok := cfgBridge[netlabel.GenericData].(options.Generic)
-	if !ok {
-		return false
-	}
-	enabled, _ := cfgGeneric["EnableIP6Tables"].(bool)
-	return enabled
 }

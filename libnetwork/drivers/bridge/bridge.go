@@ -14,7 +14,6 @@ import (
 
 	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/libnetwork/datastore"
-	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
 	"github.com/docker/docker/libnetwork/iptables"
 	"github.com/docker/docker/libnetwork/netlabel"
@@ -23,6 +22,7 @@ import (
 	"github.com/docker/docker/libnetwork/options"
 	"github.com/docker/docker/libnetwork/portallocator"
 	"github.com/docker/docker/libnetwork/portmapper"
+	"github.com/docker/docker/libnetwork/scope"
 	"github.com/docker/docker/libnetwork/types"
 	"github.com/vishvananda/netlink"
 )
@@ -153,7 +153,7 @@ type driver struct {
 	isolationChain1V6 *iptables.ChainInfo
 	isolationChain2V6 *iptables.ChainInfo
 	networks          map[string]*bridgeNetwork
-	store             datastore.DataStore
+	store             *datastore.Store
 	nlh               *netlink.Handle
 	configNetwork     sync.Mutex
 	portAllocator     *portallocator.PortAllocator // Overridable for tests.
@@ -175,8 +175,8 @@ func Register(r driverapi.Registerer, config map[string]interface{}) error {
 		return err
 	}
 	return r.RegisterDriver(NetworkType, d, driverapi.Capability{
-		DataScope:         datastore.LocalScope,
-		ConnectivityScope: datastore.LocalScope,
+		DataScope:         scope.Local,
+		ConnectivityScope: scope.Local,
 	})
 }
 
@@ -1433,16 +1433,6 @@ func (d *driver) Type() string {
 
 func (d *driver) IsBuiltIn() bool {
 	return true
-}
-
-// DiscoverNew is a notification for a new discovery event, such as a new node joining a cluster
-func (d *driver) DiscoverNew(dType discoverapi.DiscoveryType, data interface{}) error {
-	return nil
-}
-
-// DiscoverDelete is a notification for a discovery delete event, such as a node leaving a cluster
-func (d *driver) DiscoverDelete(dType discoverapi.DiscoveryType, data interface{}) error {
-	return nil
 }
 
 func parseEndpointOptions(epOptions map[string]interface{}) (*endpointConfiguration, error) {

@@ -5,16 +5,16 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/docker/docker/internal/testutils/netnsutils"
 	"github.com/docker/docker/libnetwork/config"
 	"github.com/docker/docker/libnetwork/ipamapi"
 	"github.com/docker/docker/libnetwork/netlabel"
 	"github.com/docker/docker/libnetwork/options"
 	"github.com/docker/docker/libnetwork/osl"
-	"github.com/docker/docker/libnetwork/testutils"
 	"gotest.tools/v3/skip"
 )
 
-func getTestEnv(t *testing.T, opts ...[]NetworkOption) (*Controller, []Network) {
+func getTestEnv(t *testing.T, opts ...[]NetworkOption) (*Controller, []*Network) {
 	skip.If(t, runtime.GOOS == "windows", "test only works on linux")
 
 	const netType = "bridge"
@@ -33,7 +33,7 @@ func getTestEnv(t *testing.T, opts ...[]NetworkOption) (*Controller, []Network) 
 		return c, nil
 	}
 
-	nwList := make([]Network, 0, len(opts))
+	nwList := make([]*Network, 0, len(opts))
 	for i, opt := range opts {
 		name := "test_nw_" + strconv.Itoa(i)
 		newOptions := []NetworkOption{
@@ -74,7 +74,7 @@ func TestSandboxAddEmpty(t *testing.T) {
 
 // // If different priorities are specified, internal option and ipv6 addresses mustn't influence endpoint order
 func TestSandboxAddMultiPrio(t *testing.T) {
-	defer testutils.SetupTestOSContext(t)()
+	defer netnsutils.SetupTestOSContext(t)()
 
 	opts := [][]NetworkOption{
 		{NetworkOptionEnableIPv6(true), NetworkOptionIpam(ipamapi.DefaultIPAM, "", nil, []*IpamConf{{PreferredPool: "fe90::/64"}}, nil)},
@@ -158,7 +158,7 @@ func TestSandboxAddMultiPrio(t *testing.T) {
 }
 
 func TestSandboxAddSamePrio(t *testing.T) {
-	defer testutils.SetupTestOSContext(t)()
+	defer netnsutils.SetupTestOSContext(t)()
 
 	opts := [][]NetworkOption{
 		{},

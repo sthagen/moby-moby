@@ -14,9 +14,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
+	"github.com/docker/docker/libnetwork/scope"
 	"github.com/docker/docker/libnetwork/types"
 	"github.com/docker/docker/pkg/plugins"
 )
@@ -239,7 +239,7 @@ func TestGetEmptyCapabilities(t *testing.T) {
 		t.Fatal("Driver type does not match that given")
 	}
 
-	_, err = d.(*driver).getCapabilities()
+	_, err = d.getCapabilities()
 	if err == nil {
 		t.Fatal("There should be error reported when get empty capability")
 	}
@@ -273,13 +273,13 @@ func TestGetExtraCapabilities(t *testing.T) {
 		t.Fatal("Driver type does not match that given")
 	}
 
-	c, err := d.(*driver).getCapabilities()
+	c, err := d.getCapabilities()
 	if err != nil {
 		t.Fatal(err)
-	} else if c.DataScope != datastore.LocalScope {
+	} else if c.DataScope != scope.Local {
 		t.Fatalf("get capability '%s', expecting 'local'", c.DataScope)
-	} else if c.ConnectivityScope != datastore.GlobalScope {
-		t.Fatalf("get capability '%s', expecting %q", c.ConnectivityScope, datastore.GlobalScope)
+	} else if c.ConnectivityScope != scope.Global {
+		t.Fatalf("get capability '%s', expecting %q", c.ConnectivityScope, scope.Global)
 	}
 }
 
@@ -309,7 +309,7 @@ func TestGetInvalidCapabilities(t *testing.T) {
 		t.Fatal("Driver type does not match that given")
 	}
 
-	_, err = d.(*driver).getCapabilities()
+	_, err = d.getCapabilities()
 	if err == nil {
 		t.Fatal("There should be error reported when get invalid capability")
 	}
@@ -427,10 +427,10 @@ func TestRemoteDriver(t *testing.T) {
 		t.Fatal("Driver type does not match that given")
 	}
 
-	c, err := d.(*driver).getCapabilities()
+	c, err := d.getCapabilities()
 	if err != nil {
 		t.Fatal(err)
-	} else if c.DataScope != datastore.GlobalScope {
+	} else if c.DataScope != scope.Global {
 		t.Fatalf("get capability '%s', expecting 'global'", c.DataScope)
 	}
 

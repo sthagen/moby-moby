@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	"github.com/docker/docker/libnetwork/datastore"
-	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/driverapi"
+	"github.com/docker/docker/libnetwork/scope"
 	"github.com/docker/docker/libnetwork/types"
 )
 
@@ -40,7 +40,7 @@ type driver struct {
 	networks networkTable
 	sync.Once
 	sync.Mutex
-	store datastore.DataStore
+	store *datastore.Store
 }
 
 type endpoint struct {
@@ -71,8 +71,8 @@ func Register(r driverapi.Registerer, config map[string]interface{}) error {
 		return err
 	}
 	return r.RegisterDriver(NetworkType, d, driverapi.Capability{
-		DataScope:         datastore.LocalScope,
-		ConnectivityScope: datastore.GlobalScope,
+		DataScope:         scope.Local,
+		ConnectivityScope: scope.Global,
 	})
 }
 
@@ -101,16 +101,6 @@ func (d *driver) ProgramExternalConnectivity(nid, eid string, options map[string
 }
 
 func (d *driver) RevokeExternalConnectivity(nid, eid string) error {
-	return nil
-}
-
-// DiscoverNew is a notification for a new discovery event.
-func (d *driver) DiscoverNew(dType discoverapi.DiscoveryType, data interface{}) error {
-	return nil
-}
-
-// DiscoverDelete is a notification for a discovery delete event.
-func (d *driver) DiscoverDelete(dType discoverapi.DiscoveryType, data interface{}) error {
 	return nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/discoverapi"
 	"github.com/docker/docker/libnetwork/netlabel"
+	"github.com/docker/docker/libnetwork/scope"
 	"github.com/docker/docker/libnetwork/types"
 )
 
@@ -30,7 +31,7 @@ func (d *driver) initStore(option map[string]interface{}) error {
 		if !ok {
 			return types.InternalErrorf("incorrect data in datastore configuration: %v", data)
 		}
-		d.store, err = datastore.NewDataStoreFromConfig(dsc)
+		d.store, err = datastore.FromConfig(dsc)
 		if err != nil {
 			return types.InternalErrorf("bridge driver failed to initialize data store: %v", err)
 		}
@@ -265,7 +266,7 @@ func (ncfg *networkConfiguration) CopyTo(o datastore.KVObject) error {
 }
 
 func (ncfg *networkConfiguration) DataScope() string {
-	return datastore.LocalScope
+	return scope.Local
 }
 
 func (ep *bridgeEndpoint) MarshalJSON() ([]byte, error) {
@@ -382,7 +383,7 @@ func (ep *bridgeEndpoint) CopyTo(o datastore.KVObject) error {
 }
 
 func (ep *bridgeEndpoint) DataScope() string {
-	return datastore.LocalScope
+	return scope.Local
 }
 
 func (n *bridgeNetwork) restorePortAllocations(ep *bridgeEndpoint) {
