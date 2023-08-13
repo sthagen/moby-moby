@@ -99,10 +99,6 @@ type containerConfig struct {
 	exposedPorts      []types.TransportPort
 }
 
-const (
-	resolverIPSandbox = "127.0.0.11"
-)
-
 // ID returns the ID of the sandbox.
 func (sb *Sandbox) ID() string {
 	return sb.id
@@ -1068,25 +1064,25 @@ func OptionOriginResolvConfPath(path string) SandboxOption {
 
 // OptionDNS function returns an option setter for dns entry option to
 // be passed to container Create method.
-func OptionDNS(dns string) SandboxOption {
+func OptionDNS(dns []string) SandboxOption {
 	return func(sb *Sandbox) {
-		sb.config.dnsList = append(sb.config.dnsList, dns)
+		sb.config.dnsList = dns
 	}
 }
 
 // OptionDNSSearch function returns an option setter for dns search entry option to
 // be passed to container Create method.
-func OptionDNSSearch(search string) SandboxOption {
+func OptionDNSSearch(search []string) SandboxOption {
 	return func(sb *Sandbox) {
-		sb.config.dnsSearchList = append(sb.config.dnsSearchList, search)
+		sb.config.dnsSearchList = search
 	}
 }
 
 // OptionDNSOptions function returns an option setter for dns options entry option to
 // be passed to container Create method.
-func OptionDNSOptions(options string) SandboxOption {
+func OptionDNSOptions(options []string) SandboxOption {
 	return func(sb *Sandbox) {
-		sb.config.dnsOptionsList = append(sb.config.dnsOptionsList, options)
+		sb.config.dnsOptionsList = options
 	}
 }
 

@@ -105,24 +105,20 @@ func (r *Resolver) SetupFunc(port int) func() {
 		var err error
 
 		// DNS operates primarily on UDP
-		addr := &net.UDPAddr{
+		r.conn, err = net.ListenUDP("udp", &net.UDPAddr{
 			IP:   net.ParseIP(r.listenAddress),
 			Port: port,
-		}
-
-		r.conn, err = net.ListenUDP("udp", addr)
+		})
 		if err != nil {
 			r.err = fmt.Errorf("error in opening name server socket %v", err)
 			return
 		}
 
 		// Listen on a TCP as well
-		tcpaddr := &net.TCPAddr{
+		r.tcpListen, err = net.ListenTCP("tcp", &net.TCPAddr{
 			IP:   net.ParseIP(r.listenAddress),
 			Port: port,
-		}
-
-		r.tcpListen, err = net.ListenTCP("tcp", tcpaddr)
+		})
 		if err != nil {
 			r.err = fmt.Errorf("error in opening name TCP server socket %v", err)
 			return
@@ -522,12 +518,12 @@ func (r *Resolver) exchange(proto string, extDNS extDNSEntry, query *dns.Msg) *d
 	}
 	defer extConn.Close()
 
-	log := r.log().WithFields(logrus.Fields{
+	logger := r.log().WithFields(log.Fields{
 		"dns-server":  extConn.RemoteAddr().Network() + ":" + extConn.RemoteAddr().String(),
 		"client-addr": extConn.LocalAddr().Network() + ":" + extConn.LocalAddr().String(),
 		"question":    query.Question[0].String(),
 	})
-	log.Debug("[resolver] forwarding query")
+	logger.Debug("[resolver] forwarding query")
 
 	resp, _, err := (&dns.Client{
 		Timeout: extIOTimeout,
@@ -549,7 +545,7 @@ func (r *Resolver) exchange(proto string, extDNS extDNSEntry, query *dns.Msg) *d
 
 	if resp == nil {
 		// Should be impossible, so make noise if it happens anyway.
-		log.Error("[resolver] external DNS returned empty response")
+		logger.Error("[resolver] external DNS returned empty response")
 	}
 	return resp
 }
