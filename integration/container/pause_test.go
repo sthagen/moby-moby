@@ -48,7 +48,7 @@ func TestPause(t *testing.T) {
 	messages, errs := apiClient.Events(ctx, types.EventsOptions{
 		Since:   since,
 		Until:   until,
-		Filters: filters.NewArgs(filters.Arg("container", cID)),
+		Filters: filters.NewArgs(filters.Arg(string(events.ContainerEventType), cID)),
 	})
 	assert.Check(t, is.DeepEqual([]string{"pause", "unpause"}, getEventActions(t, messages, errs)))
 }
@@ -88,6 +88,7 @@ func TestPauseStopPausedContainer(t *testing.T) {
 }
 
 func getEventActions(t *testing.T, messages <-chan events.Message, errs <-chan error) []string {
+	t.Helper()
 	var actions []string
 	for {
 		select {
@@ -95,7 +96,7 @@ func getEventActions(t *testing.T, messages <-chan events.Message, errs <-chan e
 			assert.Check(t, err == nil || err == io.EOF)
 			return actions
 		case e := <-messages:
-			actions = append(actions, e.Status)
+			actions = append(actions, e.Action)
 		}
 	}
 }

@@ -28,7 +28,7 @@ const defaultPrefix = "/var/run/docker"
 
 func init() {
 	// Lock main() to the initial thread to exclude the goroutines spawned
-	// by func (*networkNamespace) InvokeFunc() or func setIPv6() below from
+	// by func (*Namespace) InvokeFunc() or func setIPv6() below from
 	// being scheduled onto that thread. Changes to the network namespace of
 	// the initial thread alter /proc/self/ns/net, which would break any
 	// code which (incorrectly) assumes that that file is the network
@@ -43,16 +43,16 @@ var (
 	gpmWg            sync.WaitGroup
 	gpmCleanupPeriod = 60 * time.Second
 	gpmChan          = make(chan chan struct{})
-	prefix           = defaultPrefix
+	netnsBasePath    = filepath.Join(defaultPrefix, "netns")
 )
 
 // SetBasePath sets the base url prefix for the ns path
 func SetBasePath(path string) {
-	prefix = path
+	netnsBasePath = filepath.Join(path, "netns")
 }
 
 func basePath() string {
-	return filepath.Join(prefix, "netns")
+	return netnsBasePath
 }
 
 func createBasePath() {
@@ -177,9 +177,9 @@ func GenerateKey(containerID string) string {
 	return basePath() + "/" + containerID[:maxLen]
 }
 
-// NewSandbox provides a new sandbox instance created in an os specific way
-// provided a key which uniquely identifies the sandbox
-func NewSandbox(key string, osCreate, isRestore bool) (Sandbox, error) {
+// NewSandbox provides a new Namespace instance created in an os specific way
+// provided a key which uniquely identifies the sandbox.
+func NewSandbox(key string, osCreate, isRestore bool) (*Namespace, error) {
 	if !isRestore {
 		err := createNetworkNamespace(key, osCreate)
 		if err != nil {
@@ -189,7 +189,7 @@ func NewSandbox(key string, osCreate, isRestore bool) (Sandbox, error) {
 		once.Do(createBasePath)
 	}
 
-	n := &networkNamespace{path: key, isDefault: !osCreate, nextIfIndex: make(map[string]int)}
+	n := &Namespace{path: key, isDefault: !osCreate, nextIfIndex: make(map[string]int)}
 
 	sboxNs, err := netns.GetFromPath(n.path)
 	if err != nil {
@@ -230,7 +230,7 @@ func mountNetworkNamespace(basePath string, lnPath string) error {
 }
 
 // GetSandboxForExternalKey returns sandbox object for the supplied path
-func GetSandboxForExternalKey(basePath string, key string) (Sandbox, error) {
+func GetSandboxForExternalKey(basePath string, key string) (*Namespace, error) {
 	if err := createNamespaceFile(key); err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func GetSandboxForExternalKey(basePath string, key string) (Sandbox, error) {
 	if err := mountNetworkNamespace(basePath, key); err != nil {
 		return nil, err
 	}
-	n := &networkNamespace{path: key, nextIfIndex: make(map[string]int)}
+	n := &Namespace{path: key, nextIfIndex: make(map[string]int)}
 
 	sboxNs, err := netns.GetFromPath(n.path)
 	if err != nil {
@@ -313,12 +313,13 @@ func createNamespaceFile(path string) (err error) {
 	return err
 }
 
-// The networkNamespace type is the linux implementation of the Sandbox
-// interface. It represents a linux network namespace, and moves an interface
-// into it when called on method AddInterface or sets the gateway etc.
-type networkNamespace struct {
+// Namespace represents a network sandbox. It represents a Linux network
+// namespace, and moves an interface into it when called on method AddInterface
+// or sets the gateway etc. It holds a list of Interfaces, routes etc., and more
+// can be added dynamically.
+type Namespace struct {
 	path         string
-	iFaces       []*nwIface
+	iFaces       []*Interface
 	gw           net.IP
 	gwv6         net.IP
 	staticRoutes []*types.StaticRoute
@@ -330,23 +331,17 @@ type networkNamespace struct {
 	sync.Mutex
 }
 
-func (n *networkNamespace) Interfaces() []Interface {
-	ifaces := make([]Interface, len(n.iFaces))
-	for i, iface := range n.iFaces {
-		ifaces[i] = iface
-	}
+// Interfaces returns the collection of Interface previously added with the AddInterface
+// method. Note that this doesn't include network interfaces added in any
+// other way (such as the default loopback interface which is automatically
+// created on creation of a sandbox).
+func (n *Namespace) Interfaces() []*Interface {
+	ifaces := make([]*Interface, len(n.iFaces))
+	copy(ifaces, n.iFaces)
 	return ifaces
 }
 
-func (n *networkNamespace) InterfaceOptions() IfaceOptionSetter {
-	return n
-}
-
-func (n *networkNamespace) NeighborOptions() NeighborOptionSetter {
-	return n
-}
-
-func (n *networkNamespace) loopbackUp() error {
+func (n *Namespace) loopbackUp() error {
 	iface, err := n.nlHandle.LinkByName("lo")
 	if err != nil {
 		return err
@@ -354,11 +349,13 @@ func (n *networkNamespace) loopbackUp() error {
 	return n.nlHandle.LinkSetUp(iface)
 }
 
-func (n *networkNamespace) GetLoopbackIfaceName() string {
+// GetLoopbackIfaceName returns the name of the loopback interface
+func (n *Namespace) GetLoopbackIfaceName() string {
 	return "lo"
 }
 
-func (n *networkNamespace) AddAliasIP(ifName string, ip *net.IPNet) error {
+// AddAliasIP adds the passed IP address to the named interface
+func (n *Namespace) AddAliasIP(ifName string, ip *net.IPNet) error {
 	iface, err := n.nlHandle.LinkByName(ifName)
 	if err != nil {
 		return err
@@ -366,7 +363,8 @@ func (n *networkNamespace) AddAliasIP(ifName string, ip *net.IPNet) error {
 	return n.nlHandle.AddrAdd(iface, &netlink.Addr{IPNet: ip})
 }
 
-func (n *networkNamespace) RemoveAliasIP(ifName string, ip *net.IPNet) error {
+// RemoveAliasIP removes the passed IP address from the named interface
+func (n *Namespace) RemoveAliasIP(ifName string, ip *net.IPNet) error {
 	iface, err := n.nlHandle.LinkByName(ifName)
 	if err != nil {
 		return err
@@ -374,7 +372,9 @@ func (n *networkNamespace) RemoveAliasIP(ifName string, ip *net.IPNet) error {
 	return n.nlHandle.AddrDel(iface, &netlink.Addr{IPNet: ip})
 }
 
-func (n *networkNamespace) DisableARPForVIP(srcName string) (Err error) {
+// DisableARPForVIP disables ARP replies and requests for VIP addresses
+// on a particular interface.
+func (n *Namespace) DisableARPForVIP(srcName string) (Err error) {
 	dstName := ""
 	for _, i := range n.Interfaces() {
 		if i.SrcName() == srcName {
@@ -404,7 +404,8 @@ func (n *networkNamespace) DisableARPForVIP(srcName string) (Err error) {
 	return
 }
 
-func (n *networkNamespace) InvokeFunc(f func()) error {
+// InvokeFunc invoke a function in the network namespace.
+func (n *Namespace) InvokeFunc(f func()) error {
 	path := n.nsPath()
 	newNS, err := netns.GetFromPath(path)
 	if err != nil {
@@ -448,22 +449,20 @@ func (n *networkNamespace) InvokeFunc(f func()) error {
 	return <-done
 }
 
-func (n *networkNamespace) nsPath() string {
+func (n *Namespace) nsPath() string {
 	n.Lock()
 	defer n.Unlock()
 
 	return n.path
 }
 
-func (n *networkNamespace) Info() Info {
-	return n
-}
-
-func (n *networkNamespace) Key() string {
+// Key returns the path where the network namespace is mounted.
+func (n *Namespace) Key() string {
 	return n.path
 }
 
-func (n *networkNamespace) Destroy() error {
+// Destroy destroys the sandbox.
+func (n *Namespace) Destroy() error {
 	if n.nlHandle != nil {
 		n.nlHandle.Close()
 	}
@@ -478,16 +477,18 @@ func (n *networkNamespace) Destroy() error {
 	return nil
 }
 
-// Restore restore the network namespace
-func (n *networkNamespace) Restore(ifsopt map[Iface][]IfaceOption, routes []*types.StaticRoute, gw net.IP, gw6 net.IP) error {
+// Restore restores the network namespace.
+func (n *Namespace) Restore(ifsopt map[Iface][]IfaceOption, routes []*types.StaticRoute, gw net.IP, gw6 net.IP) error {
 	// restore interfaces
 	for name, opts := range ifsopt {
-		i := &nwIface{
+		i := &Interface{
 			srcName: name.SrcName,
 			dstName: name.DstPrefix,
 			ns:      n,
 		}
-		i.processInterfaceOptions(opts...)
+		if err := i.processInterfaceOptions(opts...); err != nil {
+			return err
+		}
 		if i.master != "" {
 			i.dstMaster = n.findDst(i.master, true)
 			if i.dstMaster == "" {
@@ -579,7 +580,7 @@ func (n *networkNamespace) Restore(ifsopt map[Iface][]IfaceOption, routes []*typ
 }
 
 // Checks whether IPv6 needs to be enabled/disabled on the loopback interface
-func (n *networkNamespace) checkLoV6() {
+func (n *Namespace) checkLoV6() {
 	var (
 		enable = false
 		action = "disable"
@@ -606,8 +607,8 @@ func (n *networkNamespace) checkLoV6() {
 	n.loV6Enabled = enable
 }
 
-// ApplyOSTweaks applies linux configs on the sandbox
-func (n *networkNamespace) ApplyOSTweaks(types []SandboxType) {
+// ApplyOSTweaks applies operating system specific knobs on the sandbox.
+func (n *Namespace) ApplyOSTweaks(types []SandboxType) {
 	for _, t := range types {
 		switch t {
 		case SandboxTypeLoadBalancer, SandboxTypeIngress:

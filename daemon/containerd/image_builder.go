@@ -42,14 +42,14 @@ import (
 // releasableLayer.Release() to prevent leaking of layers.
 func (i *ImageService) GetImageAndReleasableLayer(ctx context.Context, refOrID string, opts backend.GetImageAndLayerOptions) (builder.Image, builder.ROLayer, error) {
 	if refOrID == "" { // from SCRATCH
-		os := runtime.GOOS
+		imgOS := runtime.GOOS
 		if runtime.GOOS == "windows" {
-			os = "linux"
+			imgOS = "linux"
 		}
 		if opts.Platform != nil {
-			os = opts.Platform.OS
+			imgOS = opts.Platform.OS
 		}
-		if !system.IsOSSupported(os) {
+		if !system.IsOSSupported(imgOS) {
 			return nil, nil, system.ErrNotSupportedOperatingSystem
 		}
 		return nil, &rolayer{
@@ -76,12 +76,12 @@ func (i *ImageService) GetImageAndReleasableLayer(ctx context.Context, refOrID s
 				return nil, nil, system.ErrNotSupportedOperatingSystem
 			}
 
-			layer, err := newROLayerForImage(ctx, &imgDesc, i, opts, refOrID, opts.Platform)
+			roLayer, err := newROLayerForImage(ctx, &imgDesc, i, opts.Platform)
 			if err != nil {
 				return nil, nil, err
 			}
 
-			return img, layer, nil
+			return img, roLayer, nil
 		}
 	}
 
@@ -105,12 +105,12 @@ func (i *ImageService) GetImageAndReleasableLayer(ctx context.Context, refOrID s
 		return nil, nil, err
 	}
 
-	layer, err := newROLayerForImage(ctx, imgDesc, i, opts, refOrID, opts.Platform)
+	roLayer, err := newROLayerForImage(ctx, imgDesc, i, opts.Platform)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return img, layer, nil
+	return img, roLayer, nil
 }
 
 func (i *ImageService) pullForBuilder(ctx context.Context, name string, authConfigs map[string]registry.AuthConfig, output io.Writer, platform *ocispec.Platform) (*ocispec.Descriptor, error) {
@@ -173,7 +173,7 @@ Please notify the image author to correct the configuration.`,
 	return &imgDesc, err
 }
 
-func newROLayerForImage(ctx context.Context, imgDesc *ocispec.Descriptor, i *ImageService, opts backend.GetImageAndLayerOptions, refOrID string, platform *ocispec.Platform) (builder.ROLayer, error) {
+func newROLayerForImage(ctx context.Context, imgDesc *ocispec.Descriptor, i *ImageService, platform *ocispec.Platform) (builder.ROLayer, error) {
 	if imgDesc == nil {
 		return nil, fmt.Errorf("can't make an RO layer for a nil image :'(")
 	}
@@ -390,43 +390,7 @@ func (i *ImageService) CreateImage(ctx context.Context, config []byte, parent st
 		return nil, err
 	}
 
-	rootfs := ocispec.RootFS{
-		Type:    imgToCreate.RootFS.Type,
-		DiffIDs: []digest.Digest{},
-	}
-	for _, diffId := range imgToCreate.RootFS.DiffIDs {
-		rootfs.DiffIDs = append(rootfs.DiffIDs, digest.Digest(diffId))
-	}
-	exposedPorts := make(map[string]struct{}, len(imgToCreate.Config.ExposedPorts))
-	for k, v := range imgToCreate.Config.ExposedPorts {
-		exposedPorts[string(k)] = v
-	}
-
-	// make an ocispec.Image from the docker/image.Image
-	ociImgToCreate := ocispec.Image{
-		Created: imgToCreate.Created,
-		Author:  imgToCreate.Author,
-		Platform: ocispec.Platform{
-			Architecture: imgToCreate.Architecture,
-			Variant:      imgToCreate.Variant,
-			OS:           imgToCreate.OS,
-			OSVersion:    imgToCreate.OSVersion,
-			OSFeatures:   imgToCreate.OSFeatures,
-		},
-		Config: ocispec.ImageConfig{
-			User:         imgToCreate.Config.User,
-			ExposedPorts: exposedPorts,
-			Env:          imgToCreate.Config.Env,
-			Entrypoint:   imgToCreate.Config.Entrypoint,
-			Cmd:          imgToCreate.Config.Cmd,
-			Volumes:      imgToCreate.Config.Volumes,
-			WorkingDir:   imgToCreate.Config.WorkingDir,
-			Labels:       imgToCreate.Config.Labels,
-			StopSignal:   imgToCreate.Config.StopSignal,
-		},
-		RootFS:  rootfs,
-		History: imgToCreate.History,
-	}
+	ociImgToCreate := dockerImageToDockerOCIImage(*imgToCreate)
 
 	var layers []ocispec.Descriptor
 	// if the image has a parent, we need to start with the parents layers descriptors
@@ -460,11 +424,15 @@ func (i *ImageService) CreateImage(ctx context.Context, config []byte, parent st
 
 	// necessary to prevent the contents from being GC'd
 	// between writing them here and creating an image
-	ctx, done, err := i.client.WithLease(ctx, leases.WithRandomID(), leases.WithExpiration(1*time.Hour))
+	ctx, release, err := i.client.WithLease(ctx, leases.WithRandomID(), leases.WithExpiration(1*time.Hour))
 	if err != nil {
 		return nil, err
 	}
-	defer done(ctx)
+	defer func() {
+		if err := release(ctx); err != nil {
+			log.G(ctx).WithError(err).Warn("failed to release lease created for create")
+		}
+	}()
 
 	commitManifestDesc, err := writeContentsForImage(ctx, i.snapshotter, i.client.ContentStore(), ociImgToCreate, layers)
 	if err != nil {
@@ -493,9 +461,6 @@ func (i *ImageService) CreateImage(ctx context.Context, config []byte, parent st
 		return nil, err
 	}
 
-	newImage := dimage.NewImage(dimage.ID(createdImage.Target.Digest))
-	newImage.V1Image = imgToCreate.V1Image
-	newImage.V1Image.ID = string(createdImage.Target.Digest)
-	newImage.History = imgToCreate.History
+	newImage := dimage.Clone(imgToCreate, dimage.ID(createdImage.Target.Digest))
 	return newImage, nil
 }

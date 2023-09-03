@@ -1,22 +1,28 @@
 package daemon // import "github.com/docker/docker/integration/daemon"
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 
 	"github.com/docker/docker/api/types"
+	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/daemon/config"
+	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/integration/internal/container"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/docker/testutil/daemon"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
@@ -154,7 +160,7 @@ func TestConfigDaemonSeccompProfiles(t *testing.T) {
 			d.Stop(t)
 
 			cfg := filepath.Join(d.RootDir(), "daemon.json")
-			err := os.WriteFile(cfg, []byte(`{"seccomp-profile": "`+tc.profile+`"}`), 0644)
+			err := os.WriteFile(cfg, []byte(`{"seccomp-profile": "`+tc.profile+`"}`), 0o644)
 			assert.NilError(t, err)
 
 			d.Start(t, "--config-file", cfg)
@@ -284,7 +290,7 @@ func TestDaemonProxy(t *testing.T) {
 
 		configFile := filepath.Join(d.RootDir(), "daemon.json")
 		configJSON := fmt.Sprintf(`{"proxies":{"http-proxy":%[1]q, "https-proxy": %[1]q, "no-proxy": "example.com"}}`, proxyServer.URL)
-		assert.NilError(t, os.WriteFile(configFile, []byte(configJSON), 0644))
+		assert.NilError(t, os.WriteFile(configFile, []byte(configJSON), 0o644))
 
 		d.Start(t, "--iptables=false", "--config-file", configFile)
 		defer d.Stop(t)
@@ -326,7 +332,7 @@ func TestDaemonProxy(t *testing.T) {
 
 		configFile := filepath.Join(d.RootDir(), "daemon.json")
 		configJSON := fmt.Sprintf(`{"proxies":{"http-proxy":%[1]q, "https-proxy": %[1]q, "no-proxy": "example.com"}}`, proxyRawURL)
-		assert.NilError(t, os.WriteFile(configFile, []byte(configJSON), 0644))
+		assert.NilError(t, os.WriteFile(configFile, []byte(configJSON), 0o644))
 
 		err := d.StartWithError("--http-proxy", proxyRawURL, "--https-proxy", proxyRawURL, "--no-proxy", "example.com", "--config-file", configFile, "--validate")
 		assert.ErrorContains(t, err, "daemon exited during startup")
@@ -380,9 +386,9 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 	c := d.NewClientT(t)
 	ctx := context.Background()
 
-	runTest := func(t *testing.T, policy string) {
-		t.Run(policy, func(t *testing.T) {
-			volName := "test-live-restore-volume-references-" + policy
+	runTest := func(t *testing.T, policy containertypes.RestartPolicyMode) {
+		t.Run(string(policy), func(t *testing.T) {
+			volName := "test-live-restore-volume-references-" + string(policy)
 			_, err := c.VolumeCreate(ctx, volume.CreateOptions{Name: volName})
 			assert.NilError(t, err)
 
@@ -408,10 +414,10 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 	}
 
 	t.Run("restartPolicy", func(t *testing.T) {
-		runTest(t, "always")
-		runTest(t, "unless-stopped")
-		runTest(t, "on-failure")
-		runTest(t, "no")
+		runTest(t, containertypes.RestartPolicyAlways)
+		runTest(t, containertypes.RestartPolicyUnlessStopped)
+		runTest(t, containertypes.RestartPolicyOnFailure)
+		runTest(t, containertypes.RestartPolicyDisabled)
 	})
 
 	// Make sure that the local volume driver's mount ref count is restored
@@ -431,8 +437,27 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 			Source: v.Name,
 			Target: "/foo",
 		}
-		cID := container.Run(ctx, t, c, container.WithMount(m), container.WithCmd("top"))
+
+		const testContent = "hello"
+		cID := container.Run(ctx, t, c, container.WithMount(m), container.WithCmd("sh", "-c", "echo "+testContent+">>/foo/test.txt; sleep infinity"))
 		defer c.ContainerRemove(ctx, cID, types.ContainerRemoveOptions{Force: true})
+
+		// Wait until container creates a file in the volume.
+		poll.WaitOn(t, func(t poll.LogT) poll.Result {
+			stat, err := c.ContainerStatPath(ctx, cID, "/foo/test.txt")
+			if err != nil {
+				if errdefs.IsNotFound(err) {
+					return poll.Continue("file doesn't yet exist")
+				}
+				return poll.Error(err)
+			}
+
+			if int(stat.Size) != len(testContent)+1 {
+				return poll.Error(fmt.Errorf("unexpected test file size: %d", stat.Size))
+			}
+
+			return poll.Success()
+		})
 
 		d.Restart(t, "--live-restore", "--iptables=false")
 
@@ -440,6 +465,32 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 		// This should fail since its used by a container
 		err = c.VolumeRemove(ctx, v.Name, false)
 		assert.ErrorContains(t, err, "volume is in use")
+
+		t.Run("volume still mounted", func(t *testing.T) {
+			skip.If(t, testEnv.IsRootless(), "restarted rootless daemon has a new mount namespace and it won't have the previous mounts")
+
+			// Check if a new container with the same volume has access to the previous content.
+			// This fails if the volume gets unmounted at startup.
+			cID2 := container.Run(ctx, t, c, container.WithMount(m), container.WithCmd("cat", "/foo/test.txt"))
+			defer c.ContainerRemove(ctx, cID2, types.ContainerRemoveOptions{Force: true})
+
+			poll.WaitOn(t, container.IsStopped(ctx, c, cID2))
+
+			inspect, err := c.ContainerInspect(ctx, cID2)
+			if assert.Check(t, err) {
+				assert.Check(t, is.Equal(inspect.State.ExitCode, 0), "volume doesn't have the same file")
+			}
+
+			logs, err := c.ContainerLogs(ctx, cID2, types.ContainerLogsOptions{ShowStdout: true})
+			assert.NilError(t, err)
+			defer logs.Close()
+
+			var stdoutBuf bytes.Buffer
+			_, err = stdcopy.StdCopy(&stdoutBuf, io.Discard, logs)
+			assert.NilError(t, err)
+
+			assert.Check(t, is.Equal(strings.TrimSpace(stdoutBuf.String()), testContent))
+		})
 
 		// Remove that container which should free the references in the volume
 		err = c.ContainerRemove(ctx, cID, types.ContainerRemoveOptions{Force: true})

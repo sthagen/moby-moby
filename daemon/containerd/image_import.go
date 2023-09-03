@@ -19,6 +19,7 @@ import (
 	"github.com/docker/docker/builder/dockerfile"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/image"
+	imagespec "github.com/docker/docker/image/spec/specs-go/v1"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/pools"
 	"github.com/google/uuid"
@@ -46,7 +47,11 @@ func (i *ImageService) ImportImage(ctx context.Context, ref reference.Named, pla
 	if err != nil {
 		return "", errdefs.System(err)
 	}
-	defer release(ctx)
+	defer func() {
+		if err := release(ctx); err != nil {
+			logger.WithError(err).Warn("failed to release lease created for import")
+		}
+	}()
 
 	if platform == nil {
 		def := platforms.DefaultSpec()
@@ -83,26 +88,28 @@ func (i *ImageService) ImportImage(ctx context.Context, ref reference.Named, pla
 		Size:      size,
 	}
 
-	ociCfg := containerConfigToOciImageConfig(imageConfig)
+	dockerCfg := containerConfigToDockerOCIImageConfig(imageConfig)
 	createdAt := time.Now()
-	config := ocispec.Image{
-		Platform: *platform,
-		Created:  &createdAt,
-		Author:   "",
-		Config:   ociCfg,
-		RootFS: ocispec.RootFS{
-			Type:    "layers",
-			DiffIDs: []digest.Digest{uncompressedDigest},
-		},
-		History: []ocispec.History{
-			{
-				Created:    &createdAt,
-				CreatedBy:  "",
-				Author:     "",
-				Comment:    msg,
-				EmptyLayer: false,
+	config := imagespec.DockerOCIImage{
+		Image: ocispec.Image{
+			Platform: *platform,
+			Created:  &createdAt,
+			Author:   "",
+			RootFS: ocispec.RootFS{
+				Type:    "layers",
+				DiffIDs: []digest.Digest{uncompressedDigest},
+			},
+			History: []ocispec.History{
+				{
+					Created:    &createdAt,
+					CreatedBy:  "",
+					Author:     "",
+					Comment:    msg,
+					EmptyLayer: false,
+				},
 			},
 		},
+		Config: dockerCfg,
 	}
 	configDesc, err := storeJson(ctx, cs, ocispec.MediaTypeImageConfig, config, nil)
 	if err != nil {
@@ -255,9 +262,9 @@ func compressAndWriteBlob(ctx context.Context, cs content.Store, compression arc
 	writeChan := make(chan digest.Digest)
 	// Start copying the blob to the content store from the pipe.
 	go func() {
-		digest, err := writeBlobAndReturnDigest(ctx, cs, mediaType, pr)
+		dgst, err := writeBlobAndReturnDigest(ctx, cs, mediaType, pr)
 		pr.CloseWithError(err)
-		writeChan <- digest
+		writeChan <- dgst
 	}()
 
 	// Copy archive to the pipe and tee it to a digester.
@@ -378,26 +385,4 @@ func storeJson(ctx context.Context, cs content.Ingester, mt string, obj interfac
 		return ocispec.Descriptor{}, errdefs.System(err)
 	}
 	return desc, nil
-}
-
-func containerConfigToOciImageConfig(cfg *container.Config) ocispec.ImageConfig {
-	ociCfg := ocispec.ImageConfig{
-		User:        cfg.User,
-		Env:         cfg.Env,
-		Entrypoint:  cfg.Entrypoint,
-		Cmd:         cfg.Cmd,
-		Volumes:     cfg.Volumes,
-		WorkingDir:  cfg.WorkingDir,
-		Labels:      cfg.Labels,
-		StopSignal:  cfg.StopSignal,
-		ArgsEscaped: cfg.ArgsEscaped,
-	}
-	if len(cfg.ExposedPorts) > 0 {
-		ociCfg.ExposedPorts = map[string]struct{}{}
-		for k, v := range cfg.ExposedPorts {
-			ociCfg.ExposedPorts[string(k)] = v
-		}
-	}
-
-	return ociCfg
 }

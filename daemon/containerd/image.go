@@ -14,14 +14,12 @@ import (
 	"github.com/containerd/containerd/log"
 	cplatforms "github.com/containerd/containerd/platforms"
 	"github.com/docker/distribution/reference"
-	containertypes "github.com/docker/docker/api/types/container"
 	imagetype "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/daemon/images"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/image"
-	"github.com/docker/docker/layer"
+	imagespec "github.com/docker/docker/image/spec/specs-go/v1"
 	"github.com/docker/docker/pkg/platforms"
-	"github.com/docker/go-connections/nat"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -44,15 +42,29 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 
 	cs := i.client.ContentStore()
 
-	var presentImages []ocispec.Image
+	var presentImages []imagespec.DockerOCIImage
 	err = i.walkImageManifests(ctx, desc, func(img *ImageManifest) error {
 		conf, err := img.Config(ctx)
 		if err != nil {
-			return err
+			if cerrdefs.IsNotFound(err) {
+				log.G(ctx).WithFields(log.Fields{
+					"manifestDescriptor": img.Target(),
+				}).Debug("manifest was present, but accessing its config failed, ignoring")
+				return nil
+			}
+			return errdefs.System(fmt.Errorf("failed to get config descriptor: %w", err))
 		}
-		var ociimage ocispec.Image
+
+		var ociimage imagespec.DockerOCIImage
 		if err := readConfig(ctx, cs, conf, &ociimage); err != nil {
-			return err
+			if cerrdefs.IsNotFound(err) {
+				log.G(ctx).WithFields(log.Fields{
+					"manifestDescriptor": img.Target(),
+					"configDescriptor":   conf,
+				}).Debug("manifest present, but its config is missing, ignoring")
+				return nil
+			}
+			return errdefs.System(fmt.Errorf("failed to read config of the manifest %v: %w", img.Target().Digest, err))
 		}
 		presentImages = append(presentImages, ociimage)
 		return nil
@@ -61,7 +73,8 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 		return nil, err
 	}
 	if len(presentImages) == 0 {
-		return nil, errdefs.NotFound(errors.New("failed to find image manifest"))
+		ref, _ := reference.ParseAnyReference(refOrID)
+		return nil, images.ErrImageDoesNotExist{Ref: ref}
 	}
 
 	sort.SliceStable(presentImages, func(i, j int) bool {
@@ -69,38 +82,7 @@ func (i *ImageService) GetImage(ctx context.Context, refOrID string, options ima
 	})
 	ociimage := presentImages[0]
 
-	rootfs := image.NewRootFS()
-	for _, id := range ociimage.RootFS.DiffIDs {
-		rootfs.Append(layer.DiffID(id))
-	}
-	exposedPorts := make(nat.PortSet, len(ociimage.Config.ExposedPorts))
-	for k, v := range ociimage.Config.ExposedPorts {
-		exposedPorts[nat.Port(k)] = v
-	}
-
-	img := image.NewImage(image.ID(desc.Target.Digest))
-	img.V1Image = image.V1Image{
-		ID:           string(desc.Target.Digest),
-		OS:           ociimage.OS,
-		Architecture: ociimage.Architecture,
-		Variant:      ociimage.Variant,
-		Created:      ociimage.Created,
-		Config: &containertypes.Config{
-			Entrypoint:   ociimage.Config.Entrypoint,
-			Env:          ociimage.Config.Env,
-			Cmd:          ociimage.Config.Cmd,
-			User:         ociimage.Config.User,
-			WorkingDir:   ociimage.Config.WorkingDir,
-			ExposedPorts: exposedPorts,
-			Volumes:      ociimage.Config.Volumes,
-			Labels:       ociimage.Config.Labels,
-			StopSignal:   ociimage.Config.StopSignal,
-		},
-	}
-
-	img.RootFS = rootfs
-	img.History = ociimage.History
-
+	img := dockerOciImageToDockerImagePartial(image.ID(desc.Target.Digest), ociimage)
 	if options.Details {
 		lastUpdated := time.Unix(0, 0)
 		size, err := i.size(ctx, desc.Target, platform)
