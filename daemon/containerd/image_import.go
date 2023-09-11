@@ -14,8 +14,9 @@ import (
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/platforms"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/builder/dockerfile"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/image"
@@ -153,7 +154,7 @@ func (i *ImageService) ImportImage(ctx context.Context, ref reference.Named, pla
 	if err != nil {
 		logger.WithError(err).Debug("failed to unpack image")
 	} else {
-		i.LogImageEvent(id.String(), id.String(), "import")
+		i.LogImageEvent(id.String(), id.String(), events.ActionImport)
 	}
 
 	return id, err
@@ -257,7 +258,6 @@ func compressAndWriteBlob(ctx context.Context, cs content.Store, compression arc
 	if err != nil {
 		return "", "", errdefs.InvalidParameter(err)
 	}
-	defer compressor.Close()
 
 	writeChan := make(chan digest.Digest)
 	// Start copying the blob to the content store from the pipe.

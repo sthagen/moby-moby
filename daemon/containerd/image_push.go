@@ -15,9 +15,11 @@ import (
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/errdefs"
+	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -34,7 +36,7 @@ import (
 // pointing to the new target repository. This will allow subsequent pushes
 // to perform cross-repo mounts of the shared content when pushing to a different
 // repository on the same registry.
-func (i *ImageService) PushImage(ctx context.Context, targetRef reference.Named, metaHeaders map[string][]string, authConfig *registry.AuthConfig, outStream io.Writer) error {
+func (i *ImageService) PushImage(ctx context.Context, targetRef reference.Named, metaHeaders map[string][]string, authConfig *registry.AuthConfig, outStream io.Writer) (retErr error) {
 	if _, tagged := targetRef.(reference.Tagged); !tagged {
 		if _, digested := targetRef.(reference.Digested); !digested {
 			return errdefs.NotImplemented(errors.New("push all tags is not implemented"))
@@ -62,13 +64,20 @@ func (i *ImageService) PushImage(ctx context.Context, targetRef reference.Named,
 	store := i.client.ContentStore()
 
 	resolver, tracker := i.newResolverFromAuthConfig(ctx, authConfig)
-	progress := pushProgress{Tracker: tracker}
+	pp := pushProgress{Tracker: tracker}
 	jobsQueue := newJobs()
 	finishProgress := jobsQueue.showProgress(ctx, out, combinedProgress([]progressUpdater{
-		&progress,
-		pullProgress{ShowExists: false, Store: store},
+		&pp,
+		pullProgress{showExists: false, store: store},
 	}))
-	defer finishProgress()
+	defer func() {
+		finishProgress()
+		if retErr == nil {
+			if tagged, ok := targetRef.(reference.Tagged); ok {
+				progress.Messagef(out, "", "%s: digest: %s size: %d", tagged.Tag(), target.Digest, img.Target.Size)
+			}
+		}
+	}()
 
 	var limiter *semaphore.Weighted = nil // TODO: Respect max concurrent downloads/uploads
 
@@ -77,7 +86,7 @@ func (i *ImageService) PushImage(ctx context.Context, targetRef reference.Named,
 		return err
 	}
 	for dgst := range mountableBlobs {
-		progress.addMountable(dgst)
+		pp.addMountable(dgst)
 	}
 
 	// Create a store which fakes the local existence of possibly mountable blobs.
@@ -139,6 +148,9 @@ func (i *ImageService) PushImage(ctx context.Context, targetRef reference.Named,
 		}
 	}
 
+	if err == nil {
+		i.LogImageEvent(reference.FamiliarString(targetRef), reference.FamiliarName(targetRef), events.ActionPush)
+	}
 	return err
 }
 

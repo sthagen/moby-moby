@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,14 +12,15 @@ import (
 	"github.com/docker/docker/pkg/stringid"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/icmd"
+	"gotest.tools/v3/skip"
 )
 
 type DockerCLIRmiSuite struct {
 	ds *DockerSuite
 }
 
-func (s *DockerCLIRmiSuite) TearDownTest(c *testing.T) {
-	s.ds.TearDownTest(c)
+func (s *DockerCLIRmiSuite) TearDownTest(ctx context.Context, c *testing.T) {
+	s.ds.TearDownTest(ctx, c)
 }
 
 func (s *DockerCLIRmiSuite) OnTimeout(c *testing.T) {
@@ -302,6 +304,8 @@ RUN echo 2 #layer2
 }
 
 func (*DockerCLIRmiSuite) TestRmiParentImageFail(c *testing.T) {
+	skip.If(c, testEnv.UsingSnapshotter(), "image are independent when using the containerd image store")
+
 	buildImageSuccessfully(c, "test", build.WithDockerfile(`
 	FROM busybox
 	RUN echo hello`))

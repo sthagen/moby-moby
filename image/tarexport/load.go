@@ -12,8 +12,9 @@ import (
 	"runtime"
 
 	"github.com/containerd/containerd/log"
+	"github.com/distribution/reference"
 	"github.com/docker/distribution"
-	"github.com/docker/distribution/reference"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/image"
 	v1 "github.com/docker/docker/image/v1"
 	"github.com/docker/docker/layer"
@@ -22,7 +23,6 @@ import (
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/docker/docker/pkg/stringid"
-	"github.com/docker/docker/pkg/system"
 	"github.com/moby/sys/sequential"
 	"github.com/moby/sys/symlink"
 	"github.com/opencontainers/go-digest"
@@ -84,7 +84,7 @@ func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer, quiet bool)
 		if err != nil {
 			return err
 		}
-		if !system.IsOSSupported(img.OperatingSystem()) {
+		if err := image.CheckOS(img.OperatingSystem()); err != nil {
 			return fmt.Errorf("cannot load %s image on %s", img.OperatingSystem(), runtime.GOOS)
 		}
 		rootFS := *img.RootFS
@@ -137,7 +137,7 @@ func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer, quiet bool)
 		}
 
 		parentLinks = append(parentLinks, parentLink{imgID, m.Parent})
-		l.loggerImgEvent.LogImageEvent(imgID.String(), imgID.String(), "load")
+		l.loggerImgEvent.LogImageEvent(imgID.String(), imgID.String(), events.ActionLoad)
 	}
 
 	for _, p := range validatedParentLinks(parentLinks) {
@@ -296,7 +296,7 @@ func (l *tarexporter) legacyLoadImage(oldID, sourceDir string, loadedMap map[str
 	if img.OS == "" {
 		img.OS = runtime.GOOS
 	}
-	if !system.IsOSSupported(img.OS) {
+	if err := image.CheckOS(img.OS); err != nil {
 		return fmt.Errorf("cannot load %s image on %s", img.OS, runtime.GOOS)
 	}
 

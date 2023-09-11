@@ -4,7 +4,7 @@ DOCKER ?= docker
 BUILDX ?= $(DOCKER) buildx
 
 # set the graph driver as the current graphdriver if not set
-DOCKER_GRAPHDRIVER := $(if $(DOCKER_GRAPHDRIVER),$(DOCKER_GRAPHDRIVER),$(shell docker info 2>&1 | grep "Storage Driver" | sed 's/.*: //'))
+DOCKER_GRAPHDRIVER := $(if $(DOCKER_GRAPHDRIVER),$(DOCKER_GRAPHDRIVER),$(shell docker info -f {{ .Driver }} 2>&1))
 export DOCKER_GRAPHDRIVER
 
 DOCKER_GITCOMMIT := $(shell git rev-parse HEAD)
@@ -60,6 +60,7 @@ DOCKER_ENVS := \
 	-e TEST_INTEGRATION_FAIL_FAST \
 	-e TEST_SKIP_INTEGRATION \
 	-e TEST_SKIP_INTEGRATION_CLI \
+	-e TEST_IGNORE_CGROUP_CHECK \
 	-e TESTCOVERAGE \
 	-e TESTDEBUG \
 	-e TESTDIRS \
@@ -75,7 +76,10 @@ DOCKER_ENVS := \
 	-e PLATFORM \
 	-e DEFAULT_PRODUCT_LICENSE \
 	-e PRODUCT \
-	-e PACKAGER_NAME
+	-e PACKAGER_NAME \
+	-e OTEL_EXPORTER_OTLP_ENDPOINT \
+	-e OTEL_EXPORTER_OTLP_PROTOCOL \
+	-e OTEL_SERVICE_NAME
 # note: we _cannot_ add "-e DOCKER_BUILDTAGS" here because even if it's unset in the shell, that would shadow the "ENV DOCKER_BUILDTAGS" set in our Dockerfile, which is very important for our official builds
 
 # to allow `make BIND_DIR=. shell` or `make BIND_DIR= test`

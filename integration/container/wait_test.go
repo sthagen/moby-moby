@@ -1,13 +1,13 @@
 package container // import "github.com/docker/docker/integration/container"
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/integration/internal/container"
+	"github.com/docker/docker/testutil"
 	"github.com/docker/docker/testutil/request"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
@@ -16,7 +16,8 @@ import (
 )
 
 func TestWaitNonBlocked(t *testing.T) {
-	t.Cleanup(setupTest(t))
+	ctx := setupTest(t)
+
 	cli := request.NewAPIClient(t)
 
 	testCases := []struct {
@@ -40,7 +41,8 @@ func TestWaitNonBlocked(t *testing.T) {
 		tc := tc
 		t.Run(tc.doc, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+
+			ctx := testutil.StartSpan(ctx, t)
 			containerID := container.Run(ctx, t, cli, container.WithCmd("sh", "-c", tc.cmd))
 			poll.WaitOn(t, container.IsInState(ctx, cli, containerID, "exited"), poll.WithTimeout(30*time.Second), poll.WithDelay(100*time.Millisecond))
 
@@ -59,7 +61,7 @@ func TestWaitBlocked(t *testing.T) {
 	// Windows busybox does not support trap in this way, not sleep with sub-second
 	// granularity. It will always exit 0x40010004.
 	skip.If(t, testEnv.DaemonInfo.OSType != "linux")
-	t.Cleanup(setupTest(t))
+	ctx := setupTest(t)
 	cli := request.NewAPIClient(t)
 
 	testCases := []struct {
@@ -82,10 +84,8 @@ func TestWaitBlocked(t *testing.T) {
 		tc := tc
 		t.Run(tc.doc, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := testutil.StartSpan(ctx, t)
 			containerID := container.Run(ctx, t, cli, container.WithCmd("sh", "-c", tc.cmd))
-			poll.WaitOn(t, container.IsInState(ctx, cli, containerID, "running"), poll.WithTimeout(30*time.Second), poll.WithDelay(100*time.Millisecond))
-
 			waitResC, errC := cli.ContainerWait(ctx, containerID, "")
 
 			err := cli.ContainerStop(ctx, containerID, containertypes.StopOptions{})
@@ -104,7 +104,7 @@ func TestWaitBlocked(t *testing.T) {
 }
 
 func TestWaitConditions(t *testing.T) {
-	t.Cleanup(setupTest(t))
+	ctx := setupTest(t)
 	cli := request.NewAPIClient(t)
 
 	testCases := []struct {
@@ -134,7 +134,7 @@ func TestWaitConditions(t *testing.T) {
 		tc := tc
 		t.Run(tc.doc, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := testutil.StartSpan(ctx, t)
 			opts := append([]func(*container.TestContainerConfig){
 				container.WithCmd("sh", "-c", "read -r; exit 99"),
 				func(tcc *container.TestContainerConfig) {
@@ -179,7 +179,7 @@ func TestWaitConditions(t *testing.T) {
 }
 
 func TestWaitRestartedContainer(t *testing.T) {
-	t.Cleanup(setupTest(t))
+	ctx := setupTest(t)
 	cli := request.NewAPIClient(t)
 
 	testCases := []struct {
@@ -206,13 +206,11 @@ func TestWaitRestartedContainer(t *testing.T) {
 		tc := tc
 		t.Run(tc.doc, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := testutil.StartSpan(ctx, t)
 			containerID := container.Run(ctx, t, cli,
 				container.WithCmd("sh", "-c", "trap 'exit 5' SIGTERM; while true; do sleep 0.1; done"),
 			)
 			defer cli.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{Force: true})
-
-			poll.WaitOn(t, container.IsInState(ctx, cli, containerID, "running"), poll.WithTimeout(30*time.Second), poll.WithDelay(100*time.Millisecond))
 
 			// Container is running now, wait for exit
 			waitResC, errC := cli.ContainerWait(ctx, containerID, tc.waitCond)

@@ -19,10 +19,6 @@ import (
 	"github.com/docker/docker/testutil/registry"
 )
 
-func ArchitectureIsNot(arch string) bool {
-	return os.Getenv("DOCKER_ENGINE_GOARCH") != arch
-}
-
 func DaemonIsWindows() bool {
 	return testEnv.DaemonInfo.OSType == "windows"
 }
@@ -37,12 +33,12 @@ func MinimumAPIVersion(version string) func() bool {
 	}
 }
 
-func OnlyDefaultNetworks() bool {
+func OnlyDefaultNetworks(ctx context.Context) bool {
 	apiClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return false
 	}
-	networks, err := apiClient.NetworkList(context.TODO(), types.NetworkListOptions{})
+	networks, err := apiClient.NetworkList(ctx, types.NetworkListOptions{})
 	if err != nil || len(networks) > 0 {
 		return false
 	}
@@ -50,19 +46,15 @@ func OnlyDefaultNetworks() bool {
 }
 
 func IsAmd64() bool {
-	return os.Getenv("DOCKER_ENGINE_GOARCH") == "amd64"
-}
-
-func NotArm() bool {
-	return ArchitectureIsNot("arm")
+	return testEnv.DaemonVersion.Arch == "amd64"
 }
 
 func NotArm64() bool {
-	return ArchitectureIsNot("arm64")
+	return testEnv.DaemonVersion.Arch != "arm64"
 }
 
 func NotPpc64le() bool {
-	return ArchitectureIsNot("ppc64le")
+	return testEnv.DaemonVersion.Arch != "ppc64le"
 }
 
 func UnixCli() bool {

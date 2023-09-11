@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/containerd/containerd/log"
 	coci "github.com/containerd/containerd/oci"
 	containertypes "github.com/docker/docker/api/types/container"
@@ -17,6 +15,7 @@ import (
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/errdefs"
+	"github.com/docker/docker/image"
 	"github.com/docker/docker/oci"
 	"github.com/docker/docker/pkg/sysinfo"
 	"github.com/docker/docker/pkg/system"
@@ -35,8 +34,8 @@ func (daemon *Daemon) createSpec(ctx context.Context, daemonCfg *configStore, c 
 	if err != nil {
 		return nil, err
 	}
-	if !system.IsOSSupported(img.OperatingSystem()) {
-		return nil, system.ErrNotSupportedOperatingSystem
+	if err := image.CheckOS(img.OperatingSystem()); err != nil {
+		return nil, err
 	}
 
 	s := oci.DefaultSpec()
@@ -212,7 +211,7 @@ func (daemon *Daemon) createSpec(ctx context.Context, daemonCfg *configStore, c 
 		return nil, err
 	}
 
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+	if log.G(ctx).Level >= log.DebugLevel {
 		if b, err := json.Marshal(&s); err == nil {
 			log.G(ctx).Debugf("Generated spec: %s", string(b))
 		}

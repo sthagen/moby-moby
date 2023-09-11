@@ -3,6 +3,7 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -26,7 +27,7 @@ import (
 	"github.com/moby/buildkit/frontend/dockerfile/command"
 	"github.com/opencontainers/go-digest"
 	"gotest.tools/v3/assert"
-	"gotest.tools/v3/assert/cmp"
+	is "gotest.tools/v3/assert/cmp"
 	"gotest.tools/v3/icmd"
 )
 
@@ -34,8 +35,8 @@ type DockerCLIBuildSuite struct {
 	ds *DockerSuite
 }
 
-func (s *DockerCLIBuildSuite) TearDownTest(c *testing.T) {
-	s.ds.TearDownTest(c)
+func (s *DockerCLIBuildSuite) TearDownTest(ctx context.Context, c *testing.T) {
+	s.ds.TearDownTest(ctx, c)
 }
 
 func (s *DockerCLIBuildSuite) OnTimeout(c *testing.T) {
@@ -4623,7 +4624,12 @@ func (s *DockerCLIBuildSuite) TestBuildMultiStageArg(c *testing.T) {
 	result.Assert(c, icmd.Success)
 
 	result = cli.DockerCmd(c, "images", "-q", "-f", "label=multifromtest=1")
-	parentID := strings.TrimSpace(result.Stdout())
+	result.Assert(c, icmd.Success)
+
+	imgs := strings.Split(strings.TrimSpace(result.Stdout()), "\n")
+	assert.Assert(c, is.Len(imgs, 1), `only one image with "multifromtest" label is expected`)
+
+	parentID := imgs[0]
 
 	result = cli.DockerCmd(c, "run", "--rm", parentID, "cat", "/out")
 	assert.Assert(c, strings.Contains(result.Stdout(), "foo=abc"))
@@ -4648,7 +4654,12 @@ func (s *DockerCLIBuildSuite) TestBuildMultiStageGlobalArg(c *testing.T) {
 	result.Assert(c, icmd.Success)
 
 	result = cli.DockerCmd(c, "images", "-q", "-f", "label=multifromtest=1")
-	parentID := strings.TrimSpace(result.Stdout())
+	result.Assert(c, icmd.Success)
+
+	imgs := strings.Split(strings.TrimSpace(result.Stdout()), "\n")
+	assert.Assert(c, is.Len(imgs, 1), `only one image with "multifromtest" label is expected`)
+
+	parentID := imgs[0]
 
 	result = cli.DockerCmd(c, "run", "--rm", parentID, "cat", "/out")
 	assert.Assert(c, !strings.Contains(result.Stdout(), "tag"))
@@ -4773,7 +4784,7 @@ func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToFile(c *testing.T) {
 	cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 
 	out := cli.DockerCmd(c, "run", "--rm", name, "cat", "target").Combined()
-	assert.Assert(c, cmp.Regexp("^bar$", out))
+	assert.Assert(c, is.Regexp("^bar$", out))
 
 	// change target file should invalidate cache
 	err = os.WriteFile(filepath.Join(ctx.Dir, "foo"), []byte("baz"), 0o644)
@@ -4782,7 +4793,7 @@ func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToFile(c *testing.T) {
 	result := cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 	assert.Assert(c, !strings.Contains(result.Combined(), "Using cache"))
 	out = cli.DockerCmd(c, "run", "--rm", name, "cat", "target").Combined()
-	assert.Assert(c, cmp.Regexp("^baz$", out))
+	assert.Assert(c, is.Regexp("^baz$", out))
 }
 
 func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToDir(c *testing.T) {
@@ -4803,7 +4814,7 @@ func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToDir(c *testing.T) {
 	cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 
 	out := cli.DockerCmd(c, "run", "--rm", name, "cat", "abc", "def").Combined()
-	assert.Assert(c, cmp.Regexp("^barbaz$", out))
+	assert.Assert(c, is.Regexp("^barbaz$", out))
 
 	// change target file should invalidate cache
 	err = os.WriteFile(filepath.Join(ctx.Dir, "foo/def"), []byte("bax"), 0o644)
@@ -4812,7 +4823,7 @@ func (s *DockerCLIBuildSuite) TestBuildFollowSymlinkToDir(c *testing.T) {
 	result := cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 	assert.Assert(c, !strings.Contains(result.Combined(), "Using cache"))
 	out = cli.DockerCmd(c, "run", "--rm", name, "cat", "abc", "def").Combined()
-	assert.Assert(c, cmp.Regexp("^barbax$", out))
+	assert.Assert(c, is.Regexp("^barbax$", out))
 }
 
 // TestBuildSymlinkBasename tests that target file gets basename from symlink,
@@ -4834,7 +4845,7 @@ func (s *DockerCLIBuildSuite) TestBuildSymlinkBasename(c *testing.T) {
 	cli.BuildCmd(c, name, build.WithExternalBuildContext(ctx))
 
 	out := cli.DockerCmd(c, "run", "--rm", name, "cat", "asymlink").Combined()
-	assert.Assert(c, cmp.Regexp("^bar$", out))
+	assert.Assert(c, is.Regexp("^bar$", out))
 }
 
 // #17827

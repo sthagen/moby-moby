@@ -30,8 +30,7 @@ import (
 func TestEventsExecDie(t *testing.T) {
 	skip.If(t, versions.LessThan(testEnv.DaemonAPIVersion(), "1.36"), "broken in earlier versions")
 	skip.If(t, testEnv.DaemonInfo.OSType == "windows", "FIXME. Suspect may need to wait until container is running before exec")
-	defer setupTest(t)()
-	ctx := context.Background()
+	ctx := setupTest(t)
 	client := testEnv.APIClient()
 
 	cID := container.Run(ctx, t, client)
@@ -46,7 +45,7 @@ func TestEventsExecDie(t *testing.T) {
 	msg, errs := client.Events(ctx, types.EventsOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("container", cID),
-			filters.Arg("event", "exec_die"),
+			filters.Arg("event", string(events.ActionExecDie)),
 		),
 	})
 
@@ -62,7 +61,7 @@ func TestEventsExecDie(t *testing.T) {
 	case m := <-msg:
 		assert.Equal(t, m.Type, events.ContainerEventType)
 		assert.Equal(t, m.Actor.ID, cID)
-		assert.Equal(t, m.Action, "exec_die")
+		assert.Equal(t, m.Action, events.ActionExecDie)
 		assert.Equal(t, m.Actor.Attributes["execID"], id.ID)
 		assert.Equal(t, m.Actor.Attributes["exitCode"], "0")
 	case err = <-errs:
@@ -78,8 +77,7 @@ func TestEventsExecDie(t *testing.T) {
 // This test verifies that backward compatibility maintains.
 func TestEventsBackwardsCompatible(t *testing.T) {
 	skip.If(t, testEnv.DaemonInfo.OSType == "windows", "Windows doesn't support back-compat messages")
-	defer setupTest(t)()
-	ctx := context.Background()
+	ctx := setupTest(t)
 	client := testEnv.APIClient()
 
 	since := request.DaemonTime(ctx, t, client, testEnv)
@@ -90,7 +88,7 @@ func TestEventsBackwardsCompatible(t *testing.T) {
 	// In case there is no events, the API should have responded immediately (not blocking),
 	// The test here makes sure the response time is less than 3 sec.
 	expectedTime := time.Now().Add(3 * time.Second)
-	emptyResp, emptyBody, err := req.Get("/events")
+	emptyResp, emptyBody, err := req.Get(ctx, "/events")
 	assert.NilError(t, err)
 	defer emptyBody.Close()
 	assert.Check(t, is.DeepEqual(http.StatusOK, emptyResp.StatusCode))
@@ -99,7 +97,7 @@ func TestEventsBackwardsCompatible(t *testing.T) {
 	// We also test to make sure the `events.Message` is compatible with `JSONMessage`
 	q := url.Values{}
 	q.Set("since", ts)
-	_, body, err := req.Get("/events?" + q.Encode())
+	_, body, err := req.Get(ctx, "/events?"+q.Encode())
 	assert.NilError(t, err)
 	defer body.Close()
 
@@ -130,8 +128,8 @@ func TestEventsBackwardsCompatible(t *testing.T) {
 func TestEventsVolumeCreate(t *testing.T) {
 	skip.If(t, testEnv.DaemonInfo.OSType == "windows", "FIXME: Windows doesn't trigger the events? Could be a race")
 
-	defer setupTest(t)()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := setupTest(t)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	client := testEnv.APIClient()

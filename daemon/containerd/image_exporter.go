@@ -13,7 +13,8 @@ import (
 	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/log"
 	cplatforms "github.com/containerd/containerd/platforms"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/platforms"
@@ -112,6 +113,8 @@ func (i *ImageService) ExportImage(ctx context.Context, names []string, outStrea
 				"target": target,
 			}).Debug("export image without name")
 		}
+
+		i.LogImageEvent(target.Digest.String(), target.Digest.String(), events.ActionSave)
 	}
 
 	return i.client.Export(ctx, outStream, opts...)
@@ -216,7 +219,7 @@ func (i *ImageService) LoadImage(ctx context.Context, inTar io.ReadCloser, outSt
 		}
 
 		fmt.Fprintf(progress, "%s: %s\n", loadedMsg, name)
-		i.LogImageEvent(img.Target.Digest.String(), img.Target.Digest.String(), "load")
+		i.LogImageEvent(img.Target.Digest.String(), img.Target.Digest.String(), events.ActionLoad)
 	}
 
 	return nil

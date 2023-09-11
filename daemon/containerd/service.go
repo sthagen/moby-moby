@@ -11,7 +11,7 @@ import (
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/containerd/containerd/snapshots"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/docker/docker/container"
 	daemonevents "github.com/docker/docker/daemon/events"
 	"github.com/docker/docker/daemon/images"
@@ -142,7 +142,7 @@ func (i *ImageService) LayerDiskUsage(ctx context.Context) (int64, error) {
 //
 // called from reload.go
 func (i *ImageService) UpdateConfig(maxDownloads, maxUploads int) {
-	panic("not implemented")
+	log.G(context.TODO()).Warn("max downloads and uploads is not yet implemented with the containerd store")
 }
 
 // GetLayerFolders returns the layer folders from an image RootFS.

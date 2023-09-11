@@ -2,7 +2,6 @@ package container // import "github.com/docker/docker/integration/container"
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -17,6 +16,7 @@ import (
 	"github.com/docker/docker/integration/internal/container"
 	net "github.com/docker/docker/integration/internal/network"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/docker/docker/testutil"
 	"github.com/docker/docker/testutil/daemon"
 	"golang.org/x/sys/unix"
 	"gotest.tools/v3/assert"
@@ -37,9 +37,8 @@ func TestNISDomainname(t *testing.T) {
 	//  "write sysctl key kernel.domainname: open /proc/sys/kernel/domainname: permission denied\"": unknown.
 	skip.If(t, testEnv.IsRootless, "rootless mode doesn't support setting Domainname (TODO: https://github.com/moby/moby/issues/40632)")
 
-	defer setupTest(t)()
+	ctx := setupTest(t)
 	apiClient := testEnv.APIClient()
-	ctx := context.Background()
 
 	const (
 		hostname   = "foobar"
@@ -50,9 +49,6 @@ func TestNISDomainname(t *testing.T) {
 		c.Config.Hostname = hostname
 		c.Config.Domainname = domainname
 	})
-
-	poll.WaitOn(t, container.IsInState(ctx, apiClient, cID, "running"), poll.WithDelay(100*time.Millisecond))
-
 	inspect, err := apiClient.ContainerInspect(ctx, cID)
 	assert.NilError(t, err)
 	assert.Check(t, is.Equal(hostname, inspect.Config.Hostname))
@@ -78,9 +74,8 @@ func TestNISDomainname(t *testing.T) {
 func TestHostnameDnsResolution(t *testing.T) {
 	skip.If(t, testEnv.DaemonInfo.OSType != "linux")
 
-	defer setupTest(t)()
+	ctx := setupTest(t)
 	apiClient := testEnv.APIClient()
-	ctx := context.Background()
 
 	const (
 		hostname = "foobar"
@@ -88,15 +83,12 @@ func TestHostnameDnsResolution(t *testing.T) {
 
 	// using user defined network as we want to use internal DNS
 	netName := "foobar-net"
-	net.CreateNoError(context.Background(), t, apiClient, netName, net.WithDriver("bridge"))
+	net.CreateNoError(ctx, t, apiClient, netName, net.WithDriver("bridge"))
 
 	cID := container.Run(ctx, t, apiClient, func(c *container.TestContainerConfig) {
 		c.Config.Hostname = hostname
 		c.HostConfig.NetworkMode = containertypes.NetworkMode(netName)
 	})
-
-	poll.WaitOn(t, container.IsInState(ctx, apiClient, cID, "running"), poll.WithDelay(100*time.Millisecond))
-
 	inspect, err := apiClient.ContainerInspect(ctx, cID)
 	assert.NilError(t, err)
 	assert.Check(t, is.Equal(hostname, inspect.Config.Hostname))
@@ -113,15 +105,12 @@ func TestUnprivilegedPortsAndPing(t *testing.T) {
 	skip.If(t, testEnv.DaemonInfo.OSType != "linux")
 	skip.If(t, testEnv.IsRootless, "rootless mode doesn't support setting net.ipv4.ping_group_range and net.ipv4.ip_unprivileged_port_start")
 
-	defer setupTest(t)()
+	ctx := setupTest(t)
 	apiClient := testEnv.APIClient()
-	ctx := context.Background()
 
 	cID := container.Run(ctx, t, apiClient, func(c *container.TestContainerConfig) {
 		c.Config.User = "1000:1000"
 	})
-
-	poll.WaitOn(t, container.IsInState(ctx, apiClient, cID, "running"), poll.WithDelay(100*time.Millisecond))
 
 	// Check net.ipv4.ping_group_range.
 	res, err := container.Exec(ctx, apiClient, cID, []string{"cat", "/proc/sys/net/ipv4/ping_group_range"})
@@ -144,9 +133,8 @@ func TestPrivilegedHostDevices(t *testing.T) {
 	skip.If(t, testEnv.IsRemoteDaemon)
 	skip.If(t, testEnv.DaemonInfo.OSType != "linux")
 
-	defer setupTest(t)()
+	ctx := setupTest(t)
 	apiClient := testEnv.APIClient()
-	ctx := context.Background()
 
 	const (
 		devTest         = "/dev/test"
@@ -168,8 +156,6 @@ func TestPrivilegedHostDevices(t *testing.T) {
 	defer os.Remove(devRootOnlyTest)
 
 	cID := container.Run(ctx, t, apiClient, container.WithPrivileged(true))
-
-	poll.WaitOn(t, container.IsInState(ctx, apiClient, cID, "running"), poll.WithDelay(100*time.Millisecond))
 
 	// Check test device.
 	res, err := container.Exec(ctx, apiClient, cID, []string{"ls", devTest})
@@ -193,9 +179,8 @@ func TestRunConsoleSize(t *testing.T) {
 	skip.If(t, testEnv.DaemonInfo.OSType != "linux")
 	skip.If(t, versions.LessThan(testEnv.DaemonAPIVersion(), "1.42"), "skip test from new feature")
 
-	defer setupTest(t)()
+	ctx := setupTest(t)
 	apiClient := testEnv.APIClient()
-	ctx := context.Background()
 
 	cID := container.Run(ctx, t, apiClient,
 		container.WithTty(true),
@@ -220,6 +205,8 @@ func TestRunConsoleSize(t *testing.T) {
 func TestRunWithAlternativeContainerdShim(t *testing.T) {
 	skip.If(t, testEnv.IsRemoteDaemon)
 	skip.If(t, testEnv.DaemonInfo.OSType != "linux")
+
+	ctx := testutil.StartSpan(baseContext, t)
 
 	realShimPath, err := exec.LookPath("containerd-shim-runc-v2")
 	assert.Assert(t, err)
@@ -246,11 +233,10 @@ func TestRunWithAlternativeContainerdShim(t *testing.T) {
 		daemon.WithEnvVars("PATH="+shimDir+":"+os.Getenv("PATH")),
 		daemon.WithContainerdSocket(""), // A new containerd instance needs to be started which inherits the PATH env var defined above.
 	)
-	d.StartWithBusybox(t)
+	d.StartWithBusybox(ctx, t)
 	defer d.Stop(t)
 
 	apiClient := d.NewClientT(t)
-	ctx := context.Background()
 
 	cID := container.Run(ctx, t, apiClient,
 		container.WithImage("busybox"),

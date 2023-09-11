@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/integration-cli/cli/build"
 	"gotest.tools/v3/assert"
@@ -21,8 +22,8 @@ type DockerCLIPushSuite struct {
 	ds *DockerSuite
 }
 
-func (s *DockerCLIPushSuite) TearDownTest(c *testing.T) {
-	s.ds.TearDownTest(c)
+func (s *DockerCLIPushSuite) TearDownTest(ctx context.Context, c *testing.T) {
+	s.ds.TearDownTest(ctx, c)
 }
 
 func (s *DockerCLIPushSuite) OnTimeout(c *testing.T) {

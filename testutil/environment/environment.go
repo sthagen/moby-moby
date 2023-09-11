@@ -22,6 +22,7 @@ import (
 type Execution struct {
 	client            client.APIClient
 	DaemonInfo        system.Info
+	DaemonVersion     types.Version
 	PlatformDefaults  PlatformDefaults
 	protectedElements protectedElements
 }
@@ -35,24 +36,29 @@ type PlatformDefaults struct {
 
 // New creates a new Execution struct
 // This is configured using the env client (see client.FromEnv)
-func New() (*Execution, error) {
+func New(ctx context.Context) (*Execution, error) {
 	c, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create client")
 	}
-	return FromClient(c)
+	return FromClient(ctx, c)
 }
 
 // FromClient creates a new Execution environment from the passed in client
-func FromClient(c *client.Client) (*Execution, error) {
-	info, err := c.Info(context.Background())
+func FromClient(ctx context.Context, c *client.Client) (*Execution, error) {
+	info, err := c.Info(ctx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get info from daemon")
+	}
+	v, err := c.ServerVersion(context.Background())
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get version info from daemon")
 	}
 
 	return &Execution{
 		client:            c,
 		DaemonInfo:        info,
+		DaemonVersion:     v,
 		PlatformDefaults:  getPlatformDefaults(info),
 		protectedElements: newProtectedElements(),
 	}, nil
@@ -206,9 +212,9 @@ func (e *Execution) HasExistingImage(t testing.TB, reference string) bool {
 
 // EnsureFrozenImagesLinux loads frozen test images into the daemon
 // if they aren't already loaded
-func EnsureFrozenImagesLinux(testEnv *Execution) error {
+func EnsureFrozenImagesLinux(ctx context.Context, testEnv *Execution) error {
 	if testEnv.DaemonInfo.OSType == "linux" {
-		err := load.FrozenImagesLinux(testEnv.APIClient(), frozenImages...)
+		err := load.FrozenImagesLinux(ctx, testEnv.APIClient(), frozenImages...)
 		if err != nil {
 			return errors.Wrap(err, "error loading frozen images")
 		}
@@ -219,4 +225,9 @@ func EnsureFrozenImagesLinux(testEnv *Execution) error {
 // GitHubActions is true if test is executed on a GitHub Runner.
 func (e *Execution) GitHubActions() bool {
 	return os.Getenv("GITHUB_ACTIONS") != ""
+}
+
+// NotAmd64 returns true if the daemon's architecture is not amd64
+func (e *Execution) NotAmd64() bool {
+	return e.DaemonVersion.Arch != "amd64"
 }
