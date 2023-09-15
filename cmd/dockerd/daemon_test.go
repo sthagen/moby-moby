@@ -6,7 +6,6 @@ import (
 	"github.com/containerd/containerd/log"
 	"github.com/docker/docker/daemon/config"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
@@ -165,7 +164,7 @@ func TestLoadDaemonCliConfigWithLogFormat(t *testing.T) {
 	loadedConfig, err := loadDaemonCliConfig(opts)
 	assert.NilError(t, err)
 	assert.Assert(t, loadedConfig != nil)
-	assert.Check(t, is.Equal(log.JSONFormat, loadedConfig.LogFormat))
+	assert.Check(t, is.Equal(log.JSONFormat, log.OutputFormat(loadedConfig.LogFormat)))
 }
 
 func TestLoadDaemonCliConfigWithInvalidLogFormat(t *testing.T) {
@@ -221,8 +220,7 @@ func TestConfigureDaemonLogs(t *testing.T) {
 
 	conf.LogLevel = "warn"
 	configureDaemonLogs(conf)
-	// TODO (thaJeztah): add more aliases in log package
-	assert.Check(t, is.Equal(logrus.WarnLevel, log.GetLevel()))
+	assert.Check(t, is.Equal(log.WarnLevel, log.GetLevel()))
 }
 
 func TestCDISpecDirs(t *testing.T) {

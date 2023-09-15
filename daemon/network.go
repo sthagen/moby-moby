@@ -303,22 +303,8 @@ func (daemon *Daemon) createNetwork(cfg *config.Config, create types.NetworkCrea
 		return nil, errdefs.Forbidden(errors.New(`This node is not a swarm manager. Use "docker swarm init" or "docker swarm join" to connect this node to swarm and try again.`))
 	}
 
-	var warning string
-	nw, err := daemon.GetNetworkByName(create.Name)
-	if err != nil {
-		if _, ok := err.(libnetwork.ErrNoSuchNetwork); !ok {
-			return nil, err
-		}
-	}
-	if nw != nil {
-		// check if user defined CheckDuplicate, if set true, return err
-		// otherwise prepare a warning message
-		if create.CheckDuplicate {
-			if !agent || nw.Dynamic() {
-				return nil, libnetwork.NetworkNameError(create.Name)
-			}
-		}
-		warning = fmt.Sprintf("Network with name %s (id : %s) already exists", nw.Name(), nw.ID())
+	if network.HasIPv6Subnets(create.IPAM) {
+		create.EnableIPv6 = true
 	}
 
 	networkOptions := make(map[string]string)
@@ -347,9 +333,10 @@ func (daemon *Daemon) createNetwork(cfg *config.Config, create types.NetworkCrea
 		nwOptions = append(nwOptions, libnetwork.NetworkOptionConfigOnly())
 	}
 
-	if err := network.ValidateIPAM(create.IPAM, create.EnableIPv6); err != nil {
+	if err := network.ValidateIPAM(create.IPAM); err != nil {
 		return nil, errdefs.InvalidParameter(err)
 	}
+
 	if create.IPAM != nil {
 		ipam := create.IPAM
 		v4Conf, v6Conf, err := getIpamConfig(ipam.Config)
@@ -392,8 +379,7 @@ func (daemon *Daemon) createNetwork(cfg *config.Config, create types.NetworkCrea
 	daemon.LogNetworkEvent(n, events.ActionCreate)
 
 	return &types.NetworkCreateResponse{
-		ID:      n.ID(),
-		Warning: warning,
+		ID: n.ID(),
 	}, nil
 }
 
@@ -870,7 +856,8 @@ func buildCreateEndpointOptions(c *container.Container, n *libnetwork.Network, e
 	// to which container was connected to on docker run.
 	// Ideally all these network-specific endpoint configurations must be moved under
 	// container.NetworkSettings.Networks[n.Name()]
-	if nwName == c.HostConfig.NetworkMode.NetworkName() || (nwName == defaultNetName && c.HostConfig.NetworkMode.IsDefault()) {
+	netMode := c.HostConfig.NetworkMode
+	if nwName == netMode.NetworkName() || n.ID() == netMode.NetworkName() || (nwName == defaultNetName && netMode.IsDefault()) {
 		if c.Config.MacAddress != "" {
 			mac, err := net.ParseMAC(c.Config.MacAddress)
 			if err != nil {

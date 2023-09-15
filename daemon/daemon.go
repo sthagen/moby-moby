@@ -17,8 +17,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/defaults"
 	"github.com/containerd/containerd/log"
@@ -358,7 +356,7 @@ func (daemon *Daemon) restore(cfg *configStore) error {
 
 			daemon.setStateCounter(c)
 
-			logger := func(c *container.Container) *logrus.Entry {
+			logger := func(c *container.Container) *log.Entry {
 				return baseLogger.WithFields(log.Fields{
 					"running":    c.IsRunning(),
 					"paused":     c.IsPaused(),
@@ -1072,6 +1070,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 			RegistryHosts:   d.RegistryHosts,
 			Registry:        d.registryService,
 			EventsService:   d.EventsService,
+			IDMapping:       idMapping,
 			RefCountMounter: snapshotter.NewMounter(config.Root, driverName, idMapping),
 		})
 	} else {
