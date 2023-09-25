@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,8 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/integration-cli/cli/build"
 	"gotest.tools/v3/assert"
+	is "gotest.tools/v3/assert/cmp"
 	"gotest.tools/v3/icmd"
 	"gotest.tools/v3/skip"
 )
@@ -94,11 +97,15 @@ func (s *DockerCLISaveLoadSuite) TestSaveSingleTag(c *testing.T) {
 	out, _ := dockerCmd(c, "images", "-q", "--no-trunc", repoName)
 	cleanedImageID := strings.TrimSpace(out)
 
+	filesFilter := fmt.Sprintf("(^manifest.json$|%v)", cleanedImageID)
+	if testEnv.UsingSnapshotter() {
+		filesFilter = fmt.Sprintf("(^index.json$|^manifest.json$|%v)", cleanedImageID)
+	}
 	out, err := RunCommandPipelineWithOutput(
 		exec.Command(dockerBinary, "save", fmt.Sprintf("%v:latest", repoName)),
 		exec.Command("tar", "t"),
-		exec.Command("grep", "-E", fmt.Sprintf("(^repositories$|%v)", cleanedImageID)))
-	assert.NilError(c, err, "failed to save repo with image ID and 'repositories' file: %s, %v", out, err)
+		exec.Command("grep", "-E", filesFilter))
+	assert.NilError(c, err, "failed to save repo with image ID and index files: %s, %v", out, err)
 }
 
 func (s *DockerCLISaveLoadSuite) TestSaveImageId(c *testing.T) {
@@ -150,15 +157,39 @@ func (s *DockerCLISaveLoadSuite) TestSaveAndLoadRepoFlags(c *testing.T) {
 	deleteImages(repoName)
 	dockerCmd(c, "commit", name, repoName)
 
-	before, _ := dockerCmd(c, "inspect", repoName)
+	beforeStr, _, err := dockerCmdWithError("inspect", repoName)
+	assert.NilError(c, err, "failed to inspect before save")
 
 	out, err := RunCommandPipelineWithOutput(
 		exec.Command(dockerBinary, "save", repoName),
 		exec.Command(dockerBinary, "load"))
 	assert.NilError(c, err, "failed to save and load repo: %s, %v", out, err)
 
-	after, _ := dockerCmd(c, "inspect", repoName)
-	assert.Equal(c, before, after, "inspect is not the same after a save / load")
+	afterStr, _, err := dockerCmdWithError("inspect", repoName)
+	assert.NilError(c, err, "failed to inspect after load")
+
+	var before, after []types.ImageInspect
+	err = json.Unmarshal([]byte(beforeStr), &before)
+	assert.NilError(c, err, "failed to parse inspect 'before' output")
+	err = json.Unmarshal([]byte(afterStr), &after)
+	assert.NilError(c, err, "failed to parse inspect 'after' output")
+
+	assert.Assert(c, is.Len(before, 1))
+	assert.Assert(c, is.Len(after, 1))
+
+	if testEnv.UsingSnapshotter() {
+		// Ignore LastTagTime difference with c8d.
+		// It is not stored in the image archive, but in the imageStore
+		// which is a graphdrivers implementation detail.
+		//
+		// It works because we load the image into the same daemon which saved
+		// the image. It would still fail with the graphdrivers if the image
+		// was loaded into a different daemon (which should be the case in a
+		// real-world scenario).
+		before[0].Metadata.LastTagTime = after[0].Metadata.LastTagTime
+	}
+
+	assert.Check(c, is.DeepEqual(before, after), "inspect is not the same after a save / load")
 }
 
 func (s *DockerCLISaveLoadSuite) TestSaveWithNoExistImage(c *testing.T) {
@@ -175,18 +206,20 @@ func (s *DockerCLISaveLoadSuite) TestSaveMultipleNames(c *testing.T) {
 	testRequires(c, DaemonIsLinux)
 	repoName := "foobar-save-multi-name-test"
 
-	// Make one image
-	dockerCmd(c, "tag", "emptyfs:latest", fmt.Sprintf("%v-one:latest", repoName))
+	oneTag := fmt.Sprintf("%v-one:latest", repoName)
+	twoTag := fmt.Sprintf("%v-two:latest", repoName)
 
-	// Make two images
-	dockerCmd(c, "tag", "emptyfs:latest", fmt.Sprintf("%v-two:latest", repoName))
+	dockerCmd(c, "tag", "emptyfs:latest", oneTag)
+	dockerCmd(c, "tag", "emptyfs:latest", twoTag)
 
 	out, err := RunCommandPipelineWithOutput(
-		exec.Command(dockerBinary, "save", fmt.Sprintf("%v-one", repoName), fmt.Sprintf("%v-two:latest", repoName)),
-		exec.Command("tar", "xO", "repositories"),
-		exec.Command("grep", "-q", "-E", "(-one|-two)"),
+		exec.Command(dockerBinary, "save", strings.TrimSuffix(oneTag, ":latest"), twoTag),
+		exec.Command("tar", "xO", "index.json"),
 	)
 	assert.NilError(c, err, "failed to save multiple repos: %s, %v", out, err)
+
+	assert.Check(c, is.Contains(out, oneTag))
+	assert.Check(c, is.Contains(out, twoTag))
 }
 
 // Test loading a weird image where one of the layers is of zero size.
