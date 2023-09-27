@@ -11,9 +11,6 @@ import (
 )
 
 func (c *Controller) initStores() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.cfg == nil {
 		return nil
 	}
@@ -34,9 +31,6 @@ func (c *Controller) closeStores() {
 }
 
 func (c *Controller) getStore() *datastore.Store {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	return c.store
 }
 
@@ -286,13 +280,4 @@ func (c *Controller) networkCleanup() {
 			}
 		}
 	}
-}
-
-var populateSpecial NetworkWalker = func(nw *Network) bool {
-	if n := nw; n.hasSpecialDriver() && !n.ConfigOnly() {
-		if err := n.getController().addNetwork(n); err != nil {
-			log.G(context.TODO()).Warnf("Failed to populate network %q with driver %q", nw.Name(), nw.Type())
-		}
-	}
-	return false
 }

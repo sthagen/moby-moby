@@ -3,6 +3,7 @@ package libnetwork
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/containerd/containerd/log"
@@ -143,12 +144,10 @@ retry:
 			continue
 		}
 
-		eps := epState{
+		sbs.Eps = append(sbs.Eps, epState{
 			Nid: ep.getNetwork().ID(),
 			Eid: ep.ID(),
-		}
-
-		sbs.Eps = append(sbs.Eps, eps)
+		})
 	}
 
 	err := sb.controller.updateToStore(sbs)
@@ -164,38 +163,32 @@ retry:
 }
 
 func (sb *Sandbox) storeDelete() error {
-	sbs := &sbState{
+	return sb.controller.deleteFromStore(&sbState{
 		c:        sb.controller,
 		ID:       sb.id,
 		Cid:      sb.containerID,
 		dbIndex:  sb.dbIndex,
 		dbExists: sb.dbExists,
-	}
-
-	return sb.controller.deleteFromStore(sbs)
+	})
 }
 
-func (c *Controller) sandboxCleanup(activeSandboxes map[string]interface{}) {
+func (c *Controller) sandboxCleanup(activeSandboxes map[string]interface{}) error {
 	store := c.getStore()
 	if store == nil {
-		log.G(context.TODO()).Error("Could not find local scope store while trying to cleanup sandboxes")
-		return
+		return fmt.Errorf("could not find local scope store")
 	}
 
-	kvol, err := store.List(datastore.Key(sandboxPrefix), &sbState{c: c})
-	if err != nil && err != datastore.ErrKeyNotFound {
-		log.G(context.TODO()).Errorf("failed to get sandboxes for scope %s: %v", store.Scope(), err)
-		return
+	sandboxStates, err := store.List(datastore.Key(sandboxPrefix), &sbState{c: c})
+	if err != nil {
+		if err == datastore.ErrKeyNotFound {
+			// It's normal for no sandboxes to be found. Just bail out.
+			return nil
+		}
+		return fmt.Errorf("failed to get sandboxes for scope %s: %v", store.Scope(), err)
 	}
 
-	// It's normal for no sandboxes to be found. Just bail out.
-	if err == datastore.ErrKeyNotFound {
-		return
-	}
-
-	for _, kvo := range kvol {
-		sbs := kvo.(*sbState)
-
+	for _, s := range sandboxStates {
+		sbs := s.(*sbState)
 		sb := &Sandbox{
 			id:                 sbs.ID,
 			controller:         sbs.c,
@@ -235,13 +228,25 @@ func (c *Controller) sandboxCleanup(activeSandboxes map[string]interface{}) {
 			var ep *Endpoint
 			if err != nil {
 				log.G(context.TODO()).Errorf("getNetworkFromStore for nid %s failed while trying to build sandbox for cleanup: %v", eps.Nid, err)
-				n = &Network{id: eps.Nid, ctrlr: c, drvOnce: &sync.Once{}, persist: true}
-				ep = &Endpoint{id: eps.Eid, network: n, sandboxID: sbs.ID}
+				ep = &Endpoint{
+					id: eps.Eid,
+					network: &Network{
+						id:      eps.Nid,
+						ctrlr:   c,
+						drvOnce: &sync.Once{},
+						persist: true,
+					},
+					sandboxID: sbs.ID,
+				}
 			} else {
 				ep, err = n.getEndpointFromStore(eps.Eid)
 				if err != nil {
 					log.G(context.TODO()).Errorf("getEndpointFromStore for eid %s failed while trying to build sandbox for cleanup: %v", eps.Eid, err)
-					ep = &Endpoint{id: eps.Eid, network: n, sandboxID: sbs.ID}
+					ep = &Endpoint{
+						id:        eps.Eid,
+						network:   n,
+						sandboxID: sbs.ID,
+					}
 				}
 			}
 			if _, ok := activeSandboxes[sb.ID()]; ok && err != nil {
@@ -279,4 +284,6 @@ func (c *Controller) sandboxCleanup(activeSandboxes map[string]interface{}) {
 			}
 		}
 	}
+
+	return nil
 }

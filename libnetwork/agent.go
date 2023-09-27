@@ -42,12 +42,12 @@ type nwAgent struct {
 	dataPathAddr      string
 	coreCancelFuncs   []func()
 	driverCancelFuncs map[string][]func()
-	sync.Mutex
+	mu                sync.Mutex
 }
 
 func (a *nwAgent) dataPathAddress() string {
-	a.Lock()
-	defer a.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.dataPathAddr != "" {
 		return a.dataPathAddr
 	}
@@ -348,14 +348,13 @@ func (c *Controller) agentInit(listenAddr, bindAddrOrInterface, advertiseAddr, d
 	go c.handleTableEvents(ch, c.handleEpTableEvent)
 	go c.handleTableEvents(nodeCh, c.handleNodeTableEvent)
 
-	drvEnc := discoverapi.DriverEncryptionConfig{}
 	keys, tags := c.getKeys(subsysIPSec)
-	drvEnc.Keys = keys
-	drvEnc.Tags = tags
-
 	c.drvRegistry.WalkDrivers(func(name string, driver driverapi.Driver, capability driverapi.Capability) bool {
 		if dr, ok := driver.(discoverapi.Discover); ok {
-			if err := dr.DiscoverNew(discoverapi.EncryptionKeysConfig, drvEnc); err != nil {
+			if err := dr.DiscoverNew(discoverapi.EncryptionKeysConfig, discoverapi.DriverEncryptionConfig{
+				Keys: keys,
+				Tags: tags,
+			}); err != nil {
 				log.G(context.TODO()).Warnf("Failed to set datapath keys in driver %s: %v", name, err)
 			}
 		}
@@ -389,12 +388,11 @@ func (c *Controller) agentDriverNotify(d discoverapi.Discover) {
 		log.G(context.TODO()).Warnf("Failed the node discovery in driver: %v", err)
 	}
 
-	drvEnc := discoverapi.DriverEncryptionConfig{}
 	keys, tags := c.getKeys(subsysIPSec)
-	drvEnc.Keys = keys
-	drvEnc.Tags = tags
-
-	if err := d.DiscoverNew(discoverapi.EncryptionKeysConfig, drvEnc); err != nil {
+	if err := d.DiscoverNew(discoverapi.EncryptionKeysConfig, discoverapi.DriverEncryptionConfig{
+		Keys: keys,
+		Tags: tags,
+	}); err != nil {
 		log.G(context.TODO()).Warnf("Failed to set datapath keys in driver: %v", err)
 	}
 }
@@ -416,14 +414,14 @@ func (c *Controller) agentClose() {
 
 	var cancelList []func()
 
-	agent.Lock()
+	agent.mu.Lock()
 	for _, cancelFuncs := range agent.driverCancelFuncs {
 		cancelList = append(cancelList, cancelFuncs...)
 	}
 
 	// Add also the cancel functions for the network db
 	cancelList = append(cancelList, agent.coreCancelFuncs...)
-	agent.Unlock()
+	agent.mu.Unlock()
 
 	for _, cancel := range cancelList {
 		cancel()
@@ -773,9 +771,9 @@ func (n *Network) addDriverWatches() {
 	c := n.getController()
 	for _, table := range n.driverTables {
 		ch, cancel := agent.networkDB.Watch(table.name, n.ID())
-		agent.Lock()
+		agent.mu.Lock()
 		agent.driverCancelFuncs[n.ID()] = append(agent.driverCancelFuncs[n.ID()], cancel)
-		agent.Unlock()
+		agent.mu.Unlock()
 		go c.handleTableEvents(ch, n.handleDriverTableEvent)
 		d, err := n.driver(false)
 		if err != nil {
@@ -803,10 +801,10 @@ func (n *Network) cancelDriverWatches() {
 		return
 	}
 
-	agent.Lock()
+	agent.mu.Lock()
 	cancelFuncs := agent.driverCancelFuncs[n.ID()]
 	delete(agent.driverCancelFuncs, n.ID())
-	agent.Unlock()
+	agent.mu.Unlock()
 
 	for _, cancel := range cancelFuncs {
 		cancel()

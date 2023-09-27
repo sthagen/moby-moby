@@ -140,7 +140,14 @@ func New(cfgOptions ...config.Option) (*Controller, error) {
 		return nil, err
 	}
 
-	c.WalkNetworks(populateSpecial)
+	c.WalkNetworks(func(nw *Network) bool {
+		if n := nw; n.hasSpecialDriver() && !n.ConfigOnly() {
+			if err := n.getController().addNetwork(n); err != nil {
+				log.G(context.TODO()).Warnf("Failed to populate network %q with driver %q", nw.Name(), nw.Type())
+			}
+		}
+		return false
+	})
 
 	// Reserve pools first before doing cleanup. Otherwise the
 	// cleanups of endpoint/network and sandbox below will
@@ -148,8 +155,12 @@ func New(cfgOptions ...config.Option) (*Controller, error) {
 	c.reservePools()
 
 	// Cleanup resources
-	c.sandboxCleanup(c.cfg.ActiveSandboxes)
-	c.cleanupLocalEndpoints()
+	if err := c.sandboxCleanup(c.cfg.ActiveSandboxes); err != nil {
+		log.G(context.TODO()).WithError(err).Error("error during sandbox cleanup")
+	}
+	if err := c.cleanupLocalEndpoints(); err != nil {
+		log.G(context.TODO()).WithError(err).Warnf("error during endpoint cleanup")
+	}
 	c.networkCleanup()
 
 	if err := c.startExternalKeyListener(); err != nil {
@@ -863,13 +874,7 @@ func (c *Controller) NetworkByID(id string) (*Network, error) {
 	if id == "" {
 		return nil, ErrInvalidID(id)
 	}
-
-	n, err := c.getNetworkFromStore(id)
-	if err != nil {
-		return nil, ErrNoSuchNetwork(id)
-	}
-
-	return n, nil
+	return c.getNetworkFromStore(id)
 }
 
 // NewSandbox creates a new sandbox for containerID.
