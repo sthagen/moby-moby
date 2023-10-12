@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/containerd/containerd/log"
+	"github.com/containerd/log"
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/backend"
@@ -489,7 +489,7 @@ func (c *containerAdapter) deactivateServiceBinding() error {
 }
 
 func (c *containerAdapter) logs(ctx context.Context, options api.LogSubscriptionOptions) (<-chan *backend.LogMessage, error) {
-	apiOptions := &types.ContainerLogsOptions{
+	apiOptions := &containertypes.LogsOptions{
 		Follow: options.Follow,
 
 		// Always say yes to Timestamps and Details. we make the decision

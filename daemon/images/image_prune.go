@@ -7,11 +7,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/containerd/containerd/log"
+	"github.com/containerd/log"
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
+	imagetypes "github.com/docker/docker/api/types/image"
 	timetypes "github.com/docker/docker/api/types/time"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/image"
@@ -96,7 +97,7 @@ deleteImagesLoop:
 		default:
 		}
 
-		deletedImages := []types.ImageDeleteResponseItem{}
+		deletedImages := []imagetypes.DeleteResponse{}
 		refs := i.referenceStore.References(id.Digest())
 		if len(refs) > 0 {
 			shouldDelete := !danglingOnly

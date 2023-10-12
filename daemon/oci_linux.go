@@ -11,10 +11,10 @@ import (
 
 	cdcgroups "github.com/containerd/cgroups/v3"
 	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/log"
 	coci "github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/pkg/apparmor"
 	"github.com/containerd/containerd/pkg/userns"
+	"github.com/containerd/log"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/container"
 	dconfig "github.com/docker/docker/daemon/config"
@@ -107,6 +107,15 @@ func withRootless(daemon *Daemon, daemonCfg *dconfig.Config) coci.SpecOpts {
 			v2Controllers = strings.Fields(string(controllersFile))
 		}
 		return specconv.ToRootless(s, v2Controllers)
+	}
+}
+
+// withRootfulInRootless is used for "rootful-in-rootless" dind;
+// the daemon is running in UserNS but has no access to RootlessKit API socket, host filesystem, etc.
+func withRootfulInRootless(daemon *Daemon, daemonCfg *dconfig.Config) coci.SpecOpts {
+	return func(_ context.Context, _ coci.Client, _ *containers.Container, s *coci.Spec) error {
+		specconv.ToRootfulInRootless(s)
+		return nil
 	}
 }
 
@@ -1126,6 +1135,8 @@ func (daemon *Daemon) createSpec(ctx context.Context, daemonCfg *configStore, c 
 	}
 	if daemonCfg.Rootless {
 		opts = append(opts, withRootless(daemon, &daemonCfg.Config))
+	} else if userns.RunningInUserNS() {
+		opts = append(opts, withRootfulInRootless(daemon, &daemonCfg.Config))
 	}
 
 	var snapshotter, snapshotKey string

@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/platforms"
+	"github.com/containerd/log"
 	"github.com/docker/docker/api/server/httpstatus"
 	"github.com/docker/docker/api/server/httputils"
 	"github.com/docker/docker/api/types"
@@ -78,7 +78,7 @@ func (s *containerRouter) getContainersJSON(ctx context.Context, w http.Response
 		return err
 	}
 
-	config := &types.ContainerListOptions{
+	config := &container.ListOptions{
 		All:     httputils.BoolValue(r, "all"),
 		Size:    httputils.BoolValue(r, "size"),
 		Since:   r.Form.Get("since"),
@@ -142,7 +142,7 @@ func (s *containerRouter) getContainersLogs(ctx context.Context, w http.Response
 	}
 
 	containerName := vars["name"]
-	logsConfig := &types.ContainerLogsOptions{
+	logsConfig := &container.LogsOptions{
 		Follow:     httputils.BoolValue(r, "follow"),
 		Timestamps: httputils.BoolValue(r, "timestamps"),
 		Since:      r.Form.Get("since"),

@@ -6,10 +6,11 @@ import (
 
 	cerrdefs "github.com/containerd/containerd/errdefs"
 	containerdimages "github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/log"
+	"github.com/containerd/log"
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/internal/compatcontext"
 	"github.com/hashicorp/go-multierror"
@@ -182,7 +183,7 @@ func (i *ImageService) pruneUnused(ctx context.Context, filterFunc imageFilterFu
 		}
 
 		report.ImagesDeleted = append(report.ImagesDeleted,
-			types.ImageDeleteResponseItem{
+			image.DeleteResponse{
 				Untagged: img.Name,
 			},
 		)
@@ -193,7 +194,7 @@ func (i *ImageService) pruneUnused(ctx context.Context, filterFunc imageFilterFu
 
 			if cerrdefs.IsNotFound(err) {
 				report.ImagesDeleted = append(report.ImagesDeleted,
-					types.ImageDeleteResponseItem{
+					image.DeleteResponse{
 						Deleted: blob.Digest.String(),
 					},
 				)
