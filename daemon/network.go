@@ -862,11 +862,36 @@ func buildCreateEndpointOptions(c *container.Container, n *libnetwork.Network, e
 		createOptions = append(createOptions, libnetwork.CreateOptionDisableResolution())
 	}
 
+	opts, err := buildPortsRelatedCreateEndpointOptions(c, n, sb)
+	if err != nil {
+		return nil, err
+	}
+	createOptions = append(createOptions, opts...)
+
+	// On Windows, DNS config is a per-adapter config option whereas on Linux, it's a sandbox-wide parameter; hence why
+	// we're dealing with DNS config both here and in buildSandboxOptions. Following DNS options are only honored by
+	// Windows netdrivers, whereas DNS options in buildSandboxOptions are only honored by Linux netdrivers.
+	if !n.Internal() {
+		if len(c.HostConfig.DNS) > 0 {
+			createOptions = append(createOptions, libnetwork.CreateOptionDNS(c.HostConfig.DNS))
+		} else if len(daemonDNS) > 0 {
+			createOptions = append(createOptions, libnetwork.CreateOptionDNS(daemonDNS))
+		}
+	}
+
+	createOptions = append(createOptions, libnetwork.EndpointOptionGeneric(genericOptions))
+
+	return createOptions, nil
+}
+
+// buildPortsRelatedCreateEndpointOptions returns the appropriate endpoint options to apply config related to port
+// mapping and exposed ports.
+func buildPortsRelatedCreateEndpointOptions(c *container.Container, n *libnetwork.Network, sb *libnetwork.Sandbox) ([]libnetwork.EndpointOption, error) {
 	// Port-mapping rules belong to the container & applicable only to non-internal networks.
 	//
 	// TODO(thaJeztah): Look if we can provide a more minimal function for getPortMapInfo, as it does a lot, and we only need the "length".
 	if n.Internal() || len(getPortMapInfo(sb)) > 0 {
-		return createOptions, nil
+		return nil, nil
 	}
 
 	bindings := make(nat.PortMap)
@@ -927,18 +952,10 @@ func buildCreateEndpointOptions(c *container.Container, n *libnetwork.Network, e
 		}
 	}
 
-	if len(c.HostConfig.DNS) > 0 {
-		createOptions = append(createOptions, libnetwork.CreateOptionDNS(c.HostConfig.DNS))
-	} else if len(daemonDNS) > 0 {
-		createOptions = append(createOptions, libnetwork.CreateOptionDNS(daemonDNS))
-	}
-
-	createOptions = append(createOptions,
+	return []libnetwork.EndpointOption{
 		libnetwork.CreateOptionPortMapping(publishedPorts),
 		libnetwork.CreateOptionExposedPorts(exposedPorts),
-		libnetwork.EndpointOptionGeneric(genericOptions))
-
-	return createOptions, nil
+	}, nil
 }
 
 // getPortMapInfo retrieves the current port-mapping programmed for the given sandbox
