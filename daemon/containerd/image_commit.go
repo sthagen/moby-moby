@@ -96,7 +96,7 @@ func (i *ImageService) CommitImage(ctx context.Context, cc backend.CommitConfig)
 		layers = append(layers, *diffLayerDesc)
 	}
 
-	return i.createImageOCI(ctx, imageConfig, digest.Digest(cc.ParentImageID), layers)
+	return i.createImageOCI(ctx, imageConfig, digest.Digest(cc.ParentImageID), layers, *cc.ContainerConfig)
 }
 
 // generateCommitImageConfig generates an OCI Image config based on the
@@ -264,18 +264,15 @@ func (i *ImageService) createDiff(ctx context.Context, name string, sn snapshots
 
 // applyDiffLayer will apply diff layer content created by createDiff into the snapshotter.
 func (i *ImageService) applyDiffLayer(ctx context.Context, name string, containerID string, sn snapshots.Snapshotter, differ diff.Applier, diffDesc ocispec.Descriptor) (retErr error) {
-	var (
-		key    = uniquePart() + "-" + name
-		mounts []mount.Mount
-		err    error
-	)
+	// Let containerd know that this snapshot is only for diff-applying.
+	key := snapshots.UnpackKeyPrefix + "-" + uniquePart() + "-" + name
 
 	info, err := sn.Stat(ctx, containerID)
 	if err != nil {
 		return err
 	}
 
-	mounts, err = sn.Prepare(ctx, key, info.Parent)
+	mounts, err := sn.Prepare(ctx, key, info.Parent)
 	if err != nil {
 		return fmt.Errorf("failed to prepare snapshot: %w", err)
 	}
