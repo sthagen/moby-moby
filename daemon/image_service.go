@@ -34,13 +34,13 @@ type ImageService interface {
 	ExportImage(ctx context.Context, names []string, outStream io.Writer) error
 	PerformWithBaseFS(ctx context.Context, c *container.Container, fn func(string) error) error
 	LoadImage(ctx context.Context, inTar io.ReadCloser, outStream io.Writer, quiet bool) error
-	Images(ctx context.Context, opts types.ImageListOptions) ([]*imagetype.Summary, error)
+	Images(ctx context.Context, opts imagetype.ListOptions) ([]*imagetype.Summary, error)
 	LogImageEvent(imageID, refName string, action events.Action)
 	CountImages(ctx context.Context) int
 	ImagesPrune(ctx context.Context, pruneFilters filters.Args) (*types.ImagesPruneReport, error)
 	ImportImage(ctx context.Context, ref reference.Named, platform *ocispec.Platform, msg string, layerReader io.Reader, changes []string) (image.ID, error)
 	TagImage(ctx context.Context, imageID image.ID, newTag reference.Named) error
-	GetImage(ctx context.Context, refOrID string, options imagetype.GetImageOpts) (*image.Image, error)
+	GetImage(ctx context.Context, refOrID string, options backend.GetImageOpts) (*image.Image, error)
 	ImageHistory(ctx context.Context, name string) ([]*imagetype.HistoryResponseItem, error)
 	CommitImage(ctx context.Context, c backend.CommitConfig) (image.ID, error)
 	SquashImage(id, parent string) (string, error)
@@ -48,7 +48,7 @@ type ImageService interface {
 	// Containerd related methods
 
 	PrepareSnapshot(ctx context.Context, id string, parentImage string, platform *ocispec.Platform, setupInit func(string) error) error
-	GetImageManifest(ctx context.Context, refOrID string, options imagetype.GetImageOpts) (*ocispec.Descriptor, error)
+	GetImageManifest(ctx context.Context, refOrID string, options backend.GetImageOpts) (*ocispec.Descriptor, error)
 
 	// Layers
 
