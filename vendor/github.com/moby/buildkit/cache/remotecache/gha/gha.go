@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/labels"
 	"github.com/moby/buildkit/cache/remotecache"
 	v1 "github.com/moby/buildkit/cache/remotecache/v1"
 	"github.com/moby/buildkit/session"
@@ -32,16 +33,20 @@ func init() {
 }
 
 const (
-	attrScope = "scope"
-	attrToken = "token"
-	attrURL   = "url"
-	version   = "1"
+	attrScope   = "scope"
+	attrTimeout = "timeout"
+	attrToken   = "token"
+	attrURL     = "url"
+	version     = "1"
+
+	defaultTimeout = 10 * time.Minute
 )
 
 type Config struct {
-	Scope string
-	URL   string
-	Token string
+	Scope   string
+	URL     string
+	Token   string
+	Timeout time.Duration
 }
 
 func getConfig(attrs map[string]string) (*Config, error) {
@@ -57,10 +62,19 @@ func getConfig(attrs map[string]string) (*Config, error) {
 	if !ok {
 		return nil, errors.Errorf("token not set for github actions cache")
 	}
+	timeout := defaultTimeout
+	if v, ok := attrs[attrTimeout]; ok {
+		var err error
+		timeout, err = time.ParseDuration(v)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to parse timeout for github actions cache")
+		}
+	}
 	return &Config{
-		Scope: scope,
-		URL:   url,
-		Token: token,
+		Scope:   scope,
+		URL:     url,
+		Token:   token,
+		Timeout: timeout,
 	}, nil
 }
 
@@ -84,7 +98,10 @@ type exporter struct {
 
 func NewExporter(c *Config) (remotecache.Exporter, error) {
 	cc := v1.NewCacheChains()
-	cache, err := actionscache.New(c.Token, c.URL, actionscache.Opt{Client: tracing.DefaultClient})
+	cache, err := actionscache.New(c.Token, c.URL, actionscache.Opt{
+		Client:  tracing.DefaultClient,
+		Timeout: c.Timeout,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +150,7 @@ func (ce *exporter) Finalize(ctx context.Context) (map[string]string, error) {
 			return nil, errors.Errorf("invalid descriptor without annotations")
 		}
 		var diffID digest.Digest
-		v, ok := dgstPair.Descriptor.Annotations["containerd.io/uncompressed"]
+		v, ok := dgstPair.Descriptor.Annotations[labels.LabelUncompressed]
 		if !ok {
 			return nil, errors.Errorf("invalid descriptor without uncompressed annotation")
 		}
@@ -211,7 +228,10 @@ type importer struct {
 }
 
 func NewImporter(c *Config) (remotecache.Importer, error) {
-	cache, err := actionscache.New(c.Token, c.URL, actionscache.Opt{Client: tracing.DefaultClient})
+	cache, err := actionscache.New(c.Token, c.URL, actionscache.Opt{
+		Client:  tracing.DefaultClient,
+		Timeout: c.Timeout,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +246,7 @@ func (ci *importer) makeDescriptorProviderPair(l v1.CacheLayer) (*v1.DescriptorP
 	if l.Annotations.DiffID == "" {
 		return nil, errors.Errorf("cache layer with missing diffid")
 	}
-	annotations["containerd.io/uncompressed"] = l.Annotations.DiffID.String()
+	annotations[labels.LabelUncompressed] = l.Annotations.DiffID.String()
 	if !l.Annotations.CreatedAt.IsZero() {
 		txt, err := l.Annotations.CreatedAt.MarshalText()
 		if err != nil {
