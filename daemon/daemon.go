@@ -58,7 +58,6 @@ import (
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/image"
-	"github.com/docker/docker/internal/compatcontext"
 	"github.com/docker/docker/layer"
 	libcontainerdtypes "github.com/docker/docker/libcontainerd/types"
 	"github.com/docker/docker/libnetwork"
@@ -582,6 +581,17 @@ func (daemon *Daemon) restore(cfg *configStore) error {
 	// needs to know if there's active sandboxes (running containers).
 	if err = daemon.initNetworkController(&cfg.Config, activeSandboxes); err != nil {
 		return fmt.Errorf("Error initializing network controller: %v", err)
+	}
+
+	// If port-mapping failed during live-restore of a container, perhaps because
+	// a host port that was previously mapped to a container is now in-use by some
+	// other process - ports will not be mapped for the restored container, but it
+	// will be running. Replace the restored mappings in NetworkSettings with the
+	// current state so that the problem is visible in 'inspect'.
+	for _, c := range containers {
+		if sb, err := daemon.netController.SandboxByID(c.NetworkSettings.SandboxID); err == nil {
+			c.NetworkSettings.Ports = getPortMapInfo(sb)
+		}
 	}
 
 	// Now that all the containers are registered, register the links
@@ -1271,7 +1281,7 @@ func (daemon *Daemon) waitForStartupDone() {
 }
 
 func (daemon *Daemon) shutdownContainer(c *container.Container) error {
-	ctx := compatcontext.WithoutCancel(context.TODO())
+	ctx := context.WithoutCancel(context.TODO())
 
 	// If container failed to exit in stopTimeout seconds of SIGTERM, then using the force
 	if err := daemon.containerStop(ctx, c, containertypes.StopOptions{}); err != nil {
