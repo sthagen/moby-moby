@@ -1,5 +1,5 @@
 // FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.19
+//go:build go1.21
 
 // Package daemon exposes the functions that occur on the host server
 // that the Docker daemon is running.
@@ -472,7 +472,7 @@ func (daemon *Daemon) restore(cfg *configStore) error {
 						c.Paused = false
 						daemon.setStateCounter(c)
 						daemon.initHealthMonitor(c)
-						if err := c.CheckpointTo(daemon.containersReplica); err != nil {
+						if err := c.CheckpointTo(context.TODO(), daemon.containersReplica); err != nil {
 							baseLogger.WithError(err).Error("failed to update paused container state")
 						}
 						c.Unlock()
@@ -496,7 +496,7 @@ func (daemon *Daemon) restore(cfg *configStore) error {
 					}
 					c.SetStopped(&ces)
 					daemon.Cleanup(context.TODO(), c)
-					if err := c.CheckpointTo(daemon.containersReplica); err != nil {
+					if err := c.CheckpointTo(context.TODO(), daemon.containersReplica); err != nil {
 						baseLogger.WithError(err).Error("failed to update stopped container state")
 					}
 					c.Unlock()
@@ -563,7 +563,7 @@ func (daemon *Daemon) restore(cfg *configStore) error {
 				// state and leave further processing up to them.
 				c.RemovalInProgress = false
 				c.Dead = true
-				if err := c.CheckpointTo(daemon.containersReplica); err != nil {
+				if err := c.CheckpointTo(context.TODO(), daemon.containersReplica); err != nil {
 					baseLogger.WithError(err).Error("failed to update RemovalInProgress container state")
 				} else {
 					baseLogger.Debugf("reset RemovalInProgress state for container")
@@ -1614,7 +1614,7 @@ func RemapContainerdNamespaces(config *config.Config) (ns string, pluginNs strin
 func (daemon *Daemon) checkpointAndSave(container *container.Container) error {
 	container.Lock()
 	defer container.Unlock()
-	if err := container.CheckpointTo(daemon.containersReplica); err != nil {
+	if err := container.CheckpointTo(context.TODO(), daemon.containersReplica); err != nil {
 		return fmt.Errorf("Error saving container state: %v", err)
 	}
 	return nil
