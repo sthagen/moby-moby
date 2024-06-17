@@ -13,10 +13,14 @@ keywords: "API, Docker, rcli, REST, documentation"
      will be rejected.
 -->
 
+
 ## v1.46 API changes
 
 [Docker Engine API v1.46](https://docs.docker.com/engine/api/v1.46/) documentation
 
+* `GET /info` now includes a `Containerd` field containing information about
+  the location of the containerd API socket and containerd namespaces used
+  by the daemon to run containers and plugins.
 * `POST /containers/create` field `NetworkingConfig.EndpointsConfig.DriverOpts`,
   and `POST /networks/{id}/connect` field `EndpointsConfig.DriverOpts`, now
   support label `com.docker.network.endpoint.sysctls` for setting per-interface
@@ -32,6 +36,8 @@ keywords: "API, Docker, rcli, REST, documentation"
   the multi-platform image.
 * `POST /containers/create` now takes `Options` as part of `HostConfig.Mounts.TmpfsOptions` to set options for tmpfs mounts.
 * `POST /services/create` now takes `Options` as part of `ContainerSpec.Mounts.TmpfsOptions`, to set options for tmpfs mounts.
+* `GET /events` now supports image `create` event that is emitted when a new
+  image is built regardless if it was tagged or not.
 
 ### Deprecated Config fields in `GET /images/{name}/json` response
 
@@ -73,6 +79,8 @@ are not part of the underlying image's Config, and deprecated:
 [OCI Image Spec]: https://github.com/opencontainers/image-spec/blob/v1.1.0/specs-go/v1/config.go#L24-L62
 [api/types.ImageInspec]: https://github.com/moby/moby/blob/v26.1.4/api/types/types.go#L87-L104
 [container.Config]: https://github.com/moby/moby/blob/v26.1.4/api/types/container/config.go#L47-L82
+
+* `POST /services/create` and `POST /services/{id}/update` now support OomScoreAdj
 
 ## v1.45 API changes
 

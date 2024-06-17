@@ -97,6 +97,10 @@ func (s *systemRouter) getInfo(ctx context.Context, w http.ResponseWriter, r *ht
 				info.Runtimes[k] = system.RuntimeWithStatus{Runtime: rt.Runtime}
 			}
 		}
+		if versions.LessThan(version, "1.46") {
+			// Containerd field introduced in API v1.46.
+			info.Containerd = nil
+		}
 		if versions.GreaterThanOrEqualTo(version, "1.42") {
 			info.KernelMemory = false
 		}
@@ -273,7 +277,18 @@ func (s *systemRouter) getEvents(ctx context.Context, w http.ResponseWriter, r *
 	buffered, l := s.backend.SubscribeToEvents(since, until, ef)
 	defer s.backend.UnsubscribeFromEvents(l)
 
+	shouldSkip := func(ev events.Message) bool { return false }
+	if versions.LessThan(httputils.VersionFromContext(ctx), "1.46") {
+		// Image create events were added in API 1.46
+		shouldSkip = func(ev events.Message) bool {
+			return ev.Type == "image" && ev.Action == "create"
+		}
+	}
+
 	for _, ev := range buffered {
+		if shouldSkip(ev) {
+			continue
+		}
 		if err := enc.Encode(ev); err != nil {
 			return err
 		}
@@ -289,6 +304,9 @@ func (s *systemRouter) getEvents(ctx context.Context, w http.ResponseWriter, r *
 			jev, ok := ev.(events.Message)
 			if !ok {
 				log.G(ctx).Warnf("unexpected event message: %q", ev)
+				continue
+			}
+			if shouldSkip(jev) {
 				continue
 			}
 			if err := enc.Encode(jev); err != nil {
