@@ -14,12 +14,12 @@ import (
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/daemon/links"
+	"github.com/docker/docker/daemon/network"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/libnetwork"
 	"github.com/docker/docker/pkg/idtools"
 	"github.com/docker/docker/pkg/process"
 	"github.com/docker/docker/pkg/stringid"
-	"github.com/docker/docker/runconfig"
 	"github.com/moby/sys/mount"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
@@ -30,7 +30,7 @@ func (daemon *Daemon) setupLinkedContainers(ctr *container.Container) ([]string,
 	var env []string
 	children := daemon.children(ctr)
 
-	bridgeSettings := ctr.NetworkSettings.Networks[runconfig.DefaultDaemonNetworkMode().NetworkName()]
+	bridgeSettings := ctr.NetworkSettings.Networks[network.DefaultNetwork]
 	if bridgeSettings == nil || bridgeSettings.EndpointSettings == nil {
 		return nil, nil
 	}
@@ -40,7 +40,7 @@ func (daemon *Daemon) setupLinkedContainers(ctr *container.Container) ([]string,
 			return nil, fmt.Errorf("Cannot link to a non running container: %s AS %s", child.Name, linkAlias)
 		}
 
-		childBridgeSettings := child.NetworkSettings.Networks[runconfig.DefaultDaemonNetworkMode().NetworkName()]
+		childBridgeSettings := child.NetworkSettings.Networks[network.DefaultNetwork]
 		if childBridgeSettings == nil || childBridgeSettings.EndpointSettings == nil {
 			return nil, fmt.Errorf("container %s not attached to default bridge network", child.ID)
 		}
@@ -402,7 +402,7 @@ func killProcessDirectly(ctr *container.Container) error {
 
 func isLinkable(child *container.Container) bool {
 	// A container is linkable only if it belongs to the default network
-	_, ok := child.NetworkSettings.Networks[runconfig.DefaultDaemonNetworkMode().NetworkName()]
+	_, ok := child.NetworkSettings.Networks[network.DefaultNetwork]
 	return ok
 }
 
@@ -419,21 +419,50 @@ func serviceDiscoveryOnDefaultNetwork() bool {
 
 func buildSandboxPlatformOptions(ctr *container.Container, cfg *config.Config, sboxOptions *[]libnetwork.SandboxOption) error {
 	var err error
+	var originResolvConfPath string
 
-	// In host-mode networking, the container does not have its own networking
-	// namespace, so `/etc/hosts` should be the same as on the host itself. Setting
-	// OptionOriginHostsPath means the container will get a copy of '/etc/hosts' from
-	// the host filesystem.
-	// Note that containers with "container" networking have been handled in
-	// "initializeNetworking()", so do not have to be accounted for here.
-	if ctr.HostConfig.NetworkMode.IsHost() {
+	// Set the correct paths for /etc/hosts and /etc/resolv.conf, based on the
+	// networking-mode of the container. Note that containers with "container"
+	// networking are already handled in "initializeNetworking()" before we reach
+	// this function, so do not have to be accounted for here.
+	switch {
+	case ctr.HostConfig.NetworkMode.IsHost():
+		// In host-mode networking, the container does not have its own networking
+		// namespace, so both `/etc/hosts` and `/etc/resolv.conf` should be the same
+		// as on the host itself. The container gets a copy of these files.
 		*sboxOptions = append(
 			*sboxOptions,
 			libnetwork.OptionOriginHostsPath("/etc/hosts"),
 		)
+		originResolvConfPath = "/etc/resolv.conf"
+	case ctr.HostConfig.NetworkMode.IsUserDefined():
+		// The container uses a user-defined network. We use the embedded DNS
+		// server for container name resolution and to act as a DNS forwarder
+		// for external DNS resolution.
+		// We parse the DNS server(s) that are defined in /etc/resolv.conf on
+		// the host, which may be a local DNS server (for example, if DNSMasq or
+		// systemd-resolvd are in use). The embedded DNS server forwards DNS
+		// resolution to the DNS server configured on the host, which in itself
+		// may act as a forwarder for external DNS servers.
+		// If systemd-resolvd is used, the "upstream" DNS servers can be found in
+		// /run/systemd/resolve/resolv.conf. We do not query those DNS servers
+		// directly, as they can be dynamically reconfigured.
+		originResolvConfPath = "/etc/resolv.conf"
+	default:
+		// For other situations, such as the default bridge network, container
+		// discovery / name resolution is handled through /etc/hosts, and no
+		// embedded DNS server is available. Without the embedded DNS, we
+		// cannot use local DNS servers on the host (for example, if DNSMasq or
+		// systemd-resolvd is used). If systemd-resolvd is used, we try to
+		// determine the external DNS servers that are used on the host.
+		// This situation is not ideal, because DNS servers configured in the
+		// container are not updated after the container is created, but the
+		// DNS servers on the host can be dynamically updated.
+		//
+		// Copy the host's resolv.conf for the container (/run/systemd/resolve/resolv.conf or /etc/resolv.conf)
+		originResolvConfPath = cfg.GetResolvConf()
 	}
 
-	originResolvConfPath := "/etc/resolv.conf"
 	// Allow tests to point at their own resolv.conf file.
 	if envPath := os.Getenv("DOCKER_TEST_RESOLV_CONF_PATH"); envPath != "" {
 		log.G(context.TODO()).Infof("Using OriginResolvConfPath from env: %s", envPath)
