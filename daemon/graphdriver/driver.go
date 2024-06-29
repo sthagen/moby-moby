@@ -11,7 +11,6 @@ import (
 	"github.com/containerd/log"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/idtools"
-	"github.com/docker/docker/pkg/plugingetter"
 	"github.com/pkg/errors"
 	"github.com/vbatts/tar-split/tar/storage"
 )
@@ -157,26 +156,25 @@ func Register(name string, initFunc InitFunc) error {
 	return nil
 }
 
-// GetDriver initializes and returns the registered driver
-func GetDriver(name string, pg plugingetter.PluginGetter, config Options) (Driver, error) {
+// GetDriver initializes and returns the registered driver.
+//
+// Deprecated: this function was exported for (integration-)tests, but no longer used, and will be removed in the next release.
+func GetDriver(name string, config Options) (Driver, error) {
+	return getDriver(name, config)
+}
+
+// getDriver initializes and returns the registered driver.
+func getDriver(name string, config Options) (Driver, error) {
 	if initFunc, exists := drivers[name]; exists {
 		return initFunc(filepath.Join(config.Root, name), config.DriverOptions, config.IDMap)
 	}
+	log.G(context.TODO()).WithFields(log.Fields{"driver": name, "home-dir": config.Root}).Error("Failed to GetDriver graph")
 
-	pluginDriver, err := lookupPlugin(name, pg, config)
-	if err == nil {
-		return pluginDriver, nil
+	// TODO(thaJeztah): remove in next release.
+	if config.ExperimentalEnabled && os.Getenv("DOCKERD_DEPRECATED_GRAPHDRIVER_PLUGINS") != "" {
+		return nil, fmt.Errorf("DEPRECATED: Support for experimental graphdriver plugins has been removed. See https://docs.docker.com/go/deprecated/")
 	}
-	log.G(context.TODO()).WithError(err).WithField("driver", name).WithField("home-dir", config.Root).Error("Failed to GetDriver graph")
-	return nil, ErrNotSupported
-}
 
-// getBuiltinDriver initializes and returns the registered driver, but does not try to load from plugins
-func getBuiltinDriver(name, home string, options []string, idMap idtools.IdentityMapping) (Driver, error) {
-	if initFunc, exists := drivers[name]; exists {
-		return initFunc(filepath.Join(home, name), options, idMap)
-	}
-	log.G(context.TODO()).Errorf("Failed to built-in GetDriver graph %s %s", name, home)
 	return nil, ErrNotSupported
 }
 
@@ -189,17 +187,29 @@ type Options struct {
 }
 
 // New creates the driver and initializes it at the specified root.
-func New(name string, pg plugingetter.PluginGetter, config Options) (Driver, error) {
+//
+// It is recommended to pass a name for the driver to use, but If no name
+// is provided, it attempts to detect the prior storage driver based on
+// existing state, or otherwise selects a storage driver based on a priority
+// list and the underlying filesystem.
+//
+// It returns an error if the requested storage driver is not supported,
+// if scanning prior drivers is ambiguous (i.e., if state is found for
+// multiple drivers), or if no compatible driver is available for the
+// platform and underlying filesystem.
+func New(name string, config Options) (Driver, error) {
 	ctx := context.TODO()
 	if name != "" {
 		log.G(ctx).Infof("[graphdriver] trying configured driver: %s", name)
 		if err := checkRemoved(name); err != nil {
 			return nil, err
 		}
-		return GetDriver(name, pg, config)
+		return getDriver(name, config)
 	}
 
 	// Guess for prior driver
+	//
+	// TODO(thaJeztah): move detecting prior drivers separate from New(), and make "name" a required argument.
 	driversMap := scanPriorDrivers(config.Root)
 	priorityList := strings.Split(priority, ",")
 	log.G(ctx).Debugf("[graphdriver] priority list: %v", priorityList)
@@ -207,7 +217,7 @@ func New(name string, pg plugingetter.PluginGetter, config Options) (Driver, err
 		if _, prior := driversMap[name]; prior {
 			// of the state found from prior drivers, check in order of our priority
 			// which we would prefer
-			driver, err := getBuiltinDriver(name, config.Root, config.DriverOptions, config.IDMap)
+			driver, err := getDriver(name, config)
 			if err != nil {
 				// unlike below, we will return error here, because there is prior
 				// state, and now it is no longer supported/prereq/compatible, so
@@ -238,7 +248,7 @@ func New(name string, pg plugingetter.PluginGetter, config Options) (Driver, err
 	// If no prior state was found, continue with automatic selection, and pick
 	// the first supported, non-deprecated, storage driver (in order of priorityList).
 	for _, name := range priorityList {
-		driver, err := getBuiltinDriver(name, config.Root, config.DriverOptions, config.IDMap)
+		driver, err := getDriver(name, config)
 		if err != nil {
 			if IsDriverNotSupported(err) {
 				continue
