@@ -12,8 +12,8 @@ ARG DOCKERCLI_VERSION=v27.0.2
 # cli version used for integration-cli tests
 ARG DOCKERCLI_INTEGRATION_REPOSITORY="https://github.com/docker/cli.git"
 ARG DOCKERCLI_INTEGRATION_VERSION=v17.06.2-ce
-ARG BUILDX_VERSION=0.15.1
-ARG COMPOSE_VERSION=v2.28.1
+ARG BUILDX_VERSION=0.16.1
+ARG COMPOSE_VERSION=v2.29.0
 
 ARG SYSTEMD="false"
 ARG DOCKER_STATIC=1
@@ -196,7 +196,7 @@ RUN git init . && git remote add origin "https://github.com/containerd/container
 # When updating the binary version you may also need to update the vendor
 # version to pick up bug fixes or new APIs, however, usually the Go packages
 # are built from a commit from the master branch.
-ARG CONTAINERD_VERSION=v1.7.19
+ARG CONTAINERD_VERSION=v1.7.20
 RUN git fetch -q --depth 1 origin "${CONTAINERD_VERSION}" +refs/tags/*:refs/tags/* && git checkout -q FETCH_HEAD
 
 FROM base AS containerd-build
