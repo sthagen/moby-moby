@@ -7,7 +7,6 @@ dockerd - Enable daemon mode
 **dockerd**
 [**--add-runtime**[=*[]*]]
 [**--allow-nondistributable-artifacts**[=*[]*]]
-[**--api-cors-header**=[=*API-CORS-HEADER*]]
 [**--authorization-plugin**[=*[]*]]
 [**-b**|**--bridge**[=*BRIDGE*]]
 [**--bip**[=*BIP*]]
@@ -31,7 +30,7 @@ dockerd - Enable daemon mode
 [**--exec-opt**[=*[]*]]
 [**--exec-root**[=*/var/run/docker*]]
 [**--experimental**[=**false**]]
-[**--feature**[=*NAME*=**true**|**false**]
+[**--feature**[=*NAME*[=**true**|**false**]]
 [**--fixed-cidr**[=*FIXED-CIDR*]]
 [**--fixed-cidr-v6**[=*FIXED-CIDR-V6*]]
 [**-G**|**--group**[=*docker*]]
@@ -53,6 +52,7 @@ dockerd - Enable daemon mode
 [**--label**[=*[]*]]
 [**--live-restore**[=**false**]]
 [**--log-driver**[=*json-file*]]
+[**--log-format**="*text*|*json*"]
 [**--log-opt**[=*map[]*]]
 [**--mtu**[=*0*]]
 [**--max-concurrent-downloads**[=*3*]]
@@ -137,10 +137,6 @@ $ sudo dockerd --add-runtime runc=runc --add-runtime custom=/usr/local/bin/my-ru
   artifacts to private registries and ensure that you are in compliance with
   any terms that cover redistributing nondistributable artifacts.
 
-**--api-cors-header**=""
-  Set CORS headers in the Engine API. Default is cors disabled. Give urls like
-  "http://foo, http://bar, ...". Give "\*" to allow all.
-
 **--authorization-plugin**=""
   Set authorization plugins to load
 
@@ -223,13 +219,13 @@ $ sudo dockerd --add-runtime runc=runc --add-runtime custom=/usr/local/bin/my-ru
 **--experimental**=""
   Enable the daemon experimental features.
 
-**--feature**=*NAME*=**true**|**false**
-  Enable or disable feature feature in the daemon. This option corresponds
+**--feature**=*NAME*[=**true**|**false**]
+  Enable or disable a feature in the daemon. This option corresponds
   with the "features" field in the daemon.json configuration file. Using
   both the command-line option and the "features" field in the configuration
   file produces an error. The feature option can be specified multiple times
   to configure multiple features.
-  Usage example: `--feature containerd-snapshotter=true`
+  Usage example: `--feature containerd-snapshotter` or `--feature containerd-snapshotter=true`.
 
 **--fixed-cidr**=""
   IPv4 subnet for fixed IPs (e.g., 10.20.0.0/16); this subnet must be nested in
@@ -332,6 +328,9 @@ unix://[/path/to/socket] to use.
 **--log-driver**="**json-file**|**syslog**|**journald**|**gelf**|**fluentd**|**awslogs**|**splunk**|**etwlogs**|**gcplogs**|**none**"
   Default driver for container logs. Default is **json-file**.
   **Warning**: **docker logs** command works only for **json-file** logging driver.
+
+**--log-format**="*text*|*json*"
+  Set the format for logs produced by the daemon. Default is "text".
 
 **--log-opt**=[]
   Logging driver specific options.

@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"os"
-	"os/exec"
 	"strconv"
 	"sync"
 
 	"github.com/containerd/log"
 	"github.com/docker/docker/errdefs"
+	"github.com/docker/docker/internal/nlwrap"
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/driverapi"
 	"github.com/docker/docker/libnetwork/drivers/bridge/internal/rlkclient"
@@ -155,7 +154,7 @@ type driver struct {
 	isolationChain2V6 *iptables.ChainInfo
 	networks          map[string]*bridgeNetwork
 	store             *datastore.Store
-	nlh               *netlink.Handle
+	nlh               nlwrap.Handle
 	portDriverClient  portDriverClient
 	configNetwork     sync.Mutex
 	sync.Mutex
@@ -505,14 +504,6 @@ func (d *driver) configure(option map[string]interface{}) error {
 		return &ErrInvalidDriverConfig{}
 	}
 
-	if config.EnableIPTables || config.EnableIP6Tables {
-		if _, err := os.Stat("/proc/sys/net/bridge"); err != nil {
-			if out, err := exec.Command("modprobe", "-va", "bridge", "br_netfilter").CombinedOutput(); err != nil {
-				log.G(context.TODO()).Warnf("Running modprobe bridge br_netfilter failed with message: %s, error: %v", out, err)
-			}
-		}
-	}
-
 	if config.EnableIPTables {
 		removeIPChains(iptables.IPv4)
 
@@ -808,7 +799,7 @@ func (d *driver) checkConflict(config *networkConfiguration) error {
 func (d *driver) createNetwork(config *networkConfiguration) (err error) {
 	// Initialize handle when needed
 	d.Lock()
-	if d.nlh == nil {
+	if d.nlh.Handle == nil {
 		d.nlh = ns.NlHandle()
 	}
 	d.Unlock()
@@ -1018,7 +1009,7 @@ func (d *driver) deleteNetwork(nid string) error {
 	return d.storeDelete(config)
 }
 
-func addToBridge(ctx context.Context, nlh *netlink.Handle, ifaceName, bridgeName string) error {
+func addToBridge(ctx context.Context, nlh nlwrap.Handle, ifaceName, bridgeName string) error {
 	ctx, span := otel.Tracer("").Start(ctx, "libnetwork.drivers.bridge.addToBridge", trace.WithAttributes(
 		attribute.String("ifaceName", ifaceName),
 		attribute.String("bridgeName", bridgeName)))
@@ -1035,7 +1026,7 @@ func addToBridge(ctx context.Context, nlh *netlink.Handle, ifaceName, bridgeName
 	return nil
 }
 
-func setHairpinMode(nlh *netlink.Handle, link netlink.Link, enable bool) error {
+func setHairpinMode(nlh nlwrap.Handle, link netlink.Link, enable bool) error {
 	err := nlh.LinkSetHairpin(link, enable)
 	if err != nil {
 		return fmt.Errorf("unable to set hairpin mode on %s via netlink: %v",
