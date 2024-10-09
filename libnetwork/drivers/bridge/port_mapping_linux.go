@@ -598,6 +598,10 @@ func bindTCPOrUDP(cfg portBindingReq, port, typ, proto int) (_ portBinding, retE
 		}
 	}()
 
+	if err := syscall.SetsockoptInt(sd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		return portBinding{}, fmt.Errorf("failed to setsockopt(SO_REUSEADDR) for %s: %w", cfg, err)
+	}
+
 	if domain == syscall.AF_INET6 {
 		syscall.SetsockoptInt(sd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 1)
 	}
@@ -771,6 +775,9 @@ func setPerPortNAT(b portBinding, ipv iptables.IPVersion, proxyPath string, brid
 	hairpinMode := proxyPath == ""
 	if !hairpinMode {
 		args = append(args, "!", "-i", bridgeName)
+	}
+	if ipv == iptables.IPv6 {
+		args = append(args, "!", "-s", "fe80::/10")
 	}
 	rule := iptRule{ipv: ipv, table: iptables.Nat, chain: DockerChain, args: args}
 	if err := appendOrDelChainRule(rule, "DNAT", enable); err != nil {
