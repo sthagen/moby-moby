@@ -122,7 +122,7 @@ func (n *Network) addLBBackend(ip net.IP, lb *loadBalancer) {
 
 		if sb.ingress {
 			var gwIP net.IP
-			if ep := sb.getGatewayEndpoint(); ep != nil {
+			if ep, _ := sb.getGatewayEndpoint(); ep != nil {
 				gwIP = ep.Iface().Address().IP
 			}
 			if err := programIngress(gwIP, lb.service.ingressPorts, false); err != nil {
@@ -223,8 +223,8 @@ func (n *Network) rmLBBackend(ip net.IP, lb *loadBalancer, rmService bool, fullR
 
 		if sb.ingress {
 			var gwIP net.IP
-			if ep := sb.getGatewayEndpoint(); ep != nil {
-				gwIP = ep.Iface().Address().IP
+			if gwEP, _ := sb.getGatewayEndpoint(); gwEP != nil {
+				gwIP = gwEP.Iface().Address().IP
 			}
 			if err := programIngress(gwIP, lb.service.ingressPorts, true); err != nil {
 				log.G(context.TODO()).Errorf("Failed to delete ingress: %v", err)

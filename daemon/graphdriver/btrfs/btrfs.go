@@ -40,7 +40,7 @@ import (
 	"github.com/docker/docker/internal/containerfs"
 	"github.com/docker/docker/pkg/idtools"
 	"github.com/docker/docker/pkg/parsers"
-	units "github.com/docker/go-units"
+	"github.com/docker/go-units"
 	"github.com/moby/sys/mount"
 	"github.com/moby/sys/userns"
 	"github.com/opencontainers/selinux/go-selinux/label"
@@ -559,7 +559,7 @@ func (d *Driver) Create(id, parent string, opts *graphdriver.CreateOpts) error {
 func (d *Driver) parseStorageOpt(storageOpt map[string]string, driver *Driver) error {
 	// Read size to change the subvolume disk quota per container
 	for key, val := range storageOpt {
-		key := strings.ToLower(key)
+		key = strings.ToLower(key)
 		switch key {
 		case "size":
 			size, err := units.RAMInBytes(val)
