@@ -81,7 +81,7 @@ require (
 	github.com/morikuni/aec v1.0.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
-	github.com/opencontainers/runc v1.2.0
+	github.com/opencontainers/runc v1.2.2
 	github.com/opencontainers/runtime-spec v1.2.0
 	github.com/opencontainers/selinux v1.11.1
 	github.com/pelletier/go-toml v1.9.5
@@ -110,7 +110,7 @@ require (
 	golang.org/x/text v0.18.0
 	golang.org/x/time v0.6.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094
-	google.golang.org/grpc v1.66.2
+	google.golang.org/grpc v1.66.3
 	google.golang.org/protobuf v1.35.1
 	gotest.tools/v3 v3.5.1
 	resenje.org/singleflight v0.4.1
