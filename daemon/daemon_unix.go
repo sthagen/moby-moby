@@ -38,7 +38,6 @@ import (
 	lntypes "github.com/docker/docker/libnetwork/types"
 	"github.com/docker/docker/opts"
 	"github.com/docker/docker/pkg/idtools"
-	"github.com/docker/docker/pkg/parsers"
 	"github.com/docker/docker/pkg/parsers/kernel"
 	"github.com/docker/docker/pkg/sysinfo"
 	"github.com/docker/docker/runconfig"
@@ -584,11 +583,10 @@ func cgroupDriver(cfg *config.Config) string {
 // getCD gets the raw value of the native.cgroupdriver option, if set.
 func getCD(config *config.Config) string {
 	for _, option := range config.ExecOptions {
-		key, val, err := parsers.ParseKeyValueOpt(option)
-		if err != nil || !strings.EqualFold(key, "native.cgroupdriver") {
-			continue
+		key, val, ok := strings.Cut(option, "=")
+		if ok && strings.EqualFold(strings.TrimSpace(key), "native.cgroupdriver") {
+			return strings.TrimSpace(val)
 		}
-		return val
 	}
 	return ""
 }
@@ -940,12 +938,15 @@ type defBrOptsV4 struct {
 func (o defBrOptsV4) nlFamily() int {
 	return netlink.FAMILY_V4
 }
+
 func (o defBrOptsV4) fixedCIDR() (fCIDR, optName string) {
 	return o.cfg.FixedCIDR, "fixed-cidr"
 }
+
 func (o defBrOptsV4) bip() (bip, optName string) {
 	return o.cfg.IP, "bip"
 }
+
 func (o defBrOptsV4) defGw() (gw net.IP, optName, auxAddrLabel string) {
 	return o.cfg.DefaultGatewayIPv4, "default-gateway", "DefaultGatewayIPv4"
 }
@@ -957,12 +958,15 @@ type defBrOptsV6 struct {
 func (o defBrOptsV6) nlFamily() int {
 	return netlink.FAMILY_V6
 }
+
 func (o defBrOptsV6) fixedCIDR() (fCIDR, optName string) {
 	return o.cfg.FixedCIDRv6, "fixed-cidr-v6"
 }
+
 func (o defBrOptsV6) bip() (bip, optName string) {
 	return o.cfg.IP6, "bip6"
 }
+
 func (o defBrOptsV6) defGw() (gw net.IP, optName, auxAddrLabel string) {
 	return o.cfg.DefaultGatewayIPv6, "default-gateway-v6", "DefaultGatewayIPv6"
 }
