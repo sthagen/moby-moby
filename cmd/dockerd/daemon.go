@@ -233,7 +233,7 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 
 	const otelServiceNameEnv = "OTEL_SERVICE_NAME"
 	if _, ok := os.LookupEnv(otelServiceNameEnv); !ok {
-		os.Setenv(otelServiceNameEnv, filepath.Base(os.Args[0]))
+		_ = os.Setenv(otelServiceNameEnv, filepath.Base(os.Args[0]))
 	}
 
 	setOTLPProtoDefault()
@@ -382,10 +382,10 @@ func setOTLPProtoDefault() {
 
 	if os.Getenv(protoEnv) == "" {
 		if os.Getenv(tracesEnv) == "" {
-			os.Setenv(tracesEnv, defaultProto)
+			_ = os.Setenv(tracesEnv, defaultProto)
 		}
 		if os.Getenv(metricsEnv) == "" {
-			os.Setenv(metricsEnv, defaultProto)
+			_ = os.Setenv(metricsEnv, defaultProto)
 		}
 	}
 }
@@ -715,14 +715,11 @@ func buildRouters(opts routerOptions) []router.Router {
 		swarmrouter.NewRouter(opts.cluster),
 		pluginrouter.NewRouter(opts.daemon.PluginManager()),
 		distributionrouter.NewRouter(opts.daemon.ImageBackend()),
+		network.NewRouter(opts.daemon, opts.cluster),
 	}
 
 	if opts.buildBackend != nil {
 		routers = append(routers, grpcrouter.NewRouter(opts.buildBackend))
-	}
-
-	if opts.daemon.NetworkControllerEnabled() {
-		routers = append(routers, network.NewRouter(opts.daemon, opts.cluster))
 	}
 
 	if opts.daemon.HasExperimental() {
