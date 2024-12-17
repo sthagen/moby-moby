@@ -57,18 +57,15 @@ type IPVersion string
 
 const (
 	// IPv4 is version 4.
-	IPv4 IPVersion = "IPV4"
+	IPv4 IPVersion = "ipv4"
 	// IPv6 is version 6.
-	IPv6 IPVersion = "IPV6"
+	IPv6 IPVersion = "ipv6"
 )
 
 var (
 	iptablesPath  string
 	ip6tablesPath string
-	supportsXlock = false
-	// used to lock iptables commands if xtables lock is not supported
-	bestEffortLock sync.Mutex
-	initOnce       sync.Once
+	initOnce      sync.Once
 )
 
 // IPTable defines struct with [IPVersion].
@@ -113,14 +110,6 @@ func detectIptables() {
 		return
 	}
 	iptablesPath = path
-
-	// The --wait flag was added in iptables v1.6.0.
-	// TODO remove this check once we drop support for CentOS/RHEL 7, which uses an older version of iptables
-	if out, err := exec.Command(path, "--wait", "-L", "-n").CombinedOutput(); err != nil {
-		log.G(context.TODO()).WithError(err).Infof("unable to detect if iptables supports xlock: 'iptables --wait -L -n': `%s`", strings.TrimSpace(string(out)))
-	} else {
-		supportsXlock = true
-	}
 
 	path, err = exec.LookPath("ip6tables")
 	if err != nil {
@@ -435,14 +424,8 @@ func filterOutput(start time.Time, output []byte, args ...string) []byte {
 // Raw calls 'iptables' system command, passing supplied arguments.
 func (iptable IPTable) Raw(args ...string) ([]byte, error) {
 	if firewalldRunning {
-		// select correct IP version for firewalld
-		ipv := Iptables
-		if iptable.ipVersion == IPv6 {
-			ipv = IP6Tables
-		}
-
 		startTime := time.Now()
-		output, err := Passthrough(ipv, args...)
+		output, err := Passthrough(iptable.ipVersion, args...)
 		if err == nil || !strings.Contains(err.Error(), "was not provided by any .service files") {
 			return filterOutput(startTime, output, args...), err
 		}
@@ -464,13 +447,7 @@ func (iptable IPTable) raw(args ...string) ([]byte, error) {
 		commandName = "ip6tables"
 	}
 
-	if supportsXlock {
-		args = append([]string{"--wait"}, args...)
-	} else {
-		bestEffortLock.Lock()
-		defer bestEffortLock.Unlock()
-	}
-
+	args = append([]string{"--wait"}, args...)
 	log.G(context.TODO()).Debugf("%s, %v", path, args)
 
 	startTime := time.Now()
