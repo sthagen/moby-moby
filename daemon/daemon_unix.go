@@ -1,4 +1,5 @@
-//go:build linux || freebsd
+// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
+//go:build go1.22 && (linux || freebsd)
 
 package daemon // import "github.com/docker/docker/daemon"
 
@@ -245,11 +246,11 @@ func parseSecurityOpt(securityOptions *container.SecurityOptions, config *contai
 		case "seccomp":
 			securityOptions.SeccompProfile = v
 		case "no-new-privileges":
-			noNewPrivileges, err := strconv.ParseBool(v)
+			nnp, err := strconv.ParseBool(v)
 			if err != nil {
 				return fmt.Errorf("invalid --security-opt 2: %q", opt)
 			}
-			securityOptions.NoNewPrivileges = noNewPrivileges
+			securityOptions.NoNewPrivileges = nnp
 		default:
 			return fmt.Errorf("invalid --security-opt 2: %q", opt)
 		}
