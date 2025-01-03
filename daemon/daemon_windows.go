@@ -109,8 +109,11 @@ func verifyPlatformContainerResources(resources *containertypes.Resources, isHyp
 	}
 	// The precision we could get is 0.01, because on Windows we have to convert to CPUPercent.
 	// We don't set the lower limit here and it is up to the underlying platform (e.g., Windows) to return an error.
-	if resources.NanoCPUs < 0 || resources.NanoCPUs > int64(sysinfo.NumCPU())*1e9 {
-		return warnings, fmt.Errorf("range of CPUs is from 0.01 to %d.00, as there are only %d CPUs available", sysinfo.NumCPU(), sysinfo.NumCPU())
+	if resources.NanoCPUs != 0 {
+		nc := sysinfo.NumCPU()
+		if resources.NanoCPUs < 0 || resources.NanoCPUs > int64(nc)*1e9 {
+			return warnings, fmt.Errorf("range of CPUs is from 0.01 to %[1]d.00, as there are only %[1]d CPUs available", nc)
+		}
 	}
 
 	if len(resources.BlkioDeviceReadBps) > 0 {
@@ -334,6 +337,7 @@ func (daemon *Daemon) initNetworkController(daemonCfg *config.Config, activeSand
 		})
 
 		drvOptions := make(map[string]string)
+		var labels map[string]string
 		nid := ""
 		if n != nil {
 			nid = n.ID()
@@ -348,6 +352,7 @@ func (daemon *Daemon) initNetworkController(daemonCfg *config.Config, activeSand
 
 			// restore option if it existed before
 			drvOptions = n.DriverOptions()
+			labels = n.Labels()
 			n.Delete()
 		}
 		netOption := map[string]string{
@@ -386,6 +391,7 @@ func (daemon *Daemon) initNetworkController(daemonCfg *config.Config, activeSand
 				netlabel.EnableIPv4:  true,
 			}),
 			libnetwork.NetworkOptionIpam("default", "", v4Conf, v6Conf, nil),
+			libnetwork.NetworkOptionLabels(labels),
 		)
 		if err != nil {
 			log.G(context.TODO()).Errorf("Error occurred when creating network %v", err)
