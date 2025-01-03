@@ -1,4 +1,4 @@
-package fileutils
+package filedescriptors
 
 import (
 	"context"

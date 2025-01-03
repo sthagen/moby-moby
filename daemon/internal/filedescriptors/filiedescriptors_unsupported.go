@@ -1,9 +1,11 @@
-package fileutils // import "github.com/docker/docker/pkg/fileutils"
+//go:build !linux
+
+package filedescriptors
 
 import "context"
 
 // GetTotalUsedFds Returns the number of used File Descriptors. Not supported
 // on Windows.
-func GetTotalUsedFds(ctx context.Context) int {
+func GetTotalUsedFds(context.Context) int {
 	return -1
 }
