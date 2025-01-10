@@ -9,7 +9,7 @@ import (
 
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/log"
-	"github.com/docker/docker/pkg/ioutils"
+	"github.com/docker/docker/container/stream/bytespipe"
 	"github.com/docker/docker/pkg/pools"
 )
 
@@ -64,7 +64,7 @@ func (c *Config) StdinPipe() io.WriteCloser {
 // It adds this new out pipe to the Stdout broadcaster.
 // This will block stdout if unconsumed.
 func (c *Config) StdoutPipe() io.ReadCloser {
-	bytesPipe := ioutils.NewBytesPipe()
+	bytesPipe := bytespipe.New()
 	c.stdout.Add(bytesPipe)
 	return bytesPipe
 }
@@ -73,7 +73,7 @@ func (c *Config) StdoutPipe() io.ReadCloser {
 // It adds this new err pipe to the Stderr broadcaster.
 // This will block stderr if unconsumed.
 func (c *Config) StderrPipe() io.ReadCloser {
-	bytesPipe := ioutils.NewBytesPipe()
+	bytesPipe := bytespipe.New()
 	c.stderr.Add(bytesPipe)
 	return bytesPipe
 }
@@ -85,8 +85,14 @@ func (c *Config) NewInputPipes() {
 
 // NewNopInputPipe creates a new input pipe that will silently drop all messages in the input.
 func (c *Config) NewNopInputPipe() {
-	c.stdinPipe = ioutils.NopWriteCloser(io.Discard)
+	c.stdinPipe = &nopWriteCloser{io.Discard}
 }
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (w *nopWriteCloser) Close() error { return nil }
 
 // CloseStreams ensures that the configured streams are properly closed.
 func (c *Config) CloseStreams() error {

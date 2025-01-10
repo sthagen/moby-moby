@@ -1,4 +1,4 @@
-package ioutils // import "github.com/docker/docker/pkg/ioutils"
+package bytespipe
 
 import (
 	"errors"
@@ -37,10 +37,10 @@ type BytesPipe struct {
 	readBlock bool  // check read BytesPipe is Wait() or not
 }
 
-// NewBytesPipe creates new BytesPipe, initialized by specified slice.
+// New creates new BytesPipe, initialized by specified slice.
 // If buf is nil, then it will be initialized with slice which cap is 64.
 // buf will be adjusted in a way that len(buf) == 0, cap(buf) == cap(buf).
-func NewBytesPipe() *BytesPipe {
+func New() *BytesPipe {
 	bp := &BytesPipe{}
 	bp.buf = append(bp.buf, getBuffer(minCap))
 	bp.wait = sync.NewCond(&bp.mu)
