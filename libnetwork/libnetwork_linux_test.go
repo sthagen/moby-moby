@@ -1,7 +1,6 @@
 package libnetwork_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/containerd/log"
+	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/internal/nlwrap"
 	"github.com/docker/docker/internal/testutils/netnsutils"
 	"github.com/docker/docker/libnetwork"
@@ -81,11 +81,6 @@ func getPortMapping() []types.PortBinding {
 	}
 }
 
-func isNotFound(err error) bool {
-	_, ok := (err).(types.NotFoundError)
-	return ok
-}
-
 func TestNull(t *testing.T) {
 	defer netnsutils.SetupTestOSContext(t)()
 	controller := newController(t)
@@ -141,13 +136,7 @@ func TestUnknownDriver(t *testing.T) {
 	controller := newController(t)
 
 	_, err := createTestNetwork(controller, "unknowndriver", "testnetwork", options.Generic{}, nil, nil)
-	if err == nil {
-		t.Fatal("Expected to fail. But instead succeeded")
-	}
-
-	if !isNotFound(err) {
-		t.Fatalf("Did not fail with expected error. Actual error: %v", err)
-	}
+	assert.Check(t, is.ErrorType(err, errdefs.IsNotFound))
 }
 
 func TestNilRemoteDriver(t *testing.T) {
@@ -156,13 +145,7 @@ func TestNilRemoteDriver(t *testing.T) {
 
 	_, err := controller.NewNetwork("framerelay", "dummy", "",
 		libnetwork.NetworkOptionGeneric(getEmptyGenericOption()))
-	if err == nil {
-		t.Fatal("Expected to fail. But instead succeeded")
-	}
-
-	if !isNotFound(err) {
-		t.Fatalf("Did not fail with expected error. Actual error: %v", err)
-	}
+	assert.Check(t, is.ErrorType(err, errdefs.IsNotFound))
 }
 
 func TestNetworkName(t *testing.T) {
@@ -1274,7 +1257,7 @@ func TestValidRemoteDriver(t *testing.T) {
 		libnetwork.NetworkOptionGeneric(getEmptyGenericOption()))
 	if err != nil {
 		// Only fail if we could not find the plugin driver
-		if isNotFound(err) {
+		if errdefs.IsNotFound(err) {
 			t.Fatal(err)
 		}
 		return
@@ -1418,59 +1401,6 @@ func TestHost(t *testing.T) {
 	}
 }
 
-// Testing IPV6 from MAC address
-func TestBridgeIpv6FromMac(t *testing.T) {
-	defer netnsutils.SetupTestOSContext(t)()
-	controller := newController(t)
-
-	netOption := options.Generic{
-		netlabel.GenericData: map[string]string{
-			bridge.BridgeName:         "testipv6mac",
-			bridge.EnableICC:          "true",
-			bridge.EnableIPMasquerade: "true",
-		},
-	}
-	ipamV4ConfList := []*libnetwork.IpamConf{{PreferredPool: "192.168.100.0/24", Gateway: "192.168.100.1"}}
-	ipamV6ConfList := []*libnetwork.IpamConf{{PreferredPool: "fe90::/64", Gateway: "fe90::22"}}
-
-	network, err := controller.NewNetwork(bridgeNetType, "testipv6mac", "",
-		libnetwork.NetworkOptionGeneric(netOption),
-		libnetwork.NetworkOptionEnableIPv4(true),
-		libnetwork.NetworkOptionEnableIPv6(true),
-		libnetwork.NetworkOptionIpam(defaultipam.DriverName, "", ipamV4ConfList, ipamV6ConfList, nil),
-		libnetwork.NetworkOptionDeferIPv6Alloc(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mac := net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
-	epOption := options.Generic{netlabel.MacAddress: mac}
-
-	ep, err := network.CreateEndpoint(context.Background(), "testep", libnetwork.EndpointOptionGeneric(epOption))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	iface := ep.Info().Iface()
-	if !bytes.Equal(iface.MacAddress(), mac) {
-		t.Fatalf("Unexpected mac address: %v", iface.MacAddress())
-	}
-
-	ip, expIP, _ := net.ParseCIDR("fe90::aabb:ccdd:eeff/64")
-	expIP.IP = ip
-	if !types.CompareIPNet(expIP, iface.AddressIPv6()) {
-		t.Fatalf("Expected %v. Got: %v", expIP, iface.AddressIPv6())
-	}
-
-	if err := ep.Delete(context.Background(), false); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := network.Delete(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func checkSandbox(t *testing.T, info libnetwork.EndpointInfo) {
 	key := info.Sandbox().Key()
 	sbNs, err := netns.GetFromPath(key)
@@ -1513,7 +1443,7 @@ func TestEndpointJoin(t *testing.T) {
 		libnetwork.NetworkOptionEnableIPv4(true),
 		libnetwork.NetworkOptionEnableIPv6(true),
 		libnetwork.NetworkOptionIpam(defaultipam.DriverName, "", nil, ipamV6ConfList, nil),
-		libnetwork.NetworkOptionDeferIPv6Alloc(true))
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
