@@ -106,6 +106,7 @@ type Interface struct {
 	// advertiseAddrInterval is the interval between unsolicited ARP/NA messages sent to
 	// advertise the interface's addresses.
 	advertiseAddrInterval time.Duration
+	createdInContainer    bool
 	ns                    *Namespace
 }
 
@@ -205,19 +206,15 @@ func (n *Namespace) findDst(srcName string, isBridge bool) string {
 	return ""
 }
 
-func moveLink(ctx context.Context, nlhHost nlwrap.Handle, iface netlink.Link, i *Interface, path string) (netns.NsHandle, error) {
+func moveLink(ctx context.Context, nlhHost nlwrap.Handle, iface netlink.Link, i *Interface, nsh netns.NsHandle) error {
 	ctx, span := otel.Tracer("").Start(ctx, "libnetwork.osl.moveLink", trace.WithAttributes(
 		attribute.String("ifaceName", i.DstName())))
 	defer span.End()
 
-	newNs, err := netns.GetFromPath(path)
-	if err != nil {
-		return netns.None(), fmt.Errorf("failed get network namespace %q: %v", path, err)
+	if err := nlhHost.LinkSetNsFd(iface, int(nsh)); err != nil {
+		return fmt.Errorf("failed to set namespace on link %q: %v", i.srcName, err)
 	}
-	if err := nlhHost.LinkSetNsFd(iface, int(newNs)); err != nil {
-		return netns.None(), fmt.Errorf("failed to set namespace on link %q: %v", i.srcName, err)
-	}
-	return newNs, nil
+	return nil
 }
 
 // AddInterface adds an existing Interface to the sandbox. The operation will rename
@@ -251,6 +248,13 @@ func (n *Namespace) AddInterface(ctx context.Context, srcName, dstPrefix string,
 	n.mu.Unlock()
 
 	newNs := netns.None()
+	if !isDefault {
+		newNs, err = netns.GetFromPath(path)
+		if err != nil {
+			return fmt.Errorf("failed get network namespace %q: %v", path, err)
+		}
+		defer newNs.Close()
+	}
 
 	// If it is a bridge interface we have to create the bridge inside
 	// the namespace so don't try to lookup the interface using srcName
@@ -262,7 +266,7 @@ func (n *Namespace) AddInterface(ctx context.Context, srcName, dstPrefix string,
 		}); err != nil {
 			return fmt.Errorf("failed to create bridge %q: %v", i.srcName, err)
 		}
-	} else {
+	} else if !i.createdInContainer {
 		// Find the network interface identified by the SrcName attribute.
 		iface, err := nlhHost.LinkByName(i.srcName)
 		if err != nil {
@@ -273,12 +277,9 @@ func (n *Namespace) AddInterface(ctx context.Context, srcName, dstPrefix string,
 		// namespace only if the namespace is not a default
 		// type
 		if !isDefault {
-			var err error
-			newNs, err = moveLink(ctx, nlhHost, iface, i, path)
-			if err != nil {
+			if err := moveLink(ctx, nlhHost, iface, i, newNs); err != nil {
 				return err
 			}
-			defer newNs.Close()
 		}
 	}
 
@@ -350,6 +351,9 @@ func (n *Namespace) AddInterface(ctx context.Context, srcName, dstPrefix string,
 }
 
 func waitForIfUpped(ctx context.Context, ns netns.NsHandle, ifIndex int) (bool, error) {
+	ctx, span := otel.Tracer("").Start(context.WithoutCancel(ctx), "libnetwork.osl.waitforIfUpped")
+	defer span.End()
+
 	update := make(chan netlink.LinkUpdate, 100)
 	upped := make(chan struct{})
 	opts := netlink.LinkSubscribeOptions{
@@ -398,6 +402,7 @@ func waitForIfUpped(ctx context.Context, ns netns.NsHandle, ifIndex int) (bool, 
 	for {
 		select {
 		case <-timerC:
+			log.G(ctx).Warnf("timeout in waitForIfUpped")
 			return false, nil
 		case u, ok := <-update:
 			if !ok {
@@ -494,9 +499,37 @@ func (n *Namespace) advertiseAddrs(ctx context.Context, ifIndex int, i *Interfac
 			}
 		}
 		if naSender != nil {
-			if err := naSender.Send(); err != nil {
-				log.G(ctx).WithError(err).Warn("Failed to send unsolicited NA")
-				errs = append(errs, err)
+			// FIXME(robmry) - retry if this fails, but still return the error.
+			// In CI, the send has failed a couple of times with "write ip ::1->ff02::1: sendmsg: network is unreachable".
+			// Can't repro locally, so - try find out whether a retry helps and it's something racing, or it's a
+			// persistent problem.
+			for c := range 3 {
+				if c > 0 {
+					time.Sleep(50 * time.Millisecond)
+				}
+
+				routes, rgErr := nlh.RouteGetWithOptions(net.IPv6linklocalallnodes, &netlink.RouteGetOptions{
+					IifIndex: ifIndex,
+					SrcAddr:  net.IPv6loopback,
+				})
+				var routeStr string
+				if rgErr != nil {
+					routeStr = fmt.Sprintf("RouteGet->'%s'", rgErr.Error())
+				} else if len(routes) != 1 {
+					routeStr = fmt.Sprintf("RouteGet->%d routes", len(routes))
+				} else {
+					routeStr = fmt.Sprintf("RouteGet->'%s'", routes[0].String())
+				}
+
+				if err := naSender.Send(); err != nil {
+					log.G(ctx).WithError(err).Warn("Failed to send unsolicited NA")
+					errs = append(errs, fmt.Errorf("%s: %w", routeStr, err))
+					continue
+				}
+				if c > 0 {
+					errs = append(errs, fmt.Errorf("success"))
+				}
+				break
 			}
 		}
 		return errors.Join(errs...)
