@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/containerd/log"
+	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/libnetwork/datastore"
 	"github.com/docker/docker/libnetwork/driverapi"
 	"github.com/docker/docker/libnetwork/internal/netiputil"
@@ -1021,7 +1022,7 @@ func (n *Network) delete(force bool, rmLBEndpoint bool) error {
 
 	n, err := c.getNetworkFromStore(id)
 	if err != nil {
-		return &UnknownNetworkError{name: name, id: id}
+		return errdefs.NotFound(fmt.Errorf("unknown network %s id %s", name, id))
 	}
 
 	// Only remove ingress on force removal or explicit LB endpoint removal
@@ -1054,7 +1055,7 @@ func (n *Network) delete(force bool, rmLBEndpoint bool) error {
 		// Reload the network from the store to update the epcnt.
 		n, err = c.getNetworkFromStore(id)
 		if err != nil {
-			return &UnknownNetworkError{name: name, id: id}
+			return errdefs.NotFound(fmt.Errorf("unknown network %s id %s", name, id))
 		}
 	}
 
@@ -1176,7 +1177,7 @@ func (n *Network) addEndpoint(ctx context.Context, ep *Endpoint) error {
 func (n *Network) CreateEndpoint(ctx context.Context, name string, options ...EndpointOption) (*Endpoint, error) {
 	var err error
 	if strings.TrimSpace(name) == "" {
-		return nil, ErrInvalidName(name)
+		return nil, types.InvalidParameterErrorf("invalid name: name is empty")
 	}
 
 	if n.ConfigOnly() {
@@ -1309,10 +1310,10 @@ func (n *Network) WalkEndpoints(walker EndpointWalker) {
 }
 
 // EndpointByName returns the Endpoint which has the passed name. If not found,
-// the error ErrNoSuchEndpoint is returned.
+// an [errdefs.ErrNotFound] is returned.
 func (n *Network) EndpointByName(name string) (*Endpoint, error) {
 	if name == "" {
-		return nil, ErrInvalidName(name)
+		return nil, types.InvalidParameterErrorf("invalid name: name is empty")
 	}
 	var e *Endpoint
 
@@ -1327,25 +1328,10 @@ func (n *Network) EndpointByName(name string) (*Endpoint, error) {
 	n.WalkEndpoints(s)
 
 	if e == nil {
-		return nil, ErrNoSuchEndpoint(name)
+		return nil, errdefs.NotFound(fmt.Errorf("endpoint %s not found", name))
 	}
 
 	return e, nil
-}
-
-// EndpointByID should *never* be called as it's going to create a 2nd instance of an Endpoint. The first one lives in
-// the Sandbox the endpoint is attached to. Instead, the endpoint should be retrieved by calling [Sandbox.Endpoints()].
-func (n *Network) EndpointByID(id string) (*Endpoint, error) {
-	if id == "" {
-		return nil, ErrInvalidID(id)
-	}
-
-	ep, err := n.getEndpointFromStore(id)
-	if err != nil {
-		return nil, ErrNoSuchEndpoint(id)
-	}
-
-	return ep, nil
 }
 
 // updateSvcRecord adds or deletes local DNS records for a given Endpoint.
