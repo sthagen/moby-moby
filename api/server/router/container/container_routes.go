@@ -113,6 +113,13 @@ func (c *containerRouter) getContainersJSON(ctx context.Context, w http.Response
 		}
 	}
 
+	if versions.LessThan(version, "1.48") {
+		// ImageManifestDescriptor information was added in API 1.48
+		for _, c := range containers {
+			c.ImageManifestDescriptor = nil
+		}
+	}
+
 	return httputils.WriteJSON(w, http.StatusOK, containers)
 }
 
@@ -688,6 +695,12 @@ func (c *containerRouter) postContainersCreate(ctx context.Context, w http.Respo
 		Platform:                    platform,
 		DefaultReadOnlyNonRecursive: defaultReadOnlyNonRecursive,
 	})
+
+	// Log warnings for debugging, regardless if the request was successful or not.
+	if len(ccr.Warnings) > 0 {
+		log.G(ctx).WithField("warnings", ccr.Warnings).Debug("warnings encountered during container create request")
+	}
+
 	if err != nil {
 		return err
 	}
