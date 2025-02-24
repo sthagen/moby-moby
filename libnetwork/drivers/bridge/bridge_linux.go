@@ -466,8 +466,8 @@ func (n *bridgeNetwork) getEndpoint(eid string) (*bridgeEndpoint, error) {
 	return nil, nil
 }
 
-// Install/Removes the iptables rules needed to isolate this network
-// from each of the other networks
+// Install (enable=true) or remove (enable=false) the iptables rules needed to isolate this network
+// from each of the other bridge networks
 func (n *bridgeNetwork) isolateNetwork(enable bool) error {
 	n.Lock()
 	thisConfig := n.config
@@ -477,15 +477,24 @@ func (n *bridgeNetwork) isolateNetwork(enable bool) error {
 		return nil
 	}
 
-	// Install the rules to isolate this network against each of the other networks
 	if n.driver.config.EnableIPTables {
-		if err := setINC(iptables.IPv4, thisConfig.BridgeName, thisConfig.GwModeIPv4, enable); err != nil {
-			return err
+		// Only create the rules if the network has IPv4 enabled. But, always delete
+		// rules, in case they were set up by an older daemon that didn't check whether
+		// the network has IPv4.
+		if !enable || thisConfig.EnableIPv4 {
+			if err := setINC(iptables.IPv4, thisConfig.BridgeName, thisConfig.GwModeIPv4, enable); err != nil {
+				return err
+			}
 		}
 	}
 	if n.driver.config.EnableIP6Tables {
-		if err := setINC(iptables.IPv6, thisConfig.BridgeName, thisConfig.GwModeIPv6, enable); err != nil {
-			return err
+		// Only create the rules if the network has IPv6 enabled. But, always delete
+		// rules, in case they were set up by an older daemon that didn't check whether
+		// the network has IPv6.
+		if !enable || thisConfig.EnableIPv6 {
+			if err := setINC(iptables.IPv6, thisConfig.BridgeName, thisConfig.GwModeIPv6, enable); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -513,7 +522,7 @@ func (d *driver) configure(option map[string]interface{}) error {
 		removeIPChains(iptables.IPv4)
 
 		if err := setupHashNetIpset(ipsetExtBridges4, unix.AF_INET); err != nil {
-			return err
+			return fmt.Errorf("%w (kernel modules ip_set, ip_set_hash_net and netfilter_xt_set are required)", err)
 		}
 		if err := setupIPChains(config, iptables.IPv4); err != nil {
 			return err
@@ -541,7 +550,8 @@ func (d *driver) configure(option map[string]interface{}) error {
 
 		if err := setupHashNetIpset(ipsetExtBridges6, unix.AF_INET6); err != nil {
 			// Continue, IPv4 will work (as below).
-			log.G(context.TODO()).WithError(err).Warn("ip6tables is enabled, but cannot set up IPv6 ipset")
+			log.G(context.TODO()).WithError(err).Warn(
+				"ip6tables is enabled, but cannot set up IPv6 ipset (kernel modules ip_set, ip_set_hash_net and netfilter_xt_set are required)")
 		} else {
 			err = setupIPChains(config, iptables.IPv6)
 			if err != nil {
@@ -585,10 +595,10 @@ func setupHashNetIpset(name string, family uint8) error {
 		Replace: true,
 		Family:  family,
 	}); err != nil {
-		return err
+		return fmt.Errorf("creating ipset %s: %w", name, err)
 	}
 	if err := netlink.IpsetFlush(name); err != nil {
-		return err
+		return fmt.Errorf("flushing ipset %s: %w", name, err)
 	}
 	return nil
 }
