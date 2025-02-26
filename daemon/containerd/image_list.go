@@ -256,15 +256,16 @@ func (i *ImageService) multiPlatformSummary(ctx context.Context, img c8dimages.I
 			summary.Manifests = append(summary.Manifests, mfstSummary)
 		}()
 
-		contentSize, err := img.Size(ctx)
-		if err != nil {
-			if !cerrdefs.IsNotFound(err) {
-				logger.WithError(err).Warn("failed to determine size")
-			}
-		} else {
+		var contentSize int64
+		if err := i.walkPresentChildren(ctx, target, func(ctx context.Context, desc ocispec.Descriptor) error {
+			contentSize += desc.Size
+			return nil
+		}); err == nil {
 			mfstSummary.Size.Content = contentSize
 			summary.TotalSize += contentSize
 			mfstSummary.Size.Total += contentSize
+		} else {
+			logger.WithError(err).Warn("failed to calculate content size")
 		}
 
 		isPseudo, err := img.IsPseudoImage(ctx)
@@ -406,6 +407,7 @@ func (i *ImageService) imageSummary(ctx context.Context, img c8dimages.Image, pl
 			RepoDigests: []string{target.Digest.String()},
 			RepoTags:    tagsByDigest[target.Digest],
 			Size:        summary.TotalSize,
+			Manifests:   summary.Manifests,
 			// -1 indicates that the value has not been set (avoids ambiguity
 			// between 0 (default) and "not set". We cannot use a pointer (nil)
 			// for this, as the JSON representation uses "omitempty", which would
