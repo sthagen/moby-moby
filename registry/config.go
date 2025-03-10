@@ -4,13 +4,17 @@ import (
 	"context"
 	"net"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/containerd/log"
 	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/internal/lazyregexp"
+	"github.com/docker/docker/pkg/homedir"
 )
 
 // ServiceOptions holds command line options.
@@ -56,56 +60,52 @@ var (
 		Host:   DefaultRegistryHost,
 	}
 
-	// ipv6Loopback is the CIDR for the IPv6 loopback address ("::1"); "::1/128"
-	ipv6Loopback = &net.IPNet{
-		IP:   net.IPv6loopback,
-		Mask: net.CIDRMask(128, 128),
-	}
-
-	// ipv4Loopback is the CIDR for IPv4 loopback addresses ("127.0.0.0/8")
-	ipv4Loopback = &net.IPNet{
-		IP:   net.IPv4(127, 0, 0, 0),
-		Mask: net.CIDRMask(8, 32),
-	}
-
-	// emptyServiceConfig is a default service-config for situations where
-	// no config-file is available (e.g. when used in the CLI). It won't
-	// have mirrors configured, but does have the default insecure registry
-	// CIDRs for loopback interfaces configured.
-	emptyServiceConfig = &serviceConfig{
-		IndexConfigs: map[string]*registry.IndexInfo{
-			IndexName: {
-				Name:     IndexName,
-				Mirrors:  []string{},
-				Secure:   true,
-				Official: true,
-			},
-		},
-		InsecureRegistryCIDRs: []*registry.NetIPNet{
-			(*registry.NetIPNet)(ipv6Loopback),
-			(*registry.NetIPNet)(ipv4Loopback),
-		},
-	}
-
 	validHostPortRegex = lazyregexp.New(`^` + reference.DomainRegexp.String() + `$`)
 
-	// certsDir is used to override defaultCertsDir.
-	certsDir string
+	// certsDir is used to override defaultCertsDir when running with rootlessKit.
+	//
+	// TODO(thaJeztah): change to a sync.OnceValue once we remove [SetCertsDir]
+	// TODO(thaJeztah): certsDir should not be a package variable, but stored in our config, and passed when needed.
+	setCertsDirOnce sync.Once
+	certsDir        string
 )
+
+func setCertsDir(dir string) string {
+	setCertsDirOnce.Do(func() {
+		if dir != "" {
+			certsDir = dir
+			return
+		}
+		if os.Getenv("ROOTLESSKIT_STATE_DIR") != "" {
+			// Configure registry.CertsDir() when running in rootless-mode
+			// This is the equivalent of [rootless.RunningWithRootlessKit],
+			// but inlining it to prevent adding that as a dependency
+			// for docker/cli.
+			//
+			// [rootless.RunningWithRootlessKit]: https://github.com/moby/moby/blob/b4bdf12daec84caaf809a639f923f7370d4926ad/pkg/rootless/rootless.go#L5-L8
+			if configHome, _ := homedir.GetConfigHome(); configHome != "" {
+				certsDir = filepath.Join(configHome, "docker/certs.d")
+				return
+			}
+		}
+		certsDir = defaultCertsDir
+	})
+	return certsDir
+}
 
 // SetCertsDir allows the default certs directory to be changed. This function
 // is used at daemon startup to set the correct location when running in
 // rootless mode.
+//
+// Deprecated: the cert-directory is now automatically selected when running with rootlessKit, and should no longer be set manually.
 func SetCertsDir(path string) {
-	certsDir = path
+	setCertsDir(path)
 }
 
 // CertsDir is the directory where certificates are stored.
 func CertsDir() string {
-	if certsDir != "" {
-		return certsDir
-	}
-	return defaultCertsDir
+	// call setCertsDir with an empty path to synchronise with [SetCertsDir]
+	return setCertsDir("")
 }
 
 // newServiceConfig returns a new instance of ServiceConfig
@@ -412,5 +412,70 @@ func newRepositoryInfo(config *serviceConfig, name reference.Named) *RepositoryI
 //
 // It is used by the Docker cli to interact with registry-related endpoints.
 func ParseRepositoryInfo(reposName reference.Named) (*RepositoryInfo, error) {
-	return newRepositoryInfo(emptyServiceConfig, reposName), nil
+	indexName := normalizeIndexName(reference.Domain(reposName))
+	if indexName == IndexName {
+		officialRepo := !strings.ContainsRune(reference.FamiliarName(reposName), '/')
+		return &RepositoryInfo{
+			Name: reference.TrimNamed(reposName),
+			Index: &registry.IndexInfo{
+				Name:     IndexName,
+				Mirrors:  []string{},
+				Secure:   true,
+				Official: true,
+			},
+			Official: officialRepo,
+		}, nil
+	}
+
+	insecure := false
+	if isInsecure(indexName) {
+		insecure = true
+	}
+
+	return &RepositoryInfo{
+		Name: reference.TrimNamed(reposName),
+		Index: &registry.IndexInfo{
+			Name:    indexName,
+			Mirrors: []string{},
+			Secure:  !insecure,
+		},
+	}, nil
+}
+
+// isInsecure is used to detect whether a registry domain or IP-address is allowed
+// to use an insecure (non-TLS, or self-signed cert) connection according to the
+// defaults, which allows for insecure connections with registries running on a
+// loopback address ("localhost", "::1/128", "127.0.0.0/8").
+//
+// It is used in situations where we don't have access to the daemon's configuration,
+// for example, when used from the client / CLI.
+func isInsecure(hostNameOrIP string) bool {
+	// Attempt to strip port if present; this also strips brackets for
+	// IPv6 addresses with a port (e.g. "[::1]:5000").
+	//
+	// This is best-effort; we'll continue using the address as-is if it fails.
+	if host, _, err := net.SplitHostPort(hostNameOrIP); err == nil {
+		hostNameOrIP = host
+	}
+	if hostNameOrIP == "127.0.0.1" || hostNameOrIP == "::1" || strings.EqualFold(hostNameOrIP, "localhost") {
+		// Fast path; no need to resolve these, assuming nobody overrides
+		// "localhost" for anything else than a loopback address (sorry, not sorry).
+		return true
+	}
+
+	var addresses []net.IP
+	if ip := net.ParseIP(hostNameOrIP); ip != nil {
+		addresses = append(addresses, ip)
+	} else {
+		// Try to resolve the host's IP-addresses.
+		addrs, _ := lookupIP(hostNameOrIP)
+		addresses = append(addresses, addrs...)
+	}
+
+	for _, addr := range addresses {
+		if addr.IsLoopback() {
+			return true
+		}
+	}
+	return false
 }
