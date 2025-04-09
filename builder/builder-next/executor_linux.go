@@ -11,7 +11,6 @@ import (
 	"github.com/containerd/log"
 	"github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/libnetwork"
-	"github.com/docker/docker/pkg/idtools"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/moby/buildkit/executor"
 	"github.com/moby/buildkit/executor/oci"
@@ -22,12 +21,13 @@ import (
 	"github.com/moby/buildkit/solver/llbsolver/cdidevices"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/network"
+	"github.com/moby/sys/user"
 	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
 const networkName = "bridge"
 
-func newExecutor(root, cgroupParent string, net *libnetwork.Controller, dnsConfig *oci.DNSConfig, rootless bool, idmap idtools.IdentityMapping, apparmorProfile string, cdiManager *cdidevices.Manager) (executor.Executor, error) {
+func newExecutor(root, cgroupParent string, net *libnetwork.Controller, dnsConfig *oci.DNSConfig, rootless bool, idmap user.IdentityMapping, apparmorProfile string, cdiManager *cdidevices.Manager) (executor.Executor, error) {
 	netRoot := filepath.Join(root, "net")
 	networkProviders := map[pb.NetMode]network.Provider{
 		pb.NetMode_UNSET: &bridgeProvider{Controller: net, Root: netRoot},
