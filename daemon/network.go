@@ -426,10 +426,13 @@ func (daemon *Daemon) createNetwork(ctx context.Context, cfg *config.Config, cre
 func (daemon *Daemon) pluginRefCount(driver, capability string, mode int) {
 	var builtinDrivers []string
 
-	if capability == driverapi.NetworkPluginEndpointType {
+	switch capability {
+	case driverapi.NetworkPluginEndpointType:
 		builtinDrivers = daemon.netController.BuiltinDrivers()
-	} else if capability == ipamapi.PluginEndpointType {
+	case ipamapi.PluginEndpointType:
 		builtinDrivers = daemon.netController.BuiltinIPAMDrivers()
+	default:
+		// other capabilities can be ignored for now
 	}
 
 	for _, d := range builtinDrivers {
@@ -589,14 +592,14 @@ func (daemon *Daemon) deleteNetwork(nw *libnetwork.Network, dynamic bool) error 
 }
 
 // GetNetworks returns a list of all networks
-func (daemon *Daemon) GetNetworks(filter filters.Args, config backend.NetworkListConfig) (networks []networktypes.Inspect, err error) {
+func (daemon *Daemon) GetNetworks(filter filters.Args, config backend.NetworkListConfig) ([]networktypes.Inspect, error) {
 	var idx map[string]*libnetwork.Network
 	if config.Detailed {
 		idx = make(map[string]*libnetwork.Network)
 	}
 
 	allNetworks := daemon.getAllNetworks()
-	networks = make([]networktypes.Inspect, 0, len(allNetworks))
+	networks := make([]networktypes.Inspect, 0, len(allNetworks))
 	for _, n := range allNetworks {
 		nr := buildNetworkResource(n)
 		networks = append(networks, nr)
@@ -605,6 +608,7 @@ func (daemon *Daemon) GetNetworks(filter filters.Args, config backend.NetworkLis
 		}
 	}
 
+	var err error
 	networks, err = network.FilterNetworks(networks, filter)
 	if err != nil {
 		return nil, err
