@@ -21,10 +21,17 @@ type State struct {
 	// This Mutex is exported by design and is used as a global lock
 	// for both the State and the Container it's embedded in.
 	sync.Mutex
-	// Note that `Running` and `Paused` are not mutually exclusive:
+	// Note that [State.Running], [State.Restarting], and [State.Paused] are
+	// not mutually exclusive.
+	//
 	// When pausing a container (on Linux), the freezer cgroup is used to suspend
 	// all processes in the container. Freezing the process requires the process to
-	// be running. As a result, paused containers are both `Running` _and_ `Paused`.
+	// be running. As a result, paused containers can have both [State.Running]
+	// and [State.Paused] set to true.
+	//
+	// In a similar fashion, [State.Running] and [State.Restarting] can both
+	// be true in a situation where a container is in process of being restarted.
+	// Refer to [State.StateString] for order of precedence.
 	Running           bool
 	Paused            bool
 	Restarting        bool
@@ -222,20 +229,30 @@ func (s *State) conditionAlreadyMet(condition container.WaitCondition) bool {
 	}
 }
 
-// IsRunning returns whether the running flag is set. Used by Container to check whether a container is running.
+// IsRunning returns whether the [State.Running] flag is set.
+//
+// Note that [State.Running], [State.Restarting], and [State.Paused] are
+// not mutually exclusive.
+//
+// When pausing a container (on Linux), the freezer cgroup is used to suspend
+// all processes in the container. Freezing the process requires the process to
+// be running. As a result, paused containers can have both [State.Running]
+// and [State.Paused] set to true.
+//
+// In a similar fashion, [State.Running] and [State.Restarting] can both
+// be true in a situation where a container is in process of being restarted.
+// Refer to [State.StateString] for order of precedence.
 func (s *State) IsRunning() bool {
 	s.Lock()
-	res := s.Running
-	s.Unlock()
-	return res
+	defer s.Unlock()
+	return s.Running
 }
 
 // GetPID holds the process id of a container.
 func (s *State) GetPID() int {
 	s.Lock()
-	res := s.Pid
-	s.Unlock()
-	return res
+	defer s.Unlock()
+	return s.Pid
 }
 
 // ExitCode returns current exitcode for the state. Take lock before if state
@@ -324,20 +341,42 @@ func (s *State) SetError(err error) {
 	}
 }
 
-// IsPaused returns whether the container is paused or not.
+// IsPaused returns whether the container is paused.
+//
+// Note that [State.Running], [State.Restarting], and [State.Paused] are
+// not mutually exclusive.
+//
+// When pausing a container (on Linux), the freezer cgroup is used to suspend
+// all processes in the container. Freezing the process requires the process to
+// be running. As a result, paused containers can have both [State.Running]
+// and [State.Paused] set to true.
+//
+// In a similar fashion, [State.Running] and [State.Restarting] can both
+// be true in a situation where a container is in process of being restarted.
+// Refer to [State.StateString] for order of precedence.
 func (s *State) IsPaused() bool {
 	s.Lock()
-	res := s.Paused
-	s.Unlock()
-	return res
+	defer s.Unlock()
+	return s.Paused
 }
 
-// IsRestarting returns whether the container is restarting or not.
+// IsRestarting returns whether the container is restarting.
+//
+// Note that [State.Running], [State.Restarting], and [State.Paused] are
+// not mutually exclusive.
+//
+// When pausing a container (on Linux), the freezer cgroup is used to suspend
+// all processes in the container. Freezing the process requires the process to
+// be running. As a result, paused containers can have both [State.Running]
+// and [State.Paused] set to true.
+//
+// In a similar fashion, [State.Running] and [State.Restarting] can both
+// be true in a situation where a container is in process of being restarted.
+// Refer to [State.StateString] for order of precedence.
 func (s *State) IsRestarting() bool {
 	s.Lock()
-	res := s.Restarting
-	s.Unlock()
-	return res
+	defer s.Unlock()
+	return s.Restarting
 }
 
 // SetRemovalInProgress sets the container state as being removed.
@@ -363,17 +402,15 @@ func (s *State) ResetRemovalInProgress() {
 // Used by Container to check whether a container is being removed.
 func (s *State) IsRemovalInProgress() bool {
 	s.Lock()
-	res := s.RemovalInProgress
-	s.Unlock()
-	return res
+	defer s.Unlock()
+	return s.RemovalInProgress
 }
 
 // IsDead returns whether the Dead flag is set. Used by Container to check whether a container is dead.
 func (s *State) IsDead() bool {
 	s.Lock()
-	res := s.Dead
-	s.Unlock()
-	return res
+	defer s.Unlock()
+	return s.Dead
 }
 
 // SetRemoved assumes this container is already in the "dead" state and notifies all waiters.
