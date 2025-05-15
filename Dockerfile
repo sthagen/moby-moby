@@ -21,7 +21,7 @@ ARG DOCKERCLI_INTEGRATION_VERSION=v18.06.3-ce
 ARG BUILDX_VERSION=0.23.0
 
 # COMPOSE_VERSION is the version of compose to install in the dev container.
-ARG COMPOSE_VERSION=v2.35.1
+ARG COMPOSE_VERSION=v2.36.0
 
 ARG SYSTEMD="false"
 ARG FIREWALLD="false"
@@ -235,10 +235,10 @@ FROM binary-dummy AS containerd-windows
 FROM containerd-${TARGETOS} AS containerd
 
 FROM base AS golangci_lint
-ARG GOLANGCI_LINT_VERSION=v1.64.5
+ARG GOLANGCI_LINT_VERSION=v2.1.5
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        GOBIN=/build/ GO111MODULE=on go install "github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}" \
+        GOBIN=/build/ GO111MODULE=on go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}" \
      && /build/golangci-lint --version
 
 FROM base AS gotestsum
