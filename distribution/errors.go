@@ -91,7 +91,7 @@ func (e unsupportedMediaTypeError) Error() string {
 // log at info level.
 func translatePullError(err error, ref reference.Named) error {
 	// FIXME(thaJeztah): cleanup error and context handling in this package, as it's really messy.
-	if errdefs.IsContext(err) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 	switch v := err.(type) {
@@ -114,28 +114,11 @@ func translatePullError(err error, ref reference.Named) error {
 	return errdefs.Unknown(err)
 }
 
-func isNotFound(err error) bool {
-	switch v := err.(type) {
-	case errcode.Errors:
-		for _, e := range v {
-			if isNotFound(e) {
-				return true
-			}
-		}
-	case errcode.Error:
-		switch v.Code {
-		case errcode.ErrorCodeDenied, v2.ErrorCodeManifestUnknown, v2.ErrorCodeNameUnknown:
-			return true
-		}
-	}
-	return false
-}
-
 // continueOnError returns true if we should fallback to the next endpoint
 // as a result of this error.
 func continueOnError(err error, mirrorEndpoint bool) bool {
 	// FIXME(thaJeztah): cleanup error and context handling in this package, as it's really messy.
-	if errdefs.IsContext(err) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 	switch v := err.(type) {
