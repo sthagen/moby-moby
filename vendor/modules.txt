@@ -15,8 +15,8 @@ cloud.google.com/go/logging/internal
 cloud.google.com/go/longrunning
 cloud.google.com/go/longrunning/autogen
 cloud.google.com/go/longrunning/autogen/longrunningpb
-# code.cloudfoundry.org/clock v1.1.0
-## explicit; go 1.20
+# code.cloudfoundry.org/clock v1.37.0
+## explicit; go 1.23.0
 code.cloudfoundry.org/clock
 code.cloudfoundry.org/clock/fakeclock
 # dario.cat/mergo v1.0.1
@@ -496,7 +496,6 @@ github.com/docker/distribution
 github.com/docker/distribution/manifest
 github.com/docker/distribution/manifest/manifestlist
 github.com/docker/distribution/manifest/ocischema
-github.com/docker/distribution/manifest/schema1
 github.com/docker/distribution/manifest/schema2
 github.com/docker/distribution/metrics
 github.com/docker/distribution/registry/api/errcode
@@ -523,7 +522,6 @@ github.com/docker/go-metrics
 github.com/docker/go-units
 # github.com/docker/libtrust v0.0.0-20150526203908-9cbd2a1374f4
 ## explicit
-github.com/docker/libtrust
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize
@@ -726,7 +724,7 @@ github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v1
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2
+# github.com/ishidawataru/sctp v0.0.0-20250708014235-1989182a9425
 ## explicit; go 1.12
 github.com/ishidawataru/sctp
 # github.com/jmoiron/sqlx v1.3.3

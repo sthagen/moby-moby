@@ -10,6 +10,7 @@ import (
 	"math/big"
 	rnd "math/rand"
 	"net"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -65,6 +66,7 @@ func (nDB *NetworkDB) SetKey(key []byte) {
 	if nDB.keyring != nil {
 		nDB.keyring.AddKey(key)
 	}
+	logEncKeys(context.TODO(), key)
 }
 
 // SetPrimaryKey sets the given key as the primary key. This should have
@@ -127,6 +129,7 @@ func (nDB *NetworkDB) clusterInit() error {
 		for i, key := range nDB.config.Keys {
 			log.G(context.TODO()).Debugf("Encryption key %d: %.5s", i+1, hex.EncodeToString(key))
 		}
+		logEncKeys(context.TODO(), nDB.config.Keys...)
 		nDB.keyring, err = memberlist.NewKeyring(nDB.config.Keys, nDB.config.Keys[0])
 		if err != nil {
 			return err
@@ -296,17 +299,22 @@ func (nDB *NetworkDB) rejoinClusterBootStrap() {
 	bootStrapIPs := make([]string, 0, len(nDB.bootStrapIP))
 	for _, bootIP := range nDB.bootStrapIP {
 		// bootstrap IPs are usually IP:port from the Join
-		var bootstrapIP net.IP
-		ipStr, _, err := net.SplitHostPort(bootIP)
+		bootstrapIP, err := netip.ParseAddrPort(bootIP)
 		if err != nil {
-			// try to parse it as an IP with port
+			// try to parse it as an IP without port
 			// Note this seems to be the case for swarm that do not specify any port
-			ipStr = bootIP
+			addr, err := netip.ParseAddr(bootIP)
+			if err == nil {
+				bootstrapIP = netip.AddrPortFrom(addr, uint16(nDB.config.BindPort))
+			}
 		}
-		bootstrapIP = net.ParseIP(ipStr)
-		if bootstrapIP != nil {
+		if bootstrapIP.IsValid() {
 			for _, node := range nDB.nodes {
-				if node.Addr.Equal(bootstrapIP) && !node.Addr.Equal(myself.Addr) {
+				if node == myself {
+					continue
+				}
+				nodeIP, _ := netip.AddrFromSlice(node.Addr)
+				if bootstrapIP == netip.AddrPortFrom(nodeIP, node.Port) {
 					// One of the bootstrap nodes (and not myself) is part of the cluster, return
 					nDB.RUnlock()
 					return
