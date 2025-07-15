@@ -16,14 +16,14 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/daemon/libnetwork/driverapi"
+	remoteapi "github.com/docker/docker/daemon/libnetwork/drivers/remote/api"
+	"github.com/docker/docker/daemon/libnetwork/ipamapi"
+	remoteipam "github.com/docker/docker/daemon/libnetwork/ipams/remote/api"
+	"github.com/docker/docker/daemon/libnetwork/netlabel"
 	"github.com/docker/docker/integration-cli/cli"
 	"github.com/docker/docker/integration-cli/daemon"
 	"github.com/docker/docker/internal/nlwrap"
-	"github.com/docker/docker/libnetwork/driverapi"
-	remoteapi "github.com/docker/docker/libnetwork/drivers/remote/api"
-	"github.com/docker/docker/libnetwork/ipamapi"
-	remoteipam "github.com/docker/docker/libnetwork/ipams/remote/api"
-	"github.com/docker/docker/libnetwork/netlabel"
 	"github.com/docker/docker/pkg/plugins"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/runconfig"
@@ -1140,7 +1140,7 @@ func (s *DockerNetworkSuite) TestDockerNetworkHostModeUngracefulDaemonRestart(c 
 
 	// Kill daemon ungracefully and restart
 	assert.NilError(c, s.d.Kill())
-	s.d.Restart(c)
+	s.d.Start(c)
 
 	// make sure all the containers are up and running
 	for i := 0; i < 10; i++ {
