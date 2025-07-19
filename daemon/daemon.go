@@ -59,6 +59,7 @@ import (
 	"github.com/docker/docker/daemon/pkg/plugin"
 	"github.com/docker/docker/daemon/snapshotter"
 	"github.com/docker/docker/daemon/stats"
+	volumesservice "github.com/docker/docker/daemon/volume/service"
 	"github.com/docker/docker/distribution"
 	dmetadata "github.com/docker/docker/distribution/metadata"
 	"github.com/docker/docker/dockerversion"
@@ -71,7 +72,6 @@ import (
 	"github.com/docker/docker/pkg/sysinfo"
 	refstore "github.com/docker/docker/reference"
 	"github.com/docker/docker/registry"
-	volumesservice "github.com/docker/docker/volume/service"
 	"github.com/moby/buildkit/util/grpcerrors"
 	"github.com/moby/buildkit/util/tracing"
 	"github.com/moby/locker"
@@ -575,8 +575,8 @@ func (daemon *Daemon) restore(cfg *configStore) error {
 			logger.Debug("starting container")
 
 			// ignore errors here as this is a best effort to wait for children
-			// (legacy links) to be running before we try to start the container
-			if children := daemon.linkIndex.children(c); len(children) > 0 {
+			// (legacy links or container network) to be running before we try to start the container
+			if children := daemon.GetDependentContainers(c); len(children) > 0 {
 				timeout := time.NewTimer(5 * time.Second)
 				defer timeout.Stop()
 
@@ -1457,6 +1457,7 @@ func (daemon *Daemon) networkOptions(conf *config.Config, pg plugingetter.Plugin
 		nwconfig.OptionDefaultNetwork(network.DefaultNetwork),
 		nwconfig.OptionLabels(conf.Labels),
 		nwconfig.OptionNetworkControlPlaneMTU(conf.NetworkControlPlaneMTU),
+		nwconfig.OptionFirewallBackend(conf.FirewallBackend),
 		driverOptions(conf),
 	}
 
