@@ -12,11 +12,6 @@ import (
 
 	"github.com/containerd/platforms"
 	"github.com/distribution/reference"
-	"github.com/docker/docker/api/types/backend"
-	"github.com/docker/docker/api/types/filters"
-	imagetypes "github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/daemon/builder/remotecontext"
 	"github.com/docker/docker/daemon/server/httputils"
 	"github.com/docker/docker/dockerversion"
@@ -25,6 +20,11 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
+	"github.com/moby/moby/api/types/backend"
+	"github.com/moby/moby/api/types/filters"
+	imagetypes "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/api/types/registry"
+	"github.com/moby/moby/api/types/versions"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -319,19 +319,19 @@ func (ir *imageRouter) deleteImages(ctx context.Context, w http.ResponseWriter, 
 	force := httputils.BoolValue(r, "force")
 	prune := !httputils.BoolValue(r, "noprune")
 
-	var platforms []ocispec.Platform
+	var p []ocispec.Platform
 	if versions.GreaterThanOrEqualTo(httputils.VersionFromContext(ctx), "1.50") {
-		p, err := httputils.DecodePlatforms(r.Form["platforms"])
+		val, err := httputils.DecodePlatforms(r.Form["platforms"])
 		if err != nil {
 			return err
 		}
-		platforms = p
+		p = val
 	}
 
 	list, err := ir.backend.ImageDelete(ctx, name, imagetypes.RemoveOptions{
 		Force:         force,
 		PruneChildren: prune,
-		Platforms:     platforms,
+		Platforms:     p,
 	})
 	if err != nil {
 		return err

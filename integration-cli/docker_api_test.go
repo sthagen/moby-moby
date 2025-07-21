@@ -10,10 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types/versions"
-	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/testutil"
 	"github.com/docker/docker/testutil/request"
+	"github.com/moby/moby/api/types/versions"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 )
@@ -79,7 +78,7 @@ func (s *DockerAPISuite) TestAPIErrorJSON(c *testing.T) {
 	assert.Assert(c, is.Contains(httpResp.Header.Get("Content-Type"), "application/json"))
 	b, err := request.ReadBody(body)
 	assert.NilError(c, err)
-	assert.Equal(c, getErrorMessage(c, b), runconfig.ErrEmptyConfig.Error())
+	assert.Check(c, is.Contains(getErrorMessage(c, b), "config cannot be empty"))
 }
 
 func (s *DockerAPISuite) TestAPIErrorNotFoundJSON(c *testing.T) {
