@@ -16,11 +16,12 @@ import (
 	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/daemon/cluster/convert"
 	executorpkg "github.com/docker/docker/daemon/cluster/executor"
+	containerpkg "github.com/docker/docker/daemon/container"
 	"github.com/docker/docker/daemon/libnetwork"
 	networkSettings "github.com/docker/docker/daemon/network"
+	"github.com/docker/docker/daemon/server/backend"
 	volumeopts "github.com/docker/docker/daemon/volume/service/opts"
 	gogotypes "github.com/gogo/protobuf/types"
-	"github.com/moby/moby/api/types/backend"
 	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
 	"github.com/moby/moby/api/types/network"
@@ -415,7 +416,7 @@ func (c *containerAdapter) events(ctx context.Context) <-chan events.Message {
 	return eventsq
 }
 
-func (c *containerAdapter) wait(ctx context.Context) (<-chan containertypes.StateStatus, error) {
+func (c *containerAdapter) wait(ctx context.Context) (<-chan containerpkg.StateStatus, error) {
 	return c.backend.ContainerWait(ctx, c.container.nameOrID(), containertypes.WaitConditionNotRunning)
 }
 
