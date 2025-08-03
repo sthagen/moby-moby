@@ -17,17 +17,16 @@ import (
 	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
-	"github.com/docker/docker/daemon/volume"
-	"github.com/docker/docker/integration-cli/cli"
-	"github.com/docker/docker/integration-cli/cli/build"
-	"github.com/docker/docker/testutil"
-	"github.com/docker/docker/testutil/request"
-	"github.com/docker/go-connections/nat"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/stringid"
+	"github.com/moby/moby/v2/daemon/volume"
+	"github.com/moby/moby/v2/integration-cli/cli"
+	"github.com/moby/moby/v2/integration-cli/cli/build"
+	"github.com/moby/moby/v2/testutil"
+	"github.com/moby/moby/v2/testutil/request"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 	"gotest.tools/v3/poll"
@@ -505,8 +504,8 @@ func (s *DockerAPISuite) TestContainerAPIBadPort(c *testing.T) {
 	}
 
 	hostConfig := container.HostConfig{
-		PortBindings: nat.PortMap{
-			"8080/tcp": []nat.PortBinding{
+		PortBindings: container.PortMap{
+			"8080/tcp": []container.PortBinding{
 				{
 					HostIP:   "",
 					HostPort: "aa80",
@@ -811,22 +810,6 @@ func (s *DockerAPISuite) TestCreateWithTooLowMemoryLimit(c *testing.T) {
 	assert.Assert(c, is.Contains(string(b), "Minimum memory limit allowed is 6MB"))
 }
 
-func (s *DockerAPISuite) TestContainerAPIRename(c *testing.T) {
-	out := cli.DockerCmd(c, "run", "--name", "TestContainerAPIRename", "-d", "busybox", "sh").Stdout()
-	containerID := strings.TrimSpace(out)
-	const newName = "TestContainerAPIRenameNew"
-
-	apiClient, err := client.NewClientWithOpts(client.FromEnv)
-	assert.NilError(c, err)
-	defer apiClient.Close()
-
-	err = apiClient.ContainerRename(testutil.GetContext(c), containerID, newName)
-	assert.NilError(c, err)
-
-	name := inspectField(c, containerID, "Name")
-	assert.Equal(c, name, "/"+newName, "Failed to rename container")
-}
-
 func (s *DockerAPISuite) TestContainerAPIKill(c *testing.T) {
 	const name = "test-api-kill"
 	runSleepingContainer(c, "-i", "--name", name)
@@ -1046,7 +1029,7 @@ func (s *DockerAPISuite) TestContainerAPIDeleteRemoveVolume(c *testing.T) {
 	assert.Assert(c, os.IsNotExist(err), "expected to get ErrNotExist error, got %v", err)
 }
 
-// Regression test for https://github.com/docker/docker/issues/6231
+// Regression test for https://github.com/moby/moby/issues/6231
 func (s *DockerAPISuite) TestContainerAPIChunkedEncoding(c *testing.T) {
 	config := map[string]interface{}{
 		"Image":     "busybox",

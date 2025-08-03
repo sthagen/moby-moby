@@ -1,16 +1,12 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package containerd
 
 import (
 	"slices"
 
-	"github.com/docker/docker/daemon/internal/image"
-	"github.com/docker/docker/dockerversion"
-	"github.com/docker/go-connections/nat"
 	imagespec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/v2/daemon/internal/image"
+	"github.com/moby/moby/v2/dockerversion"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -83,8 +79,8 @@ func containerConfigToDockerOCIImageConfig(cfg *container.Config) imagespec.Dock
 
 		if len(cfg.ExposedPorts) > 0 {
 			ociCfg.ExposedPorts = map[string]struct{}{}
-			for k, v := range cfg.ExposedPorts {
-				ociCfg.ExposedPorts[string(k)] = v
+			for k := range cfg.ExposedPorts {
+				ociCfg.ExposedPorts[string(k)] = struct{}{}
 			}
 		}
 		ext.Healthcheck = cfg.Healthcheck
@@ -99,9 +95,9 @@ func containerConfigToDockerOCIImageConfig(cfg *container.Config) imagespec.Dock
 }
 
 func dockerOCIImageConfigToContainerConfig(cfg imagespec.DockerOCIImageConfig) *container.Config {
-	exposedPorts := make(nat.PortSet, len(cfg.ExposedPorts))
-	for k, v := range cfg.ExposedPorts {
-		exposedPorts[nat.Port(k)] = v
+	exposedPorts := make(container.PortSet, len(cfg.ExposedPorts))
+	for k := range cfg.ExposedPorts {
+		exposedPorts[container.PortRangeProto(k)] = struct{}{}
 	}
 
 	return &container.Config{

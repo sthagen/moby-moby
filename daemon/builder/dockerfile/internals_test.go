@@ -7,15 +7,14 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/docker/docker/daemon/builder"
-	"github.com/docker/docker/daemon/builder/remotecontext"
-	"github.com/docker/docker/daemon/internal/image"
-	"github.com/docker/docker/daemon/internal/layer"
-	"github.com/docker/docker/daemon/server/backend"
-	"github.com/docker/go-connections/nat"
 	"github.com/moby/go-archive"
 	"github.com/moby/moby/api/types/build"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/v2/daemon/builder"
+	"github.com/moby/moby/v2/daemon/builder/remotecontext"
+	"github.com/moby/moby/v2/daemon/internal/image"
+	"github.com/moby/moby/v2/daemon/internal/layer"
+	"github.com/moby/moby/v2/daemon/server/backend"
 	"github.com/opencontainers/go-digest"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
@@ -138,7 +137,7 @@ func fullMutableRunConfig() *container.Config {
 	return &container.Config{
 		Cmd: []string{"command", "arg1"},
 		Env: []string{"env1=foo", "env2=bar"},
-		ExposedPorts: nat.PortSet{
+		ExposedPorts: container.PortSet{
 			"1000/tcp": {},
 			"1001/tcp": {},
 		},

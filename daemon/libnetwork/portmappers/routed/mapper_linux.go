@@ -1,15 +1,12 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package routed
 
 import (
 	"context"
 
 	"github.com/containerd/log"
-	"github.com/docker/docker/daemon/internal/sliceutil"
-	"github.com/docker/docker/daemon/libnetwork/portmapperapi"
-	"github.com/docker/docker/daemon/libnetwork/types"
+	"github.com/moby/moby/v2/daemon/internal/sliceutil"
+	"github.com/moby/moby/v2/daemon/libnetwork/portmapperapi"
+	"github.com/moby/moby/v2/daemon/libnetwork/types"
 )
 
 const driverName = "routed"

@@ -1,5 +1,4 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23 && linux
+//go:build linux
 
 package overlay
 
@@ -11,9 +10,9 @@ import (
 	"syscall"
 
 	"github.com/containerd/log"
-	"github.com/docker/docker/daemon/libnetwork/internal/hashable"
-	"github.com/docker/docker/daemon/libnetwork/internal/setmatrix"
-	"github.com/docker/docker/daemon/libnetwork/osl"
+	"github.com/moby/moby/v2/daemon/libnetwork/internal/hashable"
+	"github.com/moby/moby/v2/daemon/libnetwork/internal/setmatrix"
+	"github.com/moby/moby/v2/daemon/libnetwork/osl"
 )
 
 type peerEntry struct {

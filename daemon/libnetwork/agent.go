@@ -1,6 +1,3 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package libnetwork
 
 //go:generate protoc -I=. -I=../../vendor/ --gogofaster_out=import_path=github.com/docker/docker/daemon/libnetwork:. agent.proto
@@ -17,15 +14,15 @@ import (
 	"sync"
 
 	"github.com/containerd/log"
-	"github.com/docker/docker/daemon/libnetwork/cluster"
-	"github.com/docker/docker/daemon/libnetwork/discoverapi"
-	"github.com/docker/docker/daemon/libnetwork/driverapi"
-	"github.com/docker/docker/daemon/libnetwork/networkdb"
-	"github.com/docker/docker/daemon/libnetwork/scope"
-	"github.com/docker/docker/daemon/libnetwork/types"
-	"github.com/docker/docker/internal/iterutil"
 	"github.com/docker/go-events"
 	"github.com/gogo/protobuf/proto"
+	"github.com/moby/moby/v2/daemon/libnetwork/cluster"
+	"github.com/moby/moby/v2/daemon/libnetwork/discoverapi"
+	"github.com/moby/moby/v2/daemon/libnetwork/driverapi"
+	"github.com/moby/moby/v2/daemon/libnetwork/networkdb"
+	"github.com/moby/moby/v2/daemon/libnetwork/scope"
+	"github.com/moby/moby/v2/daemon/libnetwork/types"
+	"github.com/moby/moby/v2/internal/iterutil"
 )
 
 const (

@@ -10,17 +10,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/daemon/internal/lazyregexp"
-	libcontainerdtypes "github.com/docker/docker/daemon/internal/libcontainerd/types"
-	"github.com/docker/docker/errdefs"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/v2/daemon/internal/lazyregexp"
+	libcontainerdtypes "github.com/moby/moby/v2/daemon/internal/libcontainerd/types"
+	"github.com/moby/moby/v2/errdefs"
 	"github.com/pkg/errors"
 )
 
 // NOTE: \\s does not detect unicode whitespaces.
 // So we use fieldsASCII instead of strings.Fields in parsePSOutput.
-// See https://github.com/docker/docker/pull/24358
+// See https://github.com/moby/moby/pull/24358
 var psArgsRegexp = lazyregexp.New("\\s+([^\\s]*)=\\s*(PID[^\\s]*)")
 
 func validatePSArgs(psArgs string) error {

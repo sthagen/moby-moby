@@ -1,12 +1,9 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package libnetwork
 
 import (
 	"context"
 
-	"github.com/docker/docker/daemon/libnetwork/internal/maputil"
+	"github.com/moby/moby/v2/daemon/libnetwork/internal/maputil"
 )
 
 // storeNetwork inserts or updates the network in the store and the in-memory

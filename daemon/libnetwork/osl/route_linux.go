@@ -1,5 +1,4 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23 && (linux || freebsd)
+//go:build linux || freebsd
 
 package osl
 
@@ -9,7 +8,7 @@ import (
 	"net"
 	"slices"
 
-	"github.com/docker/docker/daemon/libnetwork/types"
+	"github.com/moby/moby/v2/daemon/libnetwork/types"
 	"github.com/vishvananda/netlink"
 )
 

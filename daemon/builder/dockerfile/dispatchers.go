@@ -16,14 +16,15 @@ import (
 	"strings"
 
 	"github.com/containerd/platforms"
-	"github.com/docker/docker/daemon/builder"
-	"github.com/docker/docker/daemon/internal/image"
-	"github.com/docker/docker/errdefs"
-	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
 	"github.com/moby/buildkit/frontend/dockerfile/instructions"
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
 	"github.com/moby/buildkit/frontend/dockerfile/shell"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/jsonstream"
+	"github.com/moby/moby/v2/daemon/builder"
+	"github.com/moby/moby/v2/daemon/internal/image"
+	"github.com/moby/moby/v2/errdefs"
 	"github.com/moby/sys/signal"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -386,7 +387,7 @@ func dispatchRun(ctx context.Context, d dispatchRequest, c *instructions.RunComm
 			if err.Error() != "" {
 				msg = fmt.Sprintf("%s: %s", msg, err.Error())
 			}
-			return &jsonmessage.JSONError{
+			return &jsonstream.Error{
 				Message: msg,
 				Code:    err.StatusCode(),
 			}
@@ -530,7 +531,7 @@ func dispatchExpose(ctx context.Context, d dispatchRequest, c *instructions.Expo
 	}
 
 	if d.state.runConfig.ExposedPorts == nil {
-		d.state.runConfig.ExposedPorts = make(nat.PortSet)
+		d.state.runConfig.ExposedPorts = make(container.PortSet)
 	}
 	for p := range ps {
 		d.state.runConfig.ExposedPorts[p] = struct{}{}

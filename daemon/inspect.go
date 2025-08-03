@@ -1,22 +1,19 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package daemon
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
-	"github.com/docker/docker/daemon/config"
-	"github.com/docker/docker/daemon/container"
-	"github.com/docker/docker/daemon/network"
-	"github.com/docker/docker/daemon/server/backend"
-	"github.com/docker/docker/errdefs"
-	"github.com/docker/go-connections/nat"
 	containertypes "github.com/moby/moby/api/types/container"
 	networktypes "github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/v2/daemon/config"
+	"github.com/moby/moby/v2/daemon/container"
+	"github.com/moby/moby/v2/daemon/network"
+	"github.com/moby/moby/v2/daemon/server/backend"
+	"github.com/moby/moby/v2/errdefs"
 )
 
 // ContainerInspect returns low-level information about a
@@ -60,7 +57,7 @@ func (daemon *Daemon) ContainerInspect(ctx context.Context, name string, options
 		Networks:               apiNetworks,
 	}
 
-	ports := make(nat.PortMap, len(ctr.NetworkSettings.Ports))
+	ports := make(containertypes.PortMap, len(ctr.NetworkSettings.Ports))
 	for k, pm := range ctr.NetworkSettings.Ports {
 		ports[k] = pm
 	}
@@ -208,24 +205,37 @@ func (daemon *Daemon) ContainerExecInspect(id string) (*backend.ExecInspect, err
 
 	e.Lock()
 	defer e.Unlock()
-	pc := inspectExecProcessConfig(e)
 	var pid int
 	if e.Process != nil {
 		pid = int(e.Process.Pid())
 	}
+	var privileged *bool
+	if runtime.GOOS != "windows" || e.Privileged {
+		// Privileged is not used on Windows, so should always be false
+		// (and omitted in the response), but set it if it happened to
+		// be true. On non-Windows, we always set it, and the field should
+		// not be omitted.
+		privileged = &e.Privileged
+	}
 
 	return &backend.ExecInspect{
-		ID:            e.ID,
-		Running:       e.Running,
-		ExitCode:      e.ExitCode,
-		ProcessConfig: pc,
-		OpenStdin:     e.OpenStdin,
-		OpenStdout:    e.OpenStdout,
-		OpenStderr:    e.OpenStderr,
-		CanRemove:     e.CanRemove,
-		ContainerID:   e.Container.ID,
-		DetachKeys:    e.DetachKeys,
-		Pid:           pid,
+		ID:       e.ID,
+		Running:  e.Running,
+		ExitCode: e.ExitCode,
+		ProcessConfig: &backend.ExecProcessConfig{
+			Tty:        e.Tty,
+			Entrypoint: e.Entrypoint,
+			Arguments:  e.Args,
+			Privileged: privileged, // Privileged is not used on Windows
+			User:       e.User,     // User is not used on Windows
+		},
+		OpenStdin:   e.OpenStdin,
+		OpenStdout:  e.OpenStdout,
+		OpenStderr:  e.OpenStderr,
+		CanRemove:   e.CanRemove,
+		ContainerID: e.Container.ID,
+		DetachKeys:  e.DetachKeys,
+		Pid:         pid,
 	}, nil
 }
 

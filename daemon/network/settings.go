@@ -4,9 +4,9 @@ import (
 	"net"
 	"sync"
 
-	clustertypes "github.com/docker/docker/daemon/cluster/provider"
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/container"
 	networktypes "github.com/moby/moby/api/types/network"
+	clustertypes "github.com/moby/moby/v2/daemon/cluster/provider"
 	"github.com/pkg/errors"
 )
 
@@ -21,7 +21,7 @@ type Settings struct {
 	LinkLocalIPv6PrefixLen int
 	Networks               map[string]*EndpointSettings
 	Service                *clustertypes.ServiceConfig
-	Ports                  nat.PortMap
+	Ports                  container.PortMap
 	SecondaryIPAddresses   []networktypes.Address
 	SecondaryIPv6Addresses []networktypes.Address
 	HasSwarmEndpoint       bool

@@ -12,17 +12,16 @@ import (
 
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
-	"github.com/docker/docker/daemon/builder"
-	"github.com/docker/docker/daemon/internal/image"
-	"github.com/docker/docker/daemon/internal/stringid"
-	networkSettings "github.com/docker/docker/daemon/network"
-	"github.com/docker/docker/daemon/server/backend"
-	"github.com/docker/go-connections/nat"
 	"github.com/moby/go-archive"
 	"github.com/moby/go-archive/chrootarchive"
 	"github.com/moby/moby/api/types/build"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/v2/daemon/builder"
+	"github.com/moby/moby/v2/daemon/internal/image"
+	"github.com/moby/moby/v2/daemon/internal/stringid"
+	networkSettings "github.com/moby/moby/v2/daemon/network"
+	"github.com/moby/moby/v2/daemon/server/backend"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
@@ -294,7 +293,7 @@ func copyRunConfig(runConfig *container.Config, modifiers ...runConfigModifier) 
 	}
 
 	if cfgCopy.ExposedPorts != nil {
-		cfgCopy.ExposedPorts = make(nat.PortSet, len(runConfig.ExposedPorts))
+		cfgCopy.ExposedPorts = make(container.PortSet, len(runConfig.ExposedPorts))
 		for k, v := range runConfig.ExposedPorts {
 			cfgCopy.ExposedPorts[k] = v
 		}

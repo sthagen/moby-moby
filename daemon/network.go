@@ -11,28 +11,28 @@ import (
 	"sync"
 
 	"github.com/containerd/log"
-	clustertypes "github.com/docker/docker/daemon/cluster/provider"
-	"github.com/docker/docker/daemon/config"
-	"github.com/docker/docker/daemon/container"
-	"github.com/docker/docker/daemon/internal/otelutil"
-	"github.com/docker/docker/daemon/libnetwork"
-	lncluster "github.com/docker/docker/daemon/libnetwork/cluster"
-	"github.com/docker/docker/daemon/libnetwork/driverapi"
-	"github.com/docker/docker/daemon/libnetwork/ipamapi"
-	"github.com/docker/docker/daemon/libnetwork/netlabel"
-	"github.com/docker/docker/daemon/libnetwork/networkdb"
-	"github.com/docker/docker/daemon/libnetwork/options"
-	lntypes "github.com/docker/docker/daemon/libnetwork/types"
-	"github.com/docker/docker/daemon/network"
-	"github.com/docker/docker/daemon/pkg/opts"
-	"github.com/docker/docker/daemon/server/backend"
-	"github.com/docker/docker/errdefs"
-	"github.com/docker/docker/pkg/plugingetter"
 	"github.com/docker/go-connections/nat"
 	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
 	"github.com/moby/moby/api/types/filters"
 	networktypes "github.com/moby/moby/api/types/network"
+	clustertypes "github.com/moby/moby/v2/daemon/cluster/provider"
+	"github.com/moby/moby/v2/daemon/config"
+	"github.com/moby/moby/v2/daemon/container"
+	"github.com/moby/moby/v2/daemon/internal/otelutil"
+	"github.com/moby/moby/v2/daemon/libnetwork"
+	lncluster "github.com/moby/moby/v2/daemon/libnetwork/cluster"
+	"github.com/moby/moby/v2/daemon/libnetwork/driverapi"
+	"github.com/moby/moby/v2/daemon/libnetwork/ipamapi"
+	"github.com/moby/moby/v2/daemon/libnetwork/netlabel"
+	"github.com/moby/moby/v2/daemon/libnetwork/networkdb"
+	"github.com/moby/moby/v2/daemon/libnetwork/options"
+	lntypes "github.com/moby/moby/v2/daemon/libnetwork/types"
+	"github.com/moby/moby/v2/daemon/network"
+	"github.com/moby/moby/v2/daemon/pkg/opts"
+	"github.com/moby/moby/v2/daemon/server/backend"
+	"github.com/moby/moby/v2/errdefs"
+	"github.com/moby/moby/v2/pkg/plugingetter"
 	"go.opentelemetry.io/otel/baggage"
 )
 
@@ -944,21 +944,18 @@ func buildPortsRelatedCreateEndpointOptions(c *container.Container, n *libnetwor
 		return nil, nil
 	}
 
-	bindings := make(nat.PortMap)
-	if c.HostConfig.PortBindings != nil {
-		for p, b := range c.HostConfig.PortBindings {
-			bindings[p] = []nat.PortBinding{}
-			for _, bb := range b {
-				bindings[p] = append(bindings[p], nat.PortBinding{
-					HostIP:   bb.HostIP,
-					HostPort: bb.HostPort,
-				})
-			}
-		}
+	// Create a deep copy (as [nat.SortPortMap] mutates the map).
+	// Not using a maps.Clone here, as that won't dereference the
+	// slice (PortMap is a map[Port][]PortBinding).
+	bindings := make(containertypes.PortMap)
+	for p, b := range c.HostConfig.PortBindings {
+		copied := make([]containertypes.PortBinding, len(b))
+		copy(copied, b)
+		bindings[p] = copied
 	}
 
 	// TODO(thaJeztah): Move this code to a method on nat.PortSet.
-	ports := make([]nat.Port, 0, len(c.Config.ExposedPorts))
+	ports := make([]containertypes.PortRangeProto, 0, len(c.Config.ExposedPorts))
 	for p := range c.Config.ExposedPorts {
 		ports = append(ports, p)
 	}
@@ -1009,8 +1006,8 @@ func buildPortsRelatedCreateEndpointOptions(c *container.Container, n *libnetwor
 }
 
 // getPortMapInfo retrieves the current port-mapping programmed for the given sandbox
-func getPortMapInfo(sb *libnetwork.Sandbox) nat.PortMap {
-	pm := nat.PortMap{}
+func getPortMapInfo(sb *libnetwork.Sandbox) containertypes.PortMap {
+	pm := containertypes.PortMap{}
 	if sb == nil {
 		return pm
 	}
@@ -1021,7 +1018,7 @@ func getPortMapInfo(sb *libnetwork.Sandbox) nat.PortMap {
 	return pm
 }
 
-func getEndpointPortMapInfo(pm nat.PortMap, ep *libnetwork.Endpoint) {
+func getEndpointPortMapInfo(pm containertypes.PortMap, ep *libnetwork.Endpoint) {
 	driverInfo, _ := ep.DriverInfo()
 	if driverInfo == nil {
 		// It is not an error for epInfo to be nil
@@ -1060,7 +1057,7 @@ func getEndpointPortMapInfo(pm nat.PortMap, ep *libnetwork.Endpoint) {
 			if pp.HostPort > 0 {
 				hp = strconv.Itoa(int(pp.HostPort))
 			}
-			natBndg := nat.PortBinding{HostIP: pp.HostIP.String(), HostPort: hp}
+			natBndg := containertypes.PortBinding{HostIP: pp.HostIP.String(), HostPort: hp}
 			pm[natPort] = append(pm[natPort], natBndg)
 		}
 	}

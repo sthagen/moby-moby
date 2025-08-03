@@ -1,12 +1,9 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package image
 
 import (
 	"slices"
 
-	"github.com/docker/docker/daemon/internal/layer"
+	"github.com/moby/moby/v2/daemon/internal/layer"
 	"github.com/opencontainers/image-spec/identity"
 )
 

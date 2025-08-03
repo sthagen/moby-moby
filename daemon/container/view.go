@@ -1,6 +1,3 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package container
 
 import (
@@ -13,11 +10,11 @@ import (
 	"time"
 
 	"github.com/containerd/log"
-	"github.com/docker/docker/errdefs"
 	"github.com/docker/go-connections/nat"
 	memdb "github.com/hashicorp/go-memdb"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/v2/errdefs"
 )
 
 const (
@@ -43,8 +40,8 @@ type Snapshot struct {
 	Running      bool
 	Paused       bool
 	Managed      bool
-	ExposedPorts nat.PortSet
-	PortBindings nat.PortSet
+	ExposedPorts container.PortSet
+	PortBindings container.PortSet
 	Health       container.HealthStatus
 	HostConfig   struct {
 		Isolation string
@@ -324,8 +321,8 @@ func (v *View) transform(ctr *Container) *Snapshot {
 		Name:         ctr.Name,
 		Pid:          ctr.Pid,
 		Managed:      ctr.Managed,
-		ExposedPorts: make(nat.PortSet),
-		PortBindings: make(nat.PortSet),
+		ExposedPorts: make(container.PortSet),
+		PortBindings: make(container.PortSet),
 		Health:       health,
 		Running:      ctr.Running,
 		Paused:       ctr.Paused,
@@ -395,8 +392,9 @@ func (v *View) transform(ctr *Container) *Snapshot {
 				}
 			}
 		}
-		for port, bindings := range ctr.NetworkSettings.Ports {
-			p, err := nat.ParsePort(port.Port())
+		for p, bindings := range ctr.NetworkSettings.Ports {
+			proto, port := nat.SplitProtoPort(string(p))
+			p, err := nat.ParsePort(port)
 			if err != nil {
 				log.G(context.TODO()).WithError(err).Warn("invalid port map")
 				continue
@@ -404,7 +402,7 @@ func (v *View) transform(ctr *Container) *Snapshot {
 			if len(bindings) == 0 {
 				snapshot.Ports = append(snapshot.Ports, container.Port{
 					PrivatePort: uint16(p),
-					Type:        port.Proto(),
+					Type:        proto,
 				})
 				continue
 			}
@@ -417,7 +415,7 @@ func (v *View) transform(ctr *Container) *Snapshot {
 				snapshot.Ports = append(snapshot.Ports, container.Port{
 					PrivatePort: uint16(p),
 					PublicPort:  uint16(h),
-					Type:        port.Proto(),
+					Type:        proto,
 					IP:          binding.HostIP,
 				})
 			}

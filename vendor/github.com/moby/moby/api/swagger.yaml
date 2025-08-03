@@ -2647,26 +2647,10 @@ definitions:
         type: "string"
       stream:
         type: "string"
-      error:
-        type: "string"
-        x-nullable: true
-        description: |-
-          errors encountered during the operation.
-
-
-          > **Deprecated**: This field is deprecated since API v1.4, and will be omitted in a future API version. Use the information in errorDetail instead.
       errorDetail:
         $ref: "#/definitions/ErrorDetail"
       status:
         type: "string"
-      progress:
-        type: "string"
-        x-nullable: true
-        description: |-
-          Progress is a pre-formatted presentation of progressDetail.
-
-
-          > **Deprecated**: This field is deprecated since API v1.8, and will be omitted in a future API version. Use the information in progressDetail instead.
       progressDetail:
         $ref: "#/definitions/ProgressDetail"
       aux:
@@ -2764,52 +2748,20 @@ definitions:
     properties:
       id:
         type: "string"
-      error:
-        type: "string"
-        x-nullable: true
-        description: |-
-          errors encountered during the operation.
-
-
-          > **Deprecated**: This field is deprecated since API v1.4, and will be omitted in a future API version. Use the information in errorDetail instead.
       errorDetail:
         $ref: "#/definitions/ErrorDetail"
       status:
         type: "string"
-      progress:
-        type: "string"
-        x-nullable: true
-        description: |-
-          Progress is a pre-formatted presentation of progressDetail.
-
-
-          > **Deprecated**: This field is deprecated since API v1.8, and will be omitted in a future API version. Use the information in progressDetail instead.
       progressDetail:
         $ref: "#/definitions/ProgressDetail"
 
   PushImageInfo:
     type: "object"
     properties:
-      error:
-        type: "string"
-        x-nullable: true
-        description: |-
-          errors encountered during the operation.
-
-
-          > **Deprecated**: This field is deprecated since API v1.4, and will be omitted in a future API version. Use the information in errorDetail instead.
       errorDetail:
         $ref: "#/definitions/ErrorDetail"
       status:
         type: "string"
-      progress:
-        type: "string"
-        x-nullable: true
-        description: |-
-          Progress is a pre-formatted presentation of progressDetail.
-
-
-          > **Deprecated**: This field is deprecated since API v1.8, and will be omitted in a future API version. Use the information in progressDetail instead.
       progressDetail:
         $ref: "#/definitions/ProgressDetail"
 
@@ -3069,21 +3021,6 @@ definitions:
       Value:
         type: "string"
 
-  PluginInterfaceType:
-    type: "object"
-    x-nullable: false
-    required: [Prefix, Capability, Version]
-    properties:
-      Prefix:
-        type: "string"
-        x-nullable: false
-      Capability:
-        type: "string"
-        x-nullable: false
-      Version:
-        type: "string"
-        x-nullable: false
-
   PluginPrivilege:
     description: |
       Describes a permission the user has to accept upon installing
@@ -3192,7 +3129,11 @@ definitions:
               Types:
                 type: "array"
                 items:
-                  $ref: "#/definitions/PluginInterfaceType"
+                  type: "string"
+                  x-go-type:
+                    type: "CapabilityID"
+                    import:
+                      package: "github.com/moby/moby/api/types/plugin"
                 example:
                   - "docker.volumedriver/1.0"
               Socket:
@@ -5410,7 +5351,7 @@ definitions:
           ([RFC 4648](https://tools.ietf.org/html/rfc4648#section-5)) string.
           It must be empty if the Driver field is set, in which case the data is
           loaded from an external secret store. The maximum allowed size is 500KB,
-          as defined in [MaxSecretSize](https://pkg.go.dev/github.com/moby/swarmkit/v2@v2.0.0-20250103191802-8c1959736554/api/validation#MaxSecretSize).
+          as defined in [MaxSecretSize](https://pkg.go.dev/github.com/moby/swarmkit/v2@v2.0.0/api/validation#MaxSecretSize).
 
           This field is only used to _create_ a secret, and is not returned by
           other endpoints.

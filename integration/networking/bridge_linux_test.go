@@ -16,20 +16,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/daemon/libnetwork/drivers/bridge"
-	"github.com/docker/docker/daemon/libnetwork/iptables"
-	"github.com/docker/docker/daemon/libnetwork/netlabel"
-	"github.com/docker/docker/integration/internal/container"
-	"github.com/docker/docker/integration/internal/network"
-	"github.com/docker/docker/integration/internal/testutils/networking"
-	n "github.com/docker/docker/integration/network"
-	"github.com/docker/docker/testutil"
-	"github.com/docker/docker/testutil/daemon"
-	"github.com/docker/go-connections/nat"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	containertypes "github.com/moby/moby/api/types/container"
 	networktypes "github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
+	"github.com/moby/moby/v2/daemon/libnetwork/drivers/bridge"
+	"github.com/moby/moby/v2/daemon/libnetwork/iptables"
+	"github.com/moby/moby/v2/daemon/libnetwork/netlabel"
+	"github.com/moby/moby/v2/integration/internal/container"
+	"github.com/moby/moby/v2/integration/internal/network"
+	"github.com/moby/moby/v2/integration/internal/testutils/networking"
+	n "github.com/moby/moby/v2/integration/network"
+	"github.com/moby/moby/v2/testutil"
+	"github.com/moby/moby/v2/testutil/daemon"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 	"gotest.tools/v3/skip"
@@ -389,7 +388,7 @@ func TestBridgeINCRouted(t *testing.T) {
 			container.WithNetworkMode(netName),
 			container.WithName("ctr-"+gwMode),
 			container.WithExposedPorts("80/tcp"),
-			container.WithPortMap(nat.PortMap{"80/tcp": {}}),
+			container.WithPortMap(containertypes.PortMap{"80/tcp": {}}),
 		)
 		t.Cleanup(func() {
 			c.ContainerRemove(ctx, ctrId, containertypes.RemoveOptions{Force: true})
@@ -557,7 +556,7 @@ func TestAccessToPublishedPort(t *testing.T) {
 				container.WithNetworkMode(serverNetName),
 				container.WithName("ctr-server"),
 				container.WithExposedPorts("80/tcp"),
-				container.WithPortMap(nat.PortMap{"80/tcp": {nat.PortBinding{HostPort: "8080"}}}),
+				container.WithPortMap(containertypes.PortMap{"80/tcp": {containertypes.PortBinding{HostPort: "8080"}}}),
 				container.WithCmd("httpd", "-f"),
 			)
 			defer c.ContainerRemove(ctx, ctrId, containertypes.RemoveOptions{Force: true})
@@ -680,7 +679,7 @@ func TestInterNetworkDirectRouting(t *testing.T) {
 				container.WithNetworkMode(serverNetName),
 				container.WithName("ctr-pub"),
 				container.WithExposedPorts("80/tcp"),
-				container.WithPortMap(nat.PortMap{"80/tcp": {nat.PortBinding{HostPort: "8080"}}}),
+				container.WithPortMap(containertypes.PortMap{"80/tcp": {containertypes.PortBinding{HostPort: "8080"}}}),
 				container.WithCmd("httpd", "-f"),
 			)
 			defer c.ContainerRemove(ctx, ctrPubId, containertypes.RemoveOptions{Force: true})
@@ -1421,7 +1420,7 @@ func TestGatewaySelection(t *testing.T) {
 		container.WithName(ctrName),
 		container.WithNetworkMode(netName4),
 		container.WithExposedPorts("80"),
-		container.WithPortMap(nat.PortMap{"80": {{HostPort: "8080"}}}),
+		container.WithPortMap(containertypes.PortMap{"80": {{HostPort: "8080"}}}),
 		container.WithCmd("httpd", "-f"),
 	)
 	defer c.ContainerRemove(ctx, ctrId, containertypes.RemoveOptions{Force: true})
@@ -1870,7 +1869,7 @@ func TestDropInForwardChain(t *testing.T) {
 		ctrId := container.Run(ctx, t, c,
 			container.WithNetworkMode(netName46),
 			container.WithExposedPorts("80"),
-			container.WithPortMap(nat.PortMap{"80": {{HostPort: hostPort}}}),
+			container.WithPortMap(containertypes.PortMap{"80": {{HostPort: hostPort}}}),
 			container.WithCmd("httpd", "-f"),
 		)
 		defer c.ContainerRemove(ctx, ctrId, containertypes.RemoveOptions{Force: true})

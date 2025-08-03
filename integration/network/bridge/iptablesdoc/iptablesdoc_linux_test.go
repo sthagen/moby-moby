@@ -30,17 +30,16 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/docker/docker/daemon/libnetwork/drivers/bridge"
-	"github.com/docker/docker/integration/internal/container"
-	"github.com/docker/docker/integration/internal/network"
-	"github.com/docker/docker/integration/internal/testutils/networking"
-	"github.com/docker/docker/testutil"
-	"github.com/docker/docker/testutil/daemon"
-	"github.com/docker/go-connections/nat"
 	containertypes "github.com/moby/moby/api/types/container"
 	networktypes "github.com/moby/moby/api/types/network"
 	swarmtypes "github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/client"
+	"github.com/moby/moby/v2/daemon/libnetwork/drivers/bridge"
+	"github.com/moby/moby/v2/integration/internal/container"
+	"github.com/moby/moby/v2/integration/internal/network"
+	"github.com/moby/moby/v2/integration/internal/testutils/networking"
+	"github.com/moby/moby/v2/testutil"
+	"github.com/moby/moby/v2/testutil/daemon"
 	"github.com/vishvananda/netlink"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/golden"
@@ -55,7 +54,7 @@ var (
 
 type ctrDesc struct {
 	name         string
-	portMappings nat.PortMap
+	portMappings containertypes.PortMap
 }
 
 type networkDesc struct {
@@ -84,7 +83,7 @@ var index = []section{
 			containers: []ctrDesc{
 				{
 					name:         "c1",
-					portMappings: nat.PortMap{"80/tcp": {{HostPort: "8080"}}},
+					portMappings: containertypes.PortMap{"80/tcp": {{HostPort: "8080"}}},
 				},
 			},
 		}},
@@ -97,7 +96,7 @@ var index = []section{
 			containers: []ctrDesc{
 				{
 					name:         "c1",
-					portMappings: nat.PortMap{"80/tcp": {{HostPort: "8080"}}},
+					portMappings: containertypes.PortMap{"80/tcp": {{HostPort: "8080"}}},
 				},
 			},
 		}},
@@ -110,7 +109,7 @@ var index = []section{
 			containers: []ctrDesc{
 				{
 					name:         "c1",
-					portMappings: nat.PortMap{"80/tcp": {{HostPort: "8080"}}},
+					portMappings: containertypes.PortMap{"80/tcp": {{HostPort: "8080"}}},
 				},
 			},
 		}},
@@ -144,7 +143,7 @@ var index = []section{
 			containers: []ctrDesc{
 				{
 					name:         "c1",
-					portMappings: nat.PortMap{"80/tcp": {{HostPort: "8080"}}},
+					portMappings: containertypes.PortMap{"80/tcp": {{HostPort: "8080"}}},
 				},
 			},
 		}},
@@ -157,7 +156,7 @@ var index = []section{
 			containers: []ctrDesc{
 				{
 					name:         "c1",
-					portMappings: nat.PortMap{"80/tcp": {{HostPort: "8080"}}},
+					portMappings: containertypes.PortMap{"80/tcp": {{HostPort: "8080"}}},
 				},
 			},
 		}},
@@ -169,7 +168,7 @@ var index = []section{
 			containers: []ctrDesc{
 				{
 					name:         "c1",
-					portMappings: nat.PortMap{"80/tcp": {{HostPort: "8080"}}},
+					portMappings: containertypes.PortMap{"80/tcp": {{HostPort: "8080"}}},
 				},
 			},
 		}},
@@ -181,7 +180,7 @@ var index = []section{
 			containers: []ctrDesc{
 				{
 					name:         "c1",
-					portMappings: nat.PortMap{"80/tcp": {{HostIP: "127.0.0.1", HostPort: "8080"}}},
+					portMappings: containertypes.PortMap{"80/tcp": {{HostIP: "127.0.0.1", HostPort: "8080"}}},
 				},
 			},
 		}},

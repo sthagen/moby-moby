@@ -1,6 +1,3 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package daemon
 
 import (
@@ -15,23 +12,23 @@ import (
 
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/containerd/log"
-	"github.com/docker/docker/daemon/config"
-	"github.com/docker/docker/daemon/container"
-	"github.com/docker/docker/daemon/internal/metrics"
-	"github.com/docker/docker/daemon/internal/multierror"
-	"github.com/docker/docker/daemon/internal/sliceutil"
-	"github.com/docker/docker/daemon/internal/stringid"
-	"github.com/docker/docker/daemon/libnetwork"
-	"github.com/docker/docker/daemon/libnetwork/netlabel"
-	"github.com/docker/docker/daemon/libnetwork/scope"
-	"github.com/docker/docker/daemon/libnetwork/types"
-	"github.com/docker/docker/daemon/network"
-	"github.com/docker/docker/daemon/pkg/opts"
-	"github.com/docker/docker/errdefs"
 	"github.com/docker/go-connections/nat"
 	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
 	networktypes "github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/v2/daemon/config"
+	"github.com/moby/moby/v2/daemon/container"
+	"github.com/moby/moby/v2/daemon/internal/metrics"
+	"github.com/moby/moby/v2/daemon/internal/multierror"
+	"github.com/moby/moby/v2/daemon/internal/sliceutil"
+	"github.com/moby/moby/v2/daemon/internal/stringid"
+	"github.com/moby/moby/v2/daemon/libnetwork"
+	"github.com/moby/moby/v2/daemon/libnetwork/netlabel"
+	"github.com/moby/moby/v2/daemon/libnetwork/scope"
+	"github.com/moby/moby/v2/daemon/libnetwork/types"
+	"github.com/moby/moby/v2/daemon/network"
+	"github.com/moby/moby/v2/daemon/pkg/opts"
+	"github.com/moby/moby/v2/errdefs"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -101,21 +98,18 @@ func buildSandboxOptions(cfg *config.Config, ctr *container.Container) ([]libnet
 		}
 	}
 
-	bindings := make(nat.PortMap)
-	if ctr.HostConfig.PortBindings != nil {
-		for p, b := range ctr.HostConfig.PortBindings {
-			bindings[p] = []nat.PortBinding{}
-			for _, bb := range b {
-				bindings[p] = append(bindings[p], nat.PortBinding{
-					HostIP:   bb.HostIP,
-					HostPort: bb.HostPort,
-				})
-			}
-		}
+	// Create a deep copy (as [nat.SortPortMap] mutates the map).
+	// Not using a maps.Clone here, as that won't dereference the
+	// slice (PortMap is a map[Port][]PortBinding).
+	bindings := make(containertypes.PortMap)
+	for p, b := range ctr.HostConfig.PortBindings {
+		copied := make([]containertypes.PortBinding, len(b))
+		copy(copied, b)
+		bindings[p] = copied
 	}
 
 	// TODO(thaJeztah): Move this code to a method on nat.PortSet.
-	ports := make([]nat.Port, 0, len(ctr.Config.ExposedPorts))
+	ports := make([]containertypes.PortRangeProto, 0, len(ctr.Config.ExposedPorts))
 	for p := range ctr.Config.ExposedPorts {
 		ports = append(ports, p)
 	}

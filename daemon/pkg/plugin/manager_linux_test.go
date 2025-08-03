@@ -8,12 +8,13 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/docker/docker/daemon/internal/containerfs"
-	"github.com/docker/docker/daemon/internal/stringid"
-	v2 "github.com/docker/docker/daemon/pkg/plugin/v2"
-	"github.com/docker/docker/daemon/server/backend"
 	"github.com/moby/moby/api/types"
 	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/api/types/plugin"
+	"github.com/moby/moby/v2/daemon/internal/containerfs"
+	"github.com/moby/moby/v2/daemon/internal/stringid"
+	v2 "github.com/moby/moby/v2/daemon/pkg/plugin/v2"
+	"github.com/moby/moby/v2/daemon/server/backend"
 	"github.com/moby/sys/mount"
 	"github.com/moby/sys/mountinfo"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -79,8 +80,8 @@ func newTestPlugin(t *testing.T, name, capability, root string) *v2.Plugin {
 
 	p := v2.Plugin{PluginObj: types.Plugin{ID: id, Name: name}}
 	p.Rootfs = rootfs
-	iType := types.PluginInterfaceType{Capability: capability, Prefix: "docker", Version: "1.0"}
-	i := types.PluginConfigInterface{Socket: "plugin.sock", Types: []types.PluginInterfaceType{iType}}
+	iType := plugin.CapabilityID{Capability: capability, Prefix: "docker", Version: "1.0"}
+	i := types.PluginConfigInterface{Socket: "plugin.sock", Types: []plugin.CapabilityID{iType}}
 	p.PluginObj.Config.Interface = i
 	p.PluginObj.ID = id
 

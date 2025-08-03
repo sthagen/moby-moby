@@ -1,5 +1,4 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23 && linux
+//go:build linux
 
 package iptables
 
@@ -16,7 +15,7 @@ import (
 	"time"
 
 	"github.com/containerd/log"
-	"github.com/docker/docker/daemon/internal/rootless"
+	"github.com/moby/moby/v2/daemon/internal/rootless"
 )
 
 // Action signifies the iptable action.

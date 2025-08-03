@@ -1,6 +1,3 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23
-
 package grpc
 
 import (
@@ -11,11 +8,11 @@ import (
 
 	"github.com/containerd/containerd/v2/defaults"
 	"github.com/containerd/log"
-	"github.com/docker/docker/daemon/internal/otelutil"
-	"github.com/docker/docker/daemon/server/router"
 	"github.com/moby/buildkit/util/grpcerrors"
 	"github.com/moby/buildkit/util/stack"
 	"github.com/moby/buildkit/util/tracing"
+	"github.com/moby/moby/v2/daemon/internal/otelutil"
+	"github.com/moby/moby/v2/daemon/server/router"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"

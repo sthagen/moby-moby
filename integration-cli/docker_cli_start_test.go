@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/integration-cli/cli"
+	"github.com/moby/moby/v2/integration-cli/cli"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 	"gotest.tools/v3/icmd"
@@ -25,7 +25,7 @@ func (s *DockerCLIStartSuite) OnTimeout(t *testing.T) {
 	s.ds.OnTimeout(t)
 }
 
-// Regression test for https://github.com/docker/docker/issues/7843
+// Regression test for https://github.com/moby/moby/issues/7843
 func (s *DockerCLIStartSuite) TestStartAttachReturnsOnError(c *testing.T) {
 	// Windows does not support link
 	testRequires(c, DaemonIsLinux)

@@ -9,18 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/daemon/libnetwork/drivers/bridge"
-	"github.com/docker/docker/daemon/libnetwork/netlabel"
-	"github.com/docker/docker/daemon/libnetwork/nlwrap"
-	ctr "github.com/docker/docker/integration/internal/container"
-	"github.com/docker/docker/integration/internal/network"
-	"github.com/docker/docker/integration/internal/testutils/networking"
-	"github.com/docker/docker/testutil"
-	"github.com/docker/docker/testutil/daemon"
-	"github.com/docker/go-connections/nat"
 	containertypes "github.com/moby/moby/api/types/container"
 	networktypes "github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/api/types/versions"
+	"github.com/moby/moby/v2/daemon/libnetwork/drivers/bridge"
+	"github.com/moby/moby/v2/daemon/libnetwork/netlabel"
+	"github.com/moby/moby/v2/daemon/libnetwork/nlwrap"
+	ctr "github.com/moby/moby/v2/integration/internal/container"
+	"github.com/moby/moby/v2/integration/internal/network"
+	"github.com/moby/moby/v2/integration/internal/testutils/networking"
+	"github.com/moby/moby/v2/testutil"
+	"github.com/moby/moby/v2/testutil/daemon"
 	"github.com/vishvananda/netlink"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
@@ -519,14 +518,14 @@ func TestPublishedPortAlreadyInUse(t *testing.T) {
 	ctr1 := ctr.Run(ctx, t, apiClient,
 		ctr.WithCmd("top"),
 		ctr.WithExposedPorts("80/tcp"),
-		ctr.WithPortMap(nat.PortMap{"80/tcp": {{HostPort: "8000"}}}))
+		ctr.WithPortMap(containertypes.PortMap{"80/tcp": {{HostPort: "8000"}}}))
 	defer ctr.Remove(ctx, t, apiClient, ctr1, containertypes.RemoveOptions{Force: true})
 
 	ctr2 := ctr.Create(ctx, t, apiClient,
 		ctr.WithCmd("top"),
 		ctr.WithRestartPolicy(containertypes.RestartPolicyAlways),
 		ctr.WithExposedPorts("80/tcp"),
-		ctr.WithPortMap(nat.PortMap{"80/tcp": {{HostPort: "8000"}}}))
+		ctr.WithPortMap(containertypes.PortMap{"80/tcp": {{HostPort: "8000"}}}))
 	defer ctr.Remove(ctx, t, apiClient, ctr2, containertypes.RemoveOptions{Force: true})
 
 	err := apiClient.ContainerStart(ctx, ctr2, containertypes.StartOptions{})
@@ -561,14 +560,14 @@ func TestAllPortMappingsAreReturned(t *testing.T) {
 
 	ctrID := ctr.Run(ctx, t, apiClient,
 		ctr.WithExposedPorts("80/tcp", "81/tcp"),
-		ctr.WithPortMap(nat.PortMap{"80/tcp": {{HostPort: "8000"}}}),
+		ctr.WithPortMap(containertypes.PortMap{"80/tcp": {{HostPort: "8000"}}}),
 		ctr.WithEndpointSettings("testnetv4", &networktypes.EndpointSettings{}),
 		ctr.WithEndpointSettings("testnetv6", &networktypes.EndpointSettings{}))
 	defer ctr.Remove(ctx, t, apiClient, ctrID, containertypes.RemoveOptions{Force: true})
 
 	inspect := ctr.Inspect(ctx, t, apiClient, ctrID)
-	assert.DeepEqual(t, inspect.NetworkSettings.Ports, nat.PortMap{
-		"80/tcp": []nat.PortBinding{
+	assert.DeepEqual(t, inspect.NetworkSettings.Ports, containertypes.PortMap{
+		"80/tcp": []containertypes.PortBinding{
 			{HostIP: "0.0.0.0", HostPort: "8000"},
 			{HostIP: "::", HostPort: "8000"},
 		},
@@ -600,7 +599,7 @@ func TestFirewalldReloadNoZombies(t *testing.T) {
 
 	cid := ctr.Run(ctx, t, c,
 		ctr.WithExposedPorts("80/tcp", "81/tcp"),
-		ctr.WithPortMap(nat.PortMap{"80/tcp": {{HostPort: "8000"}}}))
+		ctr.WithPortMap(containertypes.PortMap{"80/tcp": {{HostPort: "8000"}}}))
 	defer func() {
 		if !removed {
 			ctr.Remove(ctx, t, c, cid, containertypes.RemoveOptions{Force: true})
@@ -790,7 +789,7 @@ func TestPortMappingRestore(t *testing.T) {
 	const svrName = "svr"
 	cid := ctr.Run(ctx, t, c,
 		ctr.WithExposedPorts("80/tcp"),
-		ctr.WithPortMap(nat.PortMap{"80/tcp": {}}),
+		ctr.WithPortMap(containertypes.PortMap{"80/tcp": {}}),
 		ctr.WithName(svrName),
 		ctr.WithRestartPolicy(containertypes.RestartPolicyUnlessStopped),
 		ctr.WithCmd("httpd", "-f"),
@@ -801,7 +800,7 @@ func TestPortMappingRestore(t *testing.T) {
 		t.Helper()
 		insp := ctr.Inspect(ctx, t, c, cid)
 		assert.Check(t, is.Equal(insp.State.Running, true))
-		if assert.Check(t, is.Contains(insp.NetworkSettings.Ports, nat.Port("80/tcp"))) &&
+		if assert.Check(t, is.Contains(insp.NetworkSettings.Ports, containertypes.PortRangeProto("80/tcp"))) &&
 			assert.Check(t, is.Len(insp.NetworkSettings.Ports["80/tcp"], 2)) {
 			hostPort := insp.NetworkSettings.Ports["80/tcp"][0].HostPort
 			res := ctr.RunAttach(ctx, t, c,
@@ -890,7 +889,9 @@ func TestFirewallBackendSwitch(t *testing.T) {
 			dump = icmd.RunCommand("iptables-save").Combined()
 			dump += icmd.RunCommand("ip6tables-save").Combined()
 		})
-		for line := range strings.Lines(dump) {
+
+		// TODO: (When Go 1.24 is min version) Replace with `strings.Lines(dump)`.
+		for _, line := range strings.Split(dump, "\n") {
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue

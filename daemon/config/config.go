@@ -13,11 +13,11 @@ import (
 
 	"dario.cat/mergo"
 	"github.com/containerd/log"
-	dopts "github.com/docker/docker/daemon/internal/opts"
-	"github.com/docker/docker/daemon/pkg/opts"
-	"github.com/docker/docker/daemon/pkg/registry"
 	"github.com/moby/moby/api"
 	"github.com/moby/moby/api/types/versions"
+	dopts "github.com/moby/moby/v2/daemon/internal/opts"
+	"github.com/moby/moby/v2/daemon/pkg/opts"
+	"github.com/moby/moby/v2/daemon/pkg/registry"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/encoding"
@@ -525,7 +525,7 @@ func getConflictFreeConfiguration(configFile string, flags *pflag.FlagSet) (*Con
 
 		// Override flag values to make sure the values set in the config file with nullable values, like `false`,
 		// are not overridden by default truthy values from the flags that were not explicitly set.
-		// See https://github.com/docker/docker/issues/20289 for an example.
+		// See https://github.com/moby/moby/issues/20289 for an example.
 		//
 		// TODO: Rewrite configuration logic to avoid same issue with other nullable values, like numbers.
 		namedOptions := make(map[string]interface{})

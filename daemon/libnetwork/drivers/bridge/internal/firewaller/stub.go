@@ -1,5 +1,4 @@
-// FIXME(thaJeztah): remove once we are a module; the go:build directive prevents go from downgrading language version to go1.16:
-//go:build go1.23 && linux
+//go:build linux
 
 package firewaller
 
@@ -9,7 +8,7 @@ import (
 	"net/netip"
 	"slices"
 
-	"github.com/docker/docker/daemon/libnetwork/types"
+	"github.com/moby/moby/v2/daemon/libnetwork/types"
 )
 
 // StubFirewaller implements a Firewaller for unit tests. It just tracks what it's been asked for.

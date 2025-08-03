@@ -64,7 +64,6 @@ COPY --from=xx / /
 RUN go telemetry off && [ "$(go telemetry)" = "off" ] || { echo "Failed to disable Go telemetry"; exit 1; }
 RUN echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 RUN apt-get update && apt-get install --no-install-recommends -y file
-ENV GO111MODULE=off
 ENV GOTOOLCHAIN=local
 
 FROM base AS criu
@@ -82,25 +81,14 @@ FROM distribution/distribution:$REGISTRY_VERSION AS registry
 RUN mkdir /build && mv /bin/registry /build/registry
 
 # go-swagger
-FROM base AS swagger-src
-WORKDIR /usr/src/swagger
-# Currently uses a fork from https://github.com/kolyshkin/go-swagger/tree/golang-1.13-fix
-# TODO: move to under moby/ or fix upstream go-swagger to work for us.
-RUN git init . && git remote add origin "https://github.com/kolyshkin/go-swagger.git"
-# GO_SWAGGER_COMMIT specifies the version of the go-swagger binary to build and
-# install. Go-swagger is used in CI for validating swagger.yaml in hack/validate/swagger-gen
-ARG GO_SWAGGER_COMMIT=c56166c036004ba7a3a321e5951ba472b9ae298c
-RUN git fetch -q --depth 1 origin "${GO_SWAGGER_COMMIT}" && git checkout -q FETCH_HEAD
-
 FROM base AS swagger
 WORKDIR /go/src/github.com/go-swagger/go-swagger
 ARG TARGETPLATFORM
-RUN --mount=from=swagger-src,src=/usr/src/swagger,rw \
-    --mount=type=cache,target=/root/.cache/go-build,id=swagger-build-$TARGETPLATFORM \
+RUN --mount=type=cache,target=/root/.cache/go-build,id=swagger-build-$TARGETPLATFORM \
     --mount=type=cache,target=/go/pkg/mod \
     --mount=type=tmpfs,target=/go/src/ <<EOT
   set -e
-  xx-go build -o /build/swagger ./cmd/swagger
+  GOBIN=/build xx-go install github.com/go-swagger/go-swagger/cmd/swagger@v0.32.3
   xx-verify /build/swagger
 EOT
 
@@ -145,7 +133,7 @@ RUN --mount=from=delve-src,src=/usr/src/delve,rw \
     --mount=type=cache,target=/root/.cache/go-build,id=delve-build-$TARGETPLATFORM \
     --mount=type=cache,target=/go/pkg/mod <<EOT
   set -e
-  GO111MODULE=on xx-go build -o /build/dlv ./cmd/dlv
+  xx-go build -o /build/dlv ./cmd/dlv
   xx-verify /build/dlv
 EOT
 
@@ -157,7 +145,7 @@ FROM base AS gowinres
 ARG GOWINRES_VERSION=v0.3.1
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        GOBIN=/build/ GO111MODULE=on go install "github.com/tc-hib/go-winres@${GOWINRES_VERSION}" \
+        GOBIN=/build/ go install "github.com/tc-hib/go-winres@${GOWINRES_VERSION}" \
      && /build/go-winres --help
 
 # containerd
@@ -205,7 +193,7 @@ FROM base AS golangci_lint
 ARG GOLANGCI_LINT_VERSION=v2.1.5
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        GOBIN=/build/ GO111MODULE=on go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}" \
+        GOBIN=/build/ go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}" \
      && /build/golangci-lint --version
 
 FROM base AS gotestsum
@@ -213,20 +201,20 @@ FROM base AS gotestsum
 ARG GOTESTSUM_VERSION=v1.12.3
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        GOBIN=/build/ GO111MODULE=on go install "gotest.tools/gotestsum@${GOTESTSUM_VERSION}" \
+        GOBIN=/build/ go install "gotest.tools/gotestsum@${GOTESTSUM_VERSION}" \
      && /build/gotestsum --version
 
 FROM base AS shfmt
 ARG SHFMT_VERSION=v3.8.0
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        GOBIN=/build/ GO111MODULE=on go install "mvdan.cc/sh/v3/cmd/shfmt@${SHFMT_VERSION}" \
+        GOBIN=/build/ go install "mvdan.cc/sh/v3/cmd/shfmt@${SHFMT_VERSION}" \
      && /build/shfmt --version
 
 FROM base AS gopls
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-        GOBIN=/build/ GO111MODULE=on go install "golang.org/x/tools/gopls@latest" \
+        GOBIN=/build/ go install "golang.org/x/tools/gopls@latest" \
      && /build/gopls version
 
 FROM base AS dockercli
@@ -342,7 +330,6 @@ RUN --mount=type=cache,sharing=locked,id=moby-rootlesskit-aptlib,target=/var/lib
             gcc \
             libc6-dev \
             pkg-config
-ENV GO111MODULE=on
 ARG DOCKER_STATIC
 RUN --mount=from=rootlesskit-src,src=/usr/src/rootlesskit,rw \
     --mount=type=cache,target=/go/pkg/mod \
@@ -543,7 +530,6 @@ COPY --link --from=dockercli-integration /build/ /usr/local/cli-integration
 FROM base AS build
 COPY --from=gowinres /build/ /usr/local/bin/
 WORKDIR /go/src/github.com/docker/docker
-ENV GO111MODULE=off
 ENV CGO_ENABLED=1
 RUN --mount=type=cache,sharing=locked,id=moby-build-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-build-aptcache,target=/var/cache/apt \
