@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"slices"
 	"sort"
 	"strings"
@@ -80,7 +81,7 @@ type resolvConfPathConfig struct {
 	resolvConfPath       string
 	originResolvConfPath string
 	resolvConfHashFile   string
-	dnsList              []string
+	dnsList              []netip.Addr
 	dnsSearchList        []string
 	dnsOptionsList       []string
 }
@@ -395,7 +396,7 @@ func (sb *Sandbox) ResolveService(ctx context.Context, name string) ([]*net.SRV,
 	return nil, nil
 }
 
-func (sb *Sandbox) ResolveName(ctx context.Context, name string, ipType int) ([]net.IP, bool) {
+func (sb *Sandbox) ResolveName(ctx context.Context, name string, ipType types.IPFamily) ([]net.IP, bool) {
 	// Embedded server owns the docker network domain. Resolution should work
 	// for both container_name and container_name.network_name
 	// We allow '.' in service name and network name. For a name a.b.c.d the
@@ -452,12 +453,12 @@ func (sb *Sandbox) ResolveName(ctx context.Context, name string, ipType int) ([]
 	return nil, false
 }
 
-func (sb *Sandbox) resolveName(ctx context.Context, nameOrAlias string, networkName string, epList []*Endpoint, lookupAlias bool, ipType int) ([]net.IP, bool) {
+func (sb *Sandbox) resolveName(ctx context.Context, nameOrAlias string, networkName string, epList []*Endpoint, lookupAlias bool, ipType types.IPFamily) ([]net.IP, bool) {
 	ctx, span := otel.Tracer("").Start(ctx, "Sandbox.resolveName", trace.WithAttributes(
 		attribute.String("libnet.resolver.name-or-alias", nameOrAlias),
 		attribute.String("libnet.network.name", networkName),
 		attribute.Bool("libnet.resolver.alias-lookup", lookupAlias),
-		attribute.Int("libnet.resolver.ip-family", ipType)))
+		attribute.Int("libnet.resolver.ip-family", int(ipType))))
 	defer span.End()
 
 	for _, ep := range epList {
