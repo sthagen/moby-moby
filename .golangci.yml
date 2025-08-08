@@ -3,7 +3,7 @@ version: "2"
 run:
   # prevent golangci-lint from deducting the go version to lint for through go.mod,
   # which causes it to fallback to go1.17 semantics.
-  go: "1.24.5"
+  go: "1.24.6"
   concurrency: 2
   # Only supported with go modules enabled (build flag -mod=vendor only valid when using modules)
   # modules-download-mode: vendor
@@ -69,6 +69,8 @@ linters:
               desc: Use github.com/moby/sys/userns instead.
             - pkg: "github.com/tonistiigi/fsutil"
               desc: The fsutil module does not have a stable API, so we should not have a direct dependency unless necessary.
+            - pkg: "github.com/hashicorp/go-multierror"
+              desc: "Use errors.Join instead"
 
     dupword:
       ignore:
@@ -215,6 +217,7 @@ linters:
         - name: superfluous-else
           arguments:
             - preserve-scope
+        - name: use-any
         - name: use-errors-new
         - name: var-declaration
 

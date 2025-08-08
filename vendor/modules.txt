@@ -511,7 +511,7 @@ github.com/docker/distribution/registry/storage/cache/memory
 github.com/docker/docker/libnetwork/internal/resolvconf
 github.com/docker/docker/libnetwork/resolvconf
 github.com/docker/docker/profiles/seccomp
-# github.com/docker/go-connections v0.5.0
+# github.com/docker/go-connections v0.6.0
 ## explicit; go 1.18
 github.com/docker/go-connections/nat
 github.com/docker/go-connections/sockets
@@ -963,7 +963,6 @@ github.com/moby/moby/api/types/network
 github.com/moby/moby/api/types/plugin
 github.com/moby/moby/api/types/registry
 github.com/moby/moby/api/types/storage
-github.com/moby/moby/api/types/strslice
 github.com/moby/moby/api/types/swarm
 github.com/moby/moby/api/types/system
 github.com/moby/moby/api/types/time

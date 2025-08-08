@@ -1,8 +1,3 @@
-// 'vendor.mod' enables use of 'go mod vendor' to managed 'vendor/' directory.
-// There is no 'go.mod' file, as the project has not yet completed the migration
-// to a Go module. This project should be built in GOPATH mode, and not module mode,
-// until the migration is complete and this file becomes 'go.mod.'
-
 module github.com/moby/moby/v2
 
 go 1.23.0
@@ -40,7 +35,7 @@ require (
 	github.com/deckarep/golang-set/v2 v2.3.0
 	github.com/distribution/reference v0.6.0
 	github.com/docker/distribution v2.8.3+incompatible
-	github.com/docker/go-connections v0.5.0
+	github.com/docker/go-connections v0.6.0
 	github.com/docker/go-events v0.0.0-20250114142523-c867878c5e32
 	github.com/docker/go-metrics v0.0.1
 	github.com/docker/go-units v0.5.0
@@ -54,7 +49,6 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-immutable-radix/v2 v2.1.0
 	github.com/hashicorp/go-memdb v1.3.2
-	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/memberlist v0.4.0
 	github.com/hashicorp/serf v0.8.5
 	github.com/ishidawataru/sctp v0.0.0-20250708014235-1989182a9425
@@ -185,6 +179,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-msgpack v0.5.5 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
