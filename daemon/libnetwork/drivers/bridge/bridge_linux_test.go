@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"testing"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/moby/moby/v2/daemon/libnetwork/driverapi"
 	"github.com/moby/moby/v2/daemon/libnetwork/drivers/bridge/internal/firewaller"
@@ -157,14 +158,8 @@ func compareConnConfig(a, b *connectivityConfiguration) bool {
 	if a == nil || b == nil {
 		return false
 	}
-	if len(a.ExposedPorts) != len(b.ExposedPorts) ||
-		len(a.PortBindings) != len(b.PortBindings) {
+	if !slices.Equal(a.ExposedPorts, b.ExposedPorts) {
 		return false
-	}
-	for i := 0; i < len(a.ExposedPorts); i++ {
-		if !a.ExposedPorts[i].Equal(&b.ExposedPorts[i]) {
-			return false
-		}
 	}
 	for i := 0; i < len(a.PortBindings); i++ {
 		if !comparePortBinding(&a.PortBindings[i].PortBinding, &b.PortBindings[i].PortBinding) {
@@ -555,7 +550,7 @@ func TestCreate(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected bridge driver to refuse creation of second network with default name")
 	}
-	if _, ok := err.(types.ForbiddenError); !ok {
+	if !cerrdefs.IsPermissionDenied(err) {
 		t.Fatal("Creation of second network with default name failed with unexpected error type")
 	}
 }
@@ -717,7 +712,7 @@ func (i *testInterface) SetMacAddress(mac net.HardwareAddr) error {
 	if mac == nil {
 		return types.InvalidParameterErrorf("tried to set nil MAC address to endpoint interface")
 	}
-	i.mac = types.GetMacCopy(mac)
+	i.mac = slices.Clone(mac)
 	return nil
 }
 
@@ -1180,10 +1175,10 @@ func TestSetDefaultGw(t *testing.T) {
 	}
 
 	ipam4 := getIPv4Data(t)
-	gw4 := types.GetIPCopy(ipam4[0].Pool.IP).To4()
+	gw4 := slices.Clone(ipam4[0].Pool.IP).To4()
 	gw4[3] = 254
 	ipam6 := getIPv6Data(t)
-	gw6 := types.GetIPCopy(ipam6[0].Pool.IP)
+	gw6 := slices.Clone(ipam6[0].Pool.IP)
 	gw6[15] = 0x42
 
 	option := map[string]any{
