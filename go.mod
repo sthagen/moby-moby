@@ -86,7 +86,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.22.0
-	github.com/rootless-containers/rootlesskit/v2 v2.3.4
+	github.com/rootless-containers/rootlesskit/v2 v2.3.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
@@ -94,7 +94,7 @@ require (
 	github.com/vbatts/tar-split v0.12.1
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
-	go.etcd.io/bbolt v1.4.2
+	go.etcd.io/bbolt v1.4.3
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
 	go.opentelemetry.io/contrib/processors/baggagecopy v0.4.0
@@ -104,7 +104,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0
 	golang.org/x/mod v0.24.0
 	golang.org/x/net v0.39.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/sync v0.16.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/text v0.24.0
 	golang.org/x/time v0.11.0
