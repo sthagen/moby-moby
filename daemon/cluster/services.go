@@ -2,24 +2,23 @@ package cluster
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/containerd/log"
 	"github.com/distribution/reference"
 	gogotypes "github.com/gogo/protobuf/types"
+	"github.com/moby/moby/api/pkg/authconfig"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/registry"
 	"github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/v2/daemon/cluster/convert"
 	"github.com/moby/moby/v2/daemon/internal/timestamp"
 	"github.com/moby/moby/v2/daemon/server/backend"
+	"github.com/moby/moby/v2/daemon/server/swarmbackend"
 	"github.com/moby/moby/v2/errdefs"
 	swarmapi "github.com/moby/swarmkit/v2/api"
 	"github.com/opencontainers/go-digest"
@@ -28,7 +27,7 @@ import (
 )
 
 // GetServices returns all services of a managed swarm cluster.
-func (c *Cluster) GetServices(options swarm.ServiceListOptions) ([]swarm.Service, error) {
+func (c *Cluster) GetServices(options swarmbackend.ServiceListOptions) ([]swarm.Service, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -232,9 +231,9 @@ func (c *Cluster) CreateService(s swarm.ServiceSpec, encodedAuth string, queryRe
 			// retrieve auth config from encoded auth
 			authConfig := &registry.AuthConfig{}
 			if encodedAuth != "" {
-				authReader := strings.NewReader(encodedAuth)
-				dec := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, authReader))
-				if err := dec.Decode(authConfig); err != nil {
+				var err error
+				authConfig, err = authconfig.Decode(encodedAuth)
+				if err != nil {
 					log.G(ctx).Warnf("invalid authconfig: %v", err)
 				}
 			}
@@ -282,7 +281,7 @@ func (c *Cluster) CreateService(s swarm.ServiceSpec, encodedAuth string, queryRe
 }
 
 // UpdateService updates existing service to match new properties.
-func (c *Cluster) UpdateService(serviceIDOrName string, version uint64, spec swarm.ServiceSpec, flags swarm.ServiceUpdateOptions, queryRegistry bool) (*swarm.ServiceUpdateResponse, error) {
+func (c *Cluster) UpdateService(serviceIDOrName string, version uint64, spec swarm.ServiceSpec, flags swarmbackend.ServiceUpdateOptions, queryRegistry bool) (*swarm.ServiceUpdateResponse, error) {
 	var resp *swarm.ServiceUpdateResponse
 
 	err := c.lockedManagerAction(func(ctx context.Context, state nodeState) error {
@@ -350,7 +349,9 @@ func (c *Cluster) UpdateService(serviceIDOrName string, version uint64, spec swa
 			// retrieve auth config from encoded auth
 			authConfig := &registry.AuthConfig{}
 			if encodedAuth != "" {
-				if err := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(encodedAuth))).Decode(authConfig); err != nil {
+				var err error
+				authConfig, err = authconfig.Decode(encodedAuth)
+				if err != nil {
 					log.G(ctx).Warnf("invalid authconfig: %v", err)
 				}
 			}
