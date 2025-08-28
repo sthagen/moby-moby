@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/moby/moby/v2/daemon/libnetwork/drivers/bridge/internal/firewaller"
@@ -83,7 +84,7 @@ func TestNftabler(t *testing.T) {
 					resName = fmt.Sprintf("hairpin=%v,internal=%v,icc=%v,masq=%v,snat=%v,gwm=%v,bindlh=%v",
 						p(hairpin), p(internal), p(icc), p(masq), p(snat), gwmode, p(bindLocalhost))
 				}
-				testNftabler(t, tn, config, netConfig, p(bindLocalhost), tn+"_"+resName)
+				testNftabler(t, tn, config, netConfig, p(bindLocalhost), tn+"/"+resName)
 			})
 		}
 	}
@@ -99,8 +100,9 @@ func testNftabler(t *testing.T, tn string, config firewaller.Config, netConfig f
 			assert.Assert(t, is.Contains(res.Combined(), "No such file or directory"))
 			return
 		}
+		out := strings.ReplaceAll(res.Combined(), "type nat hook output priority -100", "type nat hook output priority dstnat")
 		assert.Assert(t, res.Error)
-		golden.Assert(t, res.Combined(), name+"__"+family+".golden")
+		golden.Assert(t, out, name+"__"+family+".golden")
 	}
 
 	makePB := func(hip string, cip netip.Addr) types.PortBinding {
@@ -127,8 +129,8 @@ func testNftabler(t *testing.T, tn string, config firewaller.Config, netConfig f
 	// end of the test (after deleting per-network and per-port rules).
 	fw, err := NewNftabler(context.Background(), config)
 	assert.NilError(t, err)
-	checkResults("ip", rnWSL2Mirrored(fmt.Sprintf("%s_cleaned,hairpin=%v", tn, config.Hairpin)), config.IPv4)
-	checkResults("ip6", fmt.Sprintf("%s_cleaned,hairpin=%v", tn, config.Hairpin), config.IPv6)
+	checkResults("ip", rnWSL2Mirrored(fmt.Sprintf("%s/cleaned,hairpin=%v", tn, config.Hairpin)), config.IPv4)
+	checkResults("ip6", fmt.Sprintf("%s/cleaned,hairpin=%v", tn, config.Hairpin), config.IPv6)
 
 	// Add the network.
 	nw, err := fw.NewNetwork(context.Background(), netConfig)
@@ -164,6 +166,6 @@ func testNftabler(t *testing.T, tn string, config firewaller.Config, netConfig f
 	assert.NilError(t, err)
 	err = nw.DelNetworkLevelRules(context.Background())
 	assert.NilError(t, err)
-	checkResults("ip", rnWSL2Mirrored(fmt.Sprintf("%s_cleaned,hairpin=%v", tn, config.Hairpin)), config.IPv4)
-	checkResults("ip6", fmt.Sprintf("%s_cleaned,hairpin=%v", tn, config.Hairpin), config.IPv6)
+	checkResults("ip", rnWSL2Mirrored(fmt.Sprintf("%s/cleaned,hairpin=%v", tn, config.Hairpin)), config.IPv4)
+	checkResults("ip6", fmt.Sprintf("%s/cleaned,hairpin=%v", tn, config.Hairpin), config.IPv6)
 }
