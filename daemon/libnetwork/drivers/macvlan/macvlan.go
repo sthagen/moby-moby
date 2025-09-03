@@ -9,7 +9,6 @@ import (
 	"github.com/moby/moby/v2/daemon/libnetwork/datastore"
 	"github.com/moby/moby/v2/daemon/libnetwork/driverapi"
 	"github.com/moby/moby/v2/daemon/libnetwork/scope"
-	"github.com/moby/moby/v2/daemon/libnetwork/types"
 )
 
 const (
@@ -56,7 +55,7 @@ type network struct {
 }
 
 // Register initializes and registers the libnetwork macvlan driver
-func Register(r driverapi.Registerer, store *datastore.Store, _ map[string]any) error {
+func Register(r driverapi.Registerer, store *datastore.Store) error {
 	d := &driver{
 		store:    store,
 		networks: networkTable{},
@@ -68,14 +67,6 @@ func Register(r driverapi.Registerer, store *datastore.Store, _ map[string]any) 
 		DataScope:         scope.Local,
 		ConnectivityScope: scope.Global,
 	})
-}
-
-func (d *driver) NetworkAllocate(id string, option map[string]string, ipV4Data, ipV6Data []driverapi.IPAMData) (map[string]string, error) {
-	return nil, types.NotImplementedErrorf("not implemented")
-}
-
-func (d *driver) NetworkFree(id string) error {
-	return types.NotImplementedErrorf("not implemented")
 }
 
 func (d *driver) EndpointOperInfo(nid, eid string) (map[string]any, error) {

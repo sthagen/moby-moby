@@ -187,7 +187,7 @@ func New(ctx context.Context, cfgOptions ...config.Option) (_ *Controller, retEr
 		return nil, err
 	}
 
-	if err := registerNetworkDrivers(&c.drvRegistry, c.store, &c.pmRegistry, c.makeDriverConfig); err != nil {
+	if err := registerNetworkDrivers(&c.drvRegistry, c.cfg, c.store, &c.pmRegistry); err != nil {
 		return nil, err
 	}
 
@@ -383,29 +383,6 @@ func (c *Controller) agentStopComplete() {
 	c.mu.Unlock()
 }
 
-func (c *Controller) makeDriverConfig(ntype string) map[string]any {
-	if c.cfg == nil {
-		return nil
-	}
-
-	cfg := map[string]any{}
-	for _, label := range c.cfg.Labels {
-		key, val, _ := strings.Cut(label, "=")
-		if !strings.HasPrefix(key, netlabel.DriverPrefix+"."+ntype) {
-			continue
-		}
-
-		cfg[key] = val
-	}
-
-	// Merge in the existing config for this driver.
-	for k, v := range c.cfg.DriverConfig(ntype) {
-		cfg[k] = v
-	}
-
-	return cfg
-}
-
 // ID returns the controller's unique identity.
 func (c *Controller) ID() string {
 	return c.id
@@ -509,6 +486,10 @@ func (c *Controller) RegisterDriver(networkType string, driver driverapi.Driver,
 	if d, ok := driver.(discoverapi.Discover); ok {
 		c.agentDriverNotify(d)
 	}
+	return nil
+}
+
+func (c *Controller) RegisterNetworkAllocator(_ string, _ driverapi.NetworkAllocator) error {
 	return nil
 }
 
