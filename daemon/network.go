@@ -17,7 +17,6 @@ import (
 	"github.com/docker/go-connections/nat"
 	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
-	"github.com/moby/moby/api/types/filters"
 	networktypes "github.com/moby/moby/api/types/network"
 	clustertypes "github.com/moby/moby/v2/daemon/cluster/provider"
 	"github.com/moby/moby/v2/daemon/config"
@@ -591,34 +590,32 @@ func (daemon *Daemon) deleteNetwork(nw *libnetwork.Network, dynamic bool) error 
 }
 
 // GetNetworks returns a list of all networks
-func (daemon *Daemon) GetNetworks(filter filters.Args, config backend.NetworkListConfig) ([]networktypes.Inspect, error) {
-	var idx map[string]*libnetwork.Network
-	if config.Detailed {
-		idx = make(map[string]*libnetwork.Network)
-	}
-
+func (daemon *Daemon) GetNetworks(filter network.Filter, config backend.NetworkListConfig) ([]networktypes.Inspect, error) {
 	allNetworks := daemon.getAllNetworks()
 	networks := make([]networktypes.Inspect, 0, len(allNetworks))
 	for _, n := range allNetworks {
-		nr := buildNetworkResource(n)
-		networks = append(networks, nr)
-		if config.Detailed {
-			idx[nr.ID] = n
+		if filter.Matches(n) {
+			nr := networktypes.Inspect{
+				Network:    buildNetworkResource(n),
+				Containers: buildContainerAttachments(n),
+			}
+			if config.WithServices {
+				nr.Services = buildServiceAttachments(n)
+			}
+			networks = append(networks, nr)
 		}
 	}
 
-	var err error
-	networks, err = network.FilterNetworks(networks, filter)
-	if err != nil {
-		return nil, err
-	}
+	return networks, nil
+}
 
-	if config.Detailed {
-		for i, nw := range networks {
-			networks[i].Containers = buildContainerAttachments(idx[nw.ID])
-			if config.Verbose {
-				networks[i].Services = buildServiceAttachments(idx[nw.ID])
-			}
+func (daemon *Daemon) GetNetworkSummaries(filter network.Filter) ([]networktypes.Summary, error) {
+	allNetworks := daemon.getAllNetworks()
+	networks := make([]networktypes.Summary, 0, len(allNetworks))
+	for _, n := range allNetworks {
+		if filter.Matches(n) {
+			nr := networktypes.Summary{Network: buildNetworkResource(n)}
+			networks = append(networks, nr)
 		}
 	}
 
@@ -627,12 +624,12 @@ func (daemon *Daemon) GetNetworks(filter filters.Args, config backend.NetworkLis
 
 // buildNetworkResource builds a [types.NetworkResource] from the given
 // [libnetwork.Network], to be returned by the API.
-func buildNetworkResource(nw *libnetwork.Network) networktypes.Inspect {
+func buildNetworkResource(nw *libnetwork.Network) networktypes.Network {
 	if nw == nil {
-		return networktypes.Inspect{}
+		return networktypes.Network{}
 	}
 
-	return networktypes.Inspect{
+	return networktypes.Network{
 		Name:       nw.Name(),
 		ID:         nw.ID(),
 		Created:    nw.Created(),
@@ -646,7 +643,6 @@ func buildNetworkResource(nw *libnetwork.Network) networktypes.Inspect {
 		Ingress:    nw.Ingress(),
 		ConfigFrom: networktypes.ConfigReference{Network: nw.ConfigFrom()},
 		ConfigOnly: nw.ConfigOnly(),
-		Containers: map[string]networktypes.EndpointResource{},
 		Options:    nw.DriverOptions(),
 		Labels:     nw.Labels(),
 		Peers:      buildPeerInfoResources(nw.Peers()),

@@ -249,6 +249,11 @@ func (n *Network) Type() string {
 	return n.networkType
 }
 
+// Driver is an alias for [Network.Type].
+func (n *Network) Driver() string {
+	return n.Type()
+}
+
 func (n *Network) Resolvers() []*Resolver {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -1217,12 +1222,10 @@ func (n *Network) createEndpoint(ctx context.Context, name string, options ...En
 		return nil, err
 	}
 
+	ep.ipamOptions = map[string]string{netlabel.EndpointName: name}
 	if capability.RequiresMACAddress {
 		if ep.iface.mac == nil {
 			ep.iface.mac = netutils.GenerateRandomMAC()
-		}
-		if ep.ipamOptions == nil {
-			ep.ipamOptions = make(map[string]string)
 		}
 		ep.ipamOptions[netlabel.MacAddress] = ep.iface.mac.String()
 	}
@@ -1281,6 +1284,11 @@ func (n *Network) Endpoints() []*Endpoint {
 		log.G(context.TODO()).Error(err)
 	}
 	return endpoints
+}
+
+// HasContainerAttachments returns true when len(n.Endpoints()) > 0.
+func (n *Network) HasContainerAttachments() bool {
+	return len(n.Endpoints()) > 0
 }
 
 // WalkEndpoints uses the provided function to walk the Endpoints.

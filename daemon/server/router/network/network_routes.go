@@ -11,6 +11,7 @@ import (
 	"github.com/moby/moby/api/types/versions"
 	"github.com/moby/moby/v2/daemon/libnetwork"
 	"github.com/moby/moby/v2/daemon/libnetwork/scope"
+	dnetwork "github.com/moby/moby/v2/daemon/network"
 	"github.com/moby/moby/v2/daemon/server/backend"
 	"github.com/moby/moby/v2/daemon/server/httputils"
 	"github.com/moby/moby/v2/daemon/server/networkbackend"
@@ -23,28 +24,42 @@ func (n *networkRouter) getNetworksList(ctx context.Context, w http.ResponseWrit
 		return err
 	}
 
-	filter, err := filters.FromJSON(r.Form.Get("filters"))
+	filterArgs, err := filters.FromJSON(r.Form.Get("filters"))
 	if err != nil {
 		return err
 	}
 
-	if err := network.ValidateFilters(filter); err != nil {
-		return err
-	}
-
-	var list []network.Summary
-	nr, err := n.cluster.GetNetworks(filter)
-	if err == nil {
-		list = nr
-	}
-
-	// Combine the network list returned by Docker daemon if it is not already
-	// returned by the cluster manager
-	localNetworks, err := n.backend.GetNetworks(filter, backend.NetworkListConfig{Detailed: versions.LessThan(httputils.VersionFromContext(ctx), "1.28")})
+	filter, err := dnetwork.NewFilter(filterArgs)
 	if err != nil {
 		return err
 	}
 
+	if versions.LessThan(httputils.VersionFromContext(ctx), "1.28") {
+		list, _ := n.cluster.GetNetworks(filter)
+		var idx map[string]bool
+		if len(list) > 0 {
+			idx = make(map[string]bool, len(list))
+			for _, n := range list {
+				idx[n.ID] = true
+			}
+		}
+
+		localNetworks, err := n.backend.GetNetworks(filter, backend.NetworkListConfig{WithServices: false})
+		if err != nil {
+			return err
+		}
+		for _, n := range localNetworks {
+			if !idx[n.ID] {
+				list = append(list, n)
+			}
+		}
+		if list == nil {
+			list = []network.Inspect{}
+		}
+		return httputils.WriteJSON(w, http.StatusOK, list)
+	}
+
+	list, _ := n.cluster.GetNetworkSummaries(filter)
 	var idx map[string]bool
 	if len(list) > 0 {
 		idx = make(map[string]bool, len(list))
@@ -52,11 +67,18 @@ func (n *networkRouter) getNetworksList(ctx context.Context, w http.ResponseWrit
 			idx[n.ID] = true
 		}
 	}
+
+	// Combine the network list returned by Docker daemon if it is not already
+	// returned by the cluster manager
+	localNetworks, err := n.backend.GetNetworkSummaries(filter)
+	if err != nil {
+		return err
+	}
+
 	for _, n := range localNetworks {
-		if idx[n.ID] {
-			continue
+		if !idx[n.ID] {
+			list = append(list, n)
 		}
-		list = append(list, n)
 	}
 
 	if list == nil {
@@ -114,11 +136,17 @@ func (n *networkRouter) getNetwork(ctx context.Context, w http.ResponseWriter, r
 
 	// TODO(@cpuguy83): All this logic for figuring out which network to return does not belong here
 	// Instead there should be a backend function to just get one network.
-	filter := filters.NewArgs(filters.Arg("idOrName", term))
+	filterArgs := filters.NewArgs(filters.Arg("id", term))
 	if networkScope != "" {
-		filter.Add("scope", networkScope)
+		filterArgs.Add("scope", networkScope)
 	}
-	networks, _ := n.backend.GetNetworks(filter, backend.NetworkListConfig{Detailed: true, Verbose: verbose})
+	filter, err := dnetwork.NewFilter(filterArgs)
+	if err != nil {
+		return err
+	}
+	filter.IDAlsoMatchesName = true
+
+	networks, _ := n.backend.GetNetworks(filter, backend.NetworkListConfig{WithServices: verbose})
 	for _, nw := range networks {
 		if nw.ID == term {
 			return httputils.WriteJSON(w, http.StatusOK, nw)
@@ -142,7 +170,7 @@ func (n *networkRouter) getNetwork(ctx context.Context, w http.ResponseWriter, r
 		// return the network. Skipped using isMatchingScope because it is true if the scope
 		// is not set which would be case if the client API v1.30
 		if strings.HasPrefix(nwk.ID, term) || networkScope == scope.Swarm {
-			// If we have a previous match "backend", return it, we need verbose when enabled
+			// If we have a previous match "backend", return it
 			// ex: overlay/partial_ID or name/swarm_scope
 			if nwv, ok := listByPartialID[nwk.ID]; ok {
 				nwk = nwv
@@ -322,8 +350,13 @@ func (n *networkRouter) findUniqueNetwork(term string) (network.Inspect, error) 
 	listByFullName := map[string]network.Inspect{}
 	listByPartialID := map[string]network.Inspect{}
 
-	filter := filters.NewArgs(filters.Arg("idOrName", term))
-	networks, _ := n.backend.GetNetworks(filter, backend.NetworkListConfig{Detailed: true})
+	filter, err := dnetwork.NewFilter(filters.NewArgs(filters.Arg("id", term)))
+	if err != nil {
+		return network.Inspect{}, err
+	}
+	filter.IDAlsoMatchesName = true
+
+	networks, _ := n.backend.GetNetworks(filter, backend.NetworkListConfig{})
 	for _, nw := range networks {
 		if nw.ID == term {
 			return nw, nil
