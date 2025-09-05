@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moby/moby/api/types/build"
 	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/moby/moby/v2/testutil"
@@ -124,7 +123,7 @@ func (f *remoteFileServer) Close() error {
 	if f.container == "" {
 		return nil
 	}
-	return f.client.ContainerRemove(context.Background(), f.container, containertypes.RemoveOptions{
+	return f.client.ContainerRemove(context.Background(), f.container, client.ContainerRemoveOptions{
 		Force:         true,
 		RemoveVolumes: true,
 	})
@@ -145,7 +144,7 @@ func newRemoteFileServer(t testing.TB, ctx *fakecontext.Fake, c client.APIClient
 COPY . /static`); err != nil {
 		t.Fatal(err)
 	}
-	resp, err := c.ImageBuild(context.Background(), ctx.AsTarReader(t), build.ImageBuildOptions{
+	resp, err := c.ImageBuild(context.Background(), ctx.AsTarReader(t), client.ImageBuildOptions{
 		NoCache: true,
 		Tags:    []string{imgName},
 	})
@@ -159,7 +158,7 @@ COPY . /static`); err != nil {
 		&containertypes.HostConfig{PublishAllPorts: true},
 		nil, nil, ctrName)
 	assert.NilError(t, err)
-	err = c.ContainerStart(context.Background(), b.ID, containertypes.StartOptions{})
+	err = c.ContainerStart(context.Background(), b.ID, client.ContainerStartOptions{})
 	assert.NilError(t, err)
 
 	// Find out the system assigned port
