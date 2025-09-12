@@ -22,10 +22,16 @@ keywords: "API, Docker, rcli, REST, documentation"
   saved.
 * `POST /images/load` now accepts multiple `platform` query-arguments
   to allow selecting which platform(s) of a multi-platform image to load.
+* `GET /events` no longer includes the deprecated `status`, `id`, and `from`
+  fields. These fields were removed in API v1.22, but still included
+  in the response.
 * Deprecated: the Engine was automatically backfilling empty `PortBindings` lists with
   a PortBinding with an empty HostIP and HostPort when calling `POST /containers/{id}/start`.
   This behavior is now deprecated, and a warning is returned by `POST /containers/create`.
   The next API version will drop empty `PortBindings` list altogether.
+* `GET /images/{name}/json` now omits the following `Config` fields when
+  not set, to closer align with the implementation of the [OCI Image Specification](https://github.com/opencontainers/image-spec/blob/v1.1.1/specs-go/v1/config.go#L23-L62)
+  `Cmd`, `Entrypoint`, `Env`, `Labels`, `OnBuild`, `User`, `Volumes`, and `WorkingDir`.
 
 ## v1.51 API changes
 
