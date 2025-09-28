@@ -48,7 +48,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-immutable-radix/v2 v2.1.0
-	github.com/hashicorp/go-memdb v1.3.2
+	github.com/hashicorp/go-memdb v1.3.5
 	github.com/hashicorp/memberlist v0.4.0
 	github.com/hashicorp/serf v0.8.5
 	github.com/ishidawataru/sctp v0.0.0-20250829011129-4b890084db30
@@ -78,7 +78,7 @@ require (
 	github.com/moby/sys/userns v0.1.0
 	github.com/moby/term v0.5.2
 	github.com/montanaflynn/stats v0.7.1
-	github.com/opencontainers/cgroups v0.0.4
+	github.com/opencontainers/cgroups v0.0.5
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/opencontainers/runtime-spec v1.2.1

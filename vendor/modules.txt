@@ -686,8 +686,8 @@ github.com/hashicorp/go-immutable-radix
 # github.com/hashicorp/go-immutable-radix/v2 v2.1.0
 ## explicit; go 1.18
 github.com/hashicorp/go-immutable-radix/v2
-# github.com/hashicorp/go-memdb v1.3.2
-## explicit; go 1.12
+# github.com/hashicorp/go-memdb v1.3.5
+## explicit; go 1.13
 github.com/hashicorp/go-memdb
 # github.com/hashicorp/go-msgpack v0.5.5
 ## explicit
@@ -1097,7 +1097,7 @@ github.com/morikuni/aec
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
-# github.com/opencontainers/cgroups v0.0.4
+# github.com/opencontainers/cgroups v0.0.5
 ## explicit; go 1.23.0
 github.com/opencontainers/cgroups
 github.com/opencontainers/cgroups/devices/config
