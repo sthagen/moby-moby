@@ -641,15 +641,6 @@ definitions:
         type: "array"
         items:
           $ref: "#/definitions/DeviceRequest"
-      KernelMemoryTCP:
-        description: |
-          Hard limit for kernel TCP buffer memory (in bytes). Depending on the
-          OCI runtime in use, this option may be ignored. It is no longer supported
-          by the default (runc) runtime.
-
-          This field is omitted when empty.
-        type: "integer"
-        format: "int64"
       MemoryReservation:
         description: "Memory soft limit in bytes."
         type: "integer"
@@ -1903,14 +1894,6 @@ definitions:
         format: "int64"
         x-nullable: false
         example: 1239828
-      VirtualSize:
-        description: |
-          Total size of the image including all layers it is composed of.
-
-          Deprecated: this field is omitted in API v1.44, but kept for backward compatibility. Use Size instead.
-        type: "integer"
-        format: "int64"
-        example: 1239828
       GraphDriver:
         x-nullable: true
         $ref: "#/definitions/DriverData"
@@ -2044,14 +2027,6 @@ definitions:
         format: "int64"
         x-nullable: false
         example: 1239828
-      VirtualSize:
-        description: |-
-          Total size of the image including all layers it is composed of.
-
-          Deprecated: this field is omitted in API v1.44, but kept for backward compatibility. Use Size instead.
-        type: "integer"
-        format: "int64"
-        example: 172064416
       Labels:
         description: "User-defined key/value metadata."
         type: "object"
@@ -6390,15 +6365,6 @@ definitions:
         example: true
       SwapLimit:
         description: "Indicates if the host has memory swap limit support enabled."
-        type: "boolean"
-        example: true
-      KernelMemoryTCP:
-        description: |
-          Indicates if the host has kernel memory TCP limit support enabled. This
-          field is omitted if not supported.
-
-          Kernel memory TCP limits are not supported when using cgroups v2, which
-          does not support the corresponding `memory.kmem.tcp.limit_in_bytes` cgroup.
         type: "boolean"
         example: true
       CpuCfsPeriod:
