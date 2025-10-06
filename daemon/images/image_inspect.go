@@ -9,11 +9,11 @@ import (
 	"github.com/moby/moby/api/types/storage"
 	"github.com/moby/moby/v2/daemon/internal/image"
 	"github.com/moby/moby/v2/daemon/internal/layer"
-	"github.com/moby/moby/v2/daemon/server/backend"
+	"github.com/moby/moby/v2/daemon/server/imagebackend"
 )
 
-func (i *ImageService) ImageInspect(ctx context.Context, refOrID string, opts backend.ImageInspectOpts) (*imagetypes.InspectResponse, error) {
-	img, err := i.GetImage(ctx, refOrID, backend.GetImageOpts{Platform: opts.Platform})
+func (i *ImageService) ImageInspect(ctx context.Context, refOrID string, opts imagebackend.ImageInspectOpts) (*imagetypes.InspectResponse, error) {
+	img, err := i.GetImage(ctx, refOrID, imagebackend.GetImageOpts{Platform: opts.Platform})
 	if err != nil {
 		return nil, err
 	}
@@ -58,12 +58,12 @@ func (i *ImageService) ImageInspect(ctx context.Context, refOrID string, opts ba
 		ID:              img.ID().String(),
 		RepoTags:        repoTags,
 		RepoDigests:     repoDigests,
-		Parent:          img.Parent.String(),
+		Parent:          img.Parent.String(), //nolint:staticcheck // ignore SA1019: field is deprecated, but still included in response when present (built with legacy builder).
 		Comment:         comment,
 		Created:         created,
 		Container:       img.Container,        //nolint:staticcheck // ignore SA1019: field is deprecated, but still set on API < v1.45.
 		ContainerConfig: &img.ContainerConfig, //nolint:staticcheck // ignore SA1019: field is deprecated, but still set on API < v1.45.
-		DockerVersion:   img.DockerVersion,
+		DockerVersion:   img.DockerVersion,    //nolint:staticcheck // ignore SA1019: field is deprecated, but still included in response when present.
 		Author:          img.Author,
 		Config:          &imgConfig,
 		Architecture:    img.Architecture,

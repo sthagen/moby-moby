@@ -21,7 +21,6 @@ import (
 	"github.com/moby/moby/v2/daemon/builder/remotecontext"
 	"github.com/moby/moby/v2/daemon/internal/compat"
 	"github.com/moby/moby/v2/daemon/internal/image"
-	"github.com/moby/moby/v2/daemon/server/backend"
 	"github.com/moby/moby/v2/daemon/server/httputils"
 	"github.com/moby/moby/v2/daemon/server/imagebackend"
 	"github.com/moby/moby/v2/dockerversion"
@@ -380,7 +379,7 @@ func (ir *imageRouter) getImagesByName(ctx context.Context, w http.ResponseWrite
 		return errdefs.InvalidParameter(errors.New("conflicting options: manifests and platform options cannot both be set"))
 	}
 
-	imageInspect, err := ir.backend.ImageInspect(ctx, vars["name"], backend.ImageInspectOpts{
+	imageInspect, err := ir.backend.ImageInspect(ctx, vars["name"], imagebackend.ImageInspectOpts{
 		Manifests: manifests,
 		Platform:  platform,
 	})
@@ -421,18 +420,22 @@ func (ir *imageRouter) getImagesByName(ctx context.Context, w http.ResponseWrite
 		// These fields have "omitempty" on API v1.52 and higher,
 		// but older API versions returned them unconditionally.
 		legacyOptions = append(legacyOptions, compat.WithExtraFields(map[string]any{
-			"Parent":        imageInspect.Parent,
+			"Parent":        imageInspect.Parent, //nolint:staticcheck // ignore SA1019: field is deprecated, but still included in response when present (built with legacy builder).
 			"Comment":       imageInspect.Comment,
-			"DockerVersion": imageInspect.DockerVersion,
+			"DockerVersion": imageInspect.DockerVersion, //nolint:staticcheck // ignore SA1019: field is deprecated, but still included in response when present.
 			"Author":        imageInspect.Author,
 		}))
+
+		// preserve fields in the image Config that have an "omitempty"
+		// in the OCI spec, but weren't omitted in API v1.51 and lower.
 		if versions.LessThan(version, "1.50") {
-			legacyOptions = append(legacyOptions, compat.WithExtraFields(legacyConfigFields["v1.49"]))
+			legacyOptions = append(legacyOptions, compat.WithExtraFields(map[string]any{
+				"Config": legacyConfigFields["v1.49"],
+			}))
 		} else {
-			// inspectResponse preserves fields in the response that have an
-			// "omitempty" in the OCI spec, but didn't omit such fields in
-			// legacy responses before API v1.50.
-			legacyOptions = append(legacyOptions, compat.WithExtraFields(legacyConfigFields["v1.50-v1.51"]))
+			legacyOptions = append(legacyOptions, compat.WithExtraFields(map[string]any{
+				"Config": legacyConfigFields["v1.50-v1.51"],
+			}))
 		}
 	}
 
@@ -555,7 +558,7 @@ func (ir *imageRouter) postImagesTag(ctx context.Context, w http.ResponseWriter,
 		return errdefs.InvalidParameter(errors.New("refusing to create an ambiguous tag using digest algorithm as name"))
 	}
 
-	img, err := ir.backend.GetImage(ctx, vars["name"], backend.GetImageOpts{})
+	img, err := ir.backend.GetImage(ctx, vars["name"], imagebackend.GetImageOpts{})
 	if err != nil {
 		return errdefs.NotFound(err)
 	}

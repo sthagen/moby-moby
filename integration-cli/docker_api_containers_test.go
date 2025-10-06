@@ -504,8 +504,8 @@ func (s *DockerAPISuite) TestContainerAPIBadPort(c *testing.T) {
 	}
 
 	hostConfig := container.HostConfig{
-		PortBindings: container.PortMap{
-			container.MustParsePort("8080/tcp"): []container.PortBinding{
+		PortBindings: network.PortMap{
+			network.MustParsePort("8080/tcp"): []network.PortBinding{
 				{
 					HostPort: "aa80",
 				},
@@ -1588,7 +1588,7 @@ func (s *DockerAPISuite) TestContainersAPICreateMountsCreate(c *testing.T) {
 	var testImg string
 	if testEnv.DaemonInfo.OSType != "windows" {
 		testImg = "test-mount-config"
-		buildImageSuccessfully(c, testImg, build.WithDockerfile(`
+		cli.BuildCmd(c, testImg, build.WithDockerfile(`
 	FROM busybox
 	RUN mkdir `+destPath+` && touch `+destPath+slash+`bar
 	CMD cat `+destPath+slash+`bar

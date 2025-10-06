@@ -10,15 +10,15 @@ import (
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
 	"github.com/distribution/reference"
-	imagespec "github.com/moby/docker-image-spec/specs-go/v1"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	imagetypes "github.com/moby/moby/api/types/image"
-	"github.com/moby/moby/v2/daemon/server/backend"
+	"github.com/moby/moby/v2/daemon/server/imagebackend"
 	"github.com/moby/moby/v2/internal/sliceutil"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sync/semaphore"
 )
 
-func (i *ImageService) ImageInspect(ctx context.Context, refOrID string, opts backend.ImageInspectOpts) (*imagetypes.InspectResponse, error) {
+func (i *ImageService) ImageInspect(ctx context.Context, refOrID string, opts imagebackend.ImageInspectOpts) (*imagetypes.InspectResponse, error) {
 	requestedPlatform := opts.Platform
 
 	c8dImg, err := i.resolveImage(ctx, refOrID)
@@ -62,7 +62,7 @@ func (i *ImageService) ImageInspect(ctx context.Context, refOrID string, opts ba
 		}
 	}
 
-	var img imagespec.DockerOCIImage
+	var img dockerspec.DockerOCIImage
 	if multi.Best != nil {
 		if err := multi.Best.ReadConfig(ctx, &img); err != nil {
 			return nil, err
@@ -86,14 +86,13 @@ func (i *ImageService) ImageInspect(ctx context.Context, refOrID string, opts ba
 	}
 
 	resp := &imagetypes.InspectResponse{
-		ID:            target.Digest.String(),
-		RepoTags:      repoTags,
-		Descriptor:    &target,
-		RepoDigests:   repoDigests,
-		Parent:        parent,
-		DockerVersion: "",
-		Size:          size,
-		Manifests:     manifests,
+		ID:          target.Digest.String(),
+		RepoTags:    repoTags,
+		Descriptor:  &target,
+		RepoDigests: repoDigests,
+		Parent:      parent, //nolint:staticcheck // ignore SA1019: field is deprecated, but still included in response when present.
+		Size:        size,
+		Manifests:   manifests,
 		Metadata: imagetypes.Metadata{
 			LastTagTime: lastUpdated,
 		},

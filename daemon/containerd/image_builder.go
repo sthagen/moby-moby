@@ -21,7 +21,7 @@ import (
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
 	"github.com/distribution/reference"
-	imagespec "github.com/moby/docker-image-spec/specs-go/v1"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/moby/go-archive"
 	"github.com/moby/moby/api/pkg/progress"
 	"github.com/moby/moby/api/pkg/streamformatter"
@@ -32,7 +32,6 @@ import (
 	"github.com/moby/moby/v2/daemon/internal/image"
 	"github.com/moby/moby/v2/daemon/internal/layer"
 	"github.com/moby/moby/v2/daemon/internal/stringid"
-	"github.com/moby/moby/v2/daemon/server/backend"
 	"github.com/moby/moby/v2/daemon/server/buildbackend"
 	"github.com/moby/moby/v2/daemon/server/imagebackend"
 	"github.com/moby/moby/v2/errdefs"
@@ -84,7 +83,7 @@ func (i *ImageService) GetImageAndReleasableLayer(ctx context.Context, refOrID s
 
 	if opts.PullOption != buildbackend.PullOptionForcePull {
 		// TODO(laurazard): same as below
-		img, err := i.GetImage(ctx, refOrID, backend.GetImageOpts{Platform: opts.Platform})
+		img, err := i.GetImage(ctx, refOrID, imagebackend.GetImageOpts{Platform: opts.Platform})
 		if err != nil && opts.PullOption == buildbackend.PullOptionNoPull {
 			return nil, nil, err
 		}
@@ -120,7 +119,7 @@ func (i *ImageService) GetImageAndReleasableLayer(ctx context.Context, refOrID s
 
 	// TODO(laurazard): pullForBuilder should return whatever we
 	// need here instead of having to go and get it again
-	img, err := i.GetImage(ctx, refOrID, backend.GetImageOpts{
+	img, err := i.GetImage(ctx, refOrID, imagebackend.GetImageOpts{
 		Platform: opts.Platform,
 	})
 	if err != nil {
@@ -159,7 +158,7 @@ func (i *ImageService) pullForBuilder(ctx context.Context, name string, authConf
 		return nil, err
 	}
 
-	img, err := i.GetImage(ctx, name, backend.GetImageOpts{Platform: platform})
+	img, err := i.GetImage(ctx, name, imagebackend.GetImageOpts{Platform: platform})
 	if err != nil {
 		if cerrdefs.IsNotFound(err) && img != nil && platform != nil {
 			imgPlat := ocispec.Platform{
@@ -492,7 +491,7 @@ func (i *ImageService) CreateImage(ctx context.Context, config []byte, parent st
 	return image.Clone(imgToCreate, createdImageId), nil
 }
 
-func (i *ImageService) createImageOCI(ctx context.Context, imgToCreate imagespec.DockerOCIImage,
+func (i *ImageService) createImageOCI(ctx context.Context, imgToCreate dockerspec.DockerOCIImage,
 	parentDigest digest.Digest, layers []ocispec.Descriptor,
 	containerConfig container.Config,
 ) (image.ID, error) {
@@ -537,7 +536,7 @@ func (i *ImageService) createImageOCI(ctx context.Context, imgToCreate imagespec
 
 // writeContentsForImage will commit oci image config and manifest into containerd's content store.
 func writeContentsForImage(ctx context.Context, snName string, cs content.Store,
-	newConfig imagespec.DockerOCIImage, layers []ocispec.Descriptor,
+	newConfig dockerspec.DockerOCIImage, layers []ocispec.Descriptor,
 	containerConfig container.Config,
 ) (
 	manifestDesc ocispec.Descriptor,
