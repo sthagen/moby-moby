@@ -16,19 +16,25 @@ import (
 )
 
 func newImagePullResponse(rc io.ReadCloser) ImagePullResponse {
+	if rc == nil {
+		panic("nil io.ReadCloser")
+	}
 	return ImagePullResponse{
 		rc:    rc,
-		close: &sync.Once{},
+		close: sync.OnceValue(rc.Close),
 	}
 }
 
 type ImagePullResponse struct {
 	rc    io.ReadCloser
-	close *sync.Once
+	close func() error
 }
 
 // Read implements io.ReadCloser
 func (r ImagePullResponse) Read(p []byte) (n int, err error) {
+	if r.rc == nil {
+		return 0, io.EOF
+	}
 	return r.rc.Read(p)
 }
 
@@ -37,20 +43,14 @@ func (r ImagePullResponse) Close() error {
 	if r.close == nil {
 		return nil
 	}
-	var err error
-	r.close.Do(func() {
-		if r.rc != nil {
-			err = r.rc.Close()
-		}
-	})
-	return err
+	return r.close()
 }
 
 // JSONMessages decodes the response stream as a sequence of JSONMessages.
 // if stream ends or context is cancelled, the underlying [io.Reader] is closed.
 func (r ImagePullResponse) JSONMessages(ctx context.Context) iter.Seq2[jsonmessage.JSONMessage, error] {
 	context.AfterFunc(ctx, func() {
-		r.Close()
+		_ = r.Close()
 	})
 	dec := json.NewDecoder(r)
 	return func(yield func(jsonmessage.JSONMessage, error) bool) {
