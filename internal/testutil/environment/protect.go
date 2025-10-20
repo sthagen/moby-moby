@@ -193,8 +193,8 @@ func ProtectPlugins(ctx context.Context, t testing.TB, testEnv *Execution) {
 
 func getExistingPlugins(ctx context.Context, t testing.TB, testEnv *Execution) []string {
 	t.Helper()
-	client := testEnv.APIClient()
-	pluginList, err := client.PluginList(ctx, nil)
+	apiClient := testEnv.APIClient()
+	pluginList, err := apiClient.PluginList(ctx, client.PluginListOptions{})
 	// Docker EE does not allow cluster-wide plugin management.
 	if cerrdefs.IsNotImplemented(err) {
 		return []string{}
@@ -227,8 +227,9 @@ func ProtectVolumes(ctx context.Context, t testing.TB, testEnv *Execution) {
 func getExistingVolumes(ctx context.Context, t testing.TB, testEnv *Execution) []string {
 	t.Helper()
 	apiClient := testEnv.APIClient()
-	volumeList, err := apiClient.VolumeList(ctx, client.VolumeListOptions{})
+	res, err := apiClient.VolumeList(ctx, client.VolumeListOptions{})
 	assert.NilError(t, err, "failed to list volumes")
+	volumeList := res.List
 
 	var volumes []string
 	for _, vol := range volumeList.Volumes {

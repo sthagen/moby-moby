@@ -127,14 +127,17 @@ func removeImage(ctx context.Context, t testing.TB, apiclient client.ImageAPICli
 
 func deleteAllVolumes(ctx context.Context, t testing.TB, c client.VolumeAPIClient, protectedVolumes map[string]struct{}) {
 	t.Helper()
-	volumes, err := c.VolumeList(ctx, client.VolumeListOptions{})
+	res, err := c.VolumeList(ctx, client.VolumeListOptions{})
 	assert.Check(t, err, "failed to list volumes")
+	volumeList := res.List
 
-	for _, v := range volumes.Volumes {
+	for _, v := range volumeList.Volumes {
 		if _, ok := protectedVolumes[v.Name]; ok {
 			continue
 		}
-		err := c.VolumeRemove(ctx, v.Name, true)
+		err := c.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{
+			Force: true,
+		})
 		assert.Check(t, err, "failed to remove volume %s", v.Name)
 	}
 }
@@ -162,7 +165,7 @@ func deleteAllNetworks(ctx context.Context, t testing.TB, c client.NetworkAPICli
 
 func deleteAllPlugins(ctx context.Context, t testing.TB, c client.PluginAPIClient, protectedPlugins map[string]struct{}) {
 	t.Helper()
-	plugins, err := c.PluginList(ctx, nil)
+	plugins, err := c.PluginList(ctx, client.PluginListOptions{})
 	// Docker EE does not allow cluster-wide plugin management.
 	if cerrdefs.IsNotImplemented(err) {
 		return
