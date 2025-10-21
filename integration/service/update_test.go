@@ -83,14 +83,14 @@ func TestServiceUpdateSecrets(t *testing.T) {
 
 	secretName := "TestSecret_" + t.Name()
 	secretTarget := "targetName"
-	resp, err := apiClient.SecretCreate(ctx, swarmtypes.SecretSpec{
+	secretResp, err := apiClient.SecretCreate(ctx, swarmtypes.SecretSpec{
 		Annotations: swarmtypes.Annotations{
 			Name: secretName,
 		},
 		Data: []byte("TESTINGDATA"),
 	})
 	assert.NilError(t, err)
-	assert.Check(t, resp.ID != "")
+	assert.Check(t, secretResp.ID != "")
 
 	serviceName := "TestService_" + t.Name()
 	serviceID := swarm.CreateService(ctx, t, d, swarm.ServiceWithName(serviceName))
@@ -105,7 +105,7 @@ func TestServiceUpdateSecrets(t *testing.T) {
 				GID:  "0",
 				Mode: 0o600,
 			},
-			SecretID:   resp.ID,
+			SecretID:   secretResp.ID,
 			SecretName: secretName,
 		},
 	)
@@ -145,11 +145,13 @@ func TestServiceUpdateConfigs(t *testing.T) {
 
 	configName := "TestConfig_" + t.Name()
 	configTarget := "targetName"
-	resp, err := apiClient.ConfigCreate(ctx, swarmtypes.ConfigSpec{
-		Annotations: swarmtypes.Annotations{
-			Name: configName,
+	resp, err := apiClient.ConfigCreate(ctx, client.ConfigCreateOptions{
+		Spec: swarmtypes.ConfigSpec{
+			Annotations: swarmtypes.Annotations{
+				Name: configName,
+			},
+			Data: []byte("TESTINGDATA"),
 		},
-		Data: []byte("TESTINGDATA"),
 	})
 	assert.NilError(t, err)
 	assert.Check(t, resp.ID != "")
@@ -225,7 +227,7 @@ func TestServiceUpdateNetwork(t *testing.T) {
 		Scope:   "swarm",
 	})
 	assert.NilError(t, err)
-	assert.Assert(t, len(netInfo.Containers) == 2, "Expected 2 endpoints, one for container and one for LB Sandbox")
+	assert.Assert(t, len(netInfo.Network.Containers) == 2, "Expected 2 endpoints, one for container and one for LB Sandbox")
 
 	// Remove network from service
 	service.Spec.TaskTemplate.Networks = []swarmtypes.NetworkAttachmentConfig{}
@@ -239,7 +241,7 @@ func TestServiceUpdateNetwork(t *testing.T) {
 	})
 
 	assert.NilError(t, err)
-	assert.Assert(t, len(netInfo.Containers) == 0, "Load balancing endpoint still exists in network")
+	assert.Assert(t, len(netInfo.Network.Containers) == 0, "Load balancing endpoint still exists in network")
 
 	err = apiClient.NetworkRemove(ctx, overlayID)
 	assert.NilError(t, err)
@@ -323,13 +325,13 @@ func TestServiceUpdatePidsLimit(t *testing.T) {
 
 func getServiceTaskContainer(ctx context.Context, t *testing.T, cli client.APIClient, serviceID string) container.InspectResponse {
 	t.Helper()
-	tasks, err := cli.TaskList(ctx, client.TaskListOptions{
+	taskResult, err := cli.TaskList(ctx, client.TaskListOptions{
 		Filters: make(client.Filters).Add("service", serviceID).Add("desired-state", "running"),
 	})
 	assert.NilError(t, err)
-	assert.Assert(t, len(tasks) > 0)
+	assert.Assert(t, len(taskResult.Tasks) > 0)
 
-	ctr, err := cli.ContainerInspect(ctx, tasks[0].Status.ContainerStatus.ContainerID)
+	ctr, err := cli.ContainerInspect(ctx, taskResult.Tasks[0].Status.ContainerStatus.ContainerID)
 	assert.NilError(t, err)
 	assert.Equal(t, ctr.State.Running, true)
 	return ctr

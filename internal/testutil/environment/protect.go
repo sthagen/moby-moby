@@ -165,14 +165,14 @@ func ProtectNetworks(ctx context.Context, t testing.TB, testEnv *Execution) {
 func getExistingNetworks(ctx context.Context, t testing.TB, testEnv *Execution) []string {
 	t.Helper()
 	apiClient := testEnv.APIClient()
-	networkList, err := apiClient.NetworkList(ctx, client.NetworkListOptions{})
+	res, err := apiClient.NetworkList(ctx, client.NetworkListOptions{})
 	assert.NilError(t, err, "failed to list networks")
 
-	var networks []string
-	for _, network := range networkList {
-		networks = append(networks, network.ID)
+	var nwIDs []string
+	for _, nw := range res.Items {
+		nwIDs = append(nwIDs, nw.ID)
 	}
-	return networks
+	return nwIDs
 }
 
 // ProtectPlugin adds the specified plugin(s) to be protected in case of clean
@@ -229,10 +229,9 @@ func getExistingVolumes(ctx context.Context, t testing.TB, testEnv *Execution) [
 	apiClient := testEnv.APIClient()
 	res, err := apiClient.VolumeList(ctx, client.VolumeListOptions{})
 	assert.NilError(t, err, "failed to list volumes")
-	volumeList := res.List
 
 	var volumes []string
-	for _, vol := range volumeList.Volumes {
+	for _, vol := range res.Items.Volumes {
 		volumes = append(volumes, vol.Name)
 	}
 	return volumes

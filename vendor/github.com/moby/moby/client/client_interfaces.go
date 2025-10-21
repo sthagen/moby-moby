@@ -14,7 +14,6 @@ import (
 	"github.com/moby/moby/api/types/registry"
 	"github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/api/types/system"
-	"github.com/moby/moby/api/types/volume"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -114,16 +113,16 @@ type ImageAPIClient interface {
 
 	ImageList(ctx context.Context, options ImageListOptions) ([]image.Summary, error)
 	ImagePull(ctx context.Context, ref string, options ImagePullOptions) (ImagePullResponse, error)
-	ImagePush(ctx context.Context, ref string, options ImagePushOptions) (io.ReadCloser, error)
+	ImagePush(ctx context.Context, ref string, options ImagePushOptions) (ImagePushResponse, error)
 	ImageRemove(ctx context.Context, image string, options ImageRemoveOptions) ([]image.DeleteResponse, error)
 	ImageSearch(ctx context.Context, term string, options ImageSearchOptions) ([]registry.SearchResult, error)
 	ImageTag(ctx context.Context, image, ref string) error
 	ImagesPrune(ctx context.Context, opts ImagePruneOptions) (ImagePruneResult, error)
 
-	ImageInspect(ctx context.Context, image string, _ ...ImageInspectOption) (image.InspectResponse, error)
-	ImageHistory(ctx context.Context, image string, _ ...ImageHistoryOption) ([]image.HistoryResponseItem, error)
-	ImageLoad(ctx context.Context, input io.Reader, _ ...ImageLoadOption) (LoadResponse, error)
-	ImageSave(ctx context.Context, images []string, _ ...ImageSaveOption) (io.ReadCloser, error)
+	ImageInspect(ctx context.Context, image string, _ ...ImageInspectOption) (ImageInspectResult, error)
+	ImageHistory(ctx context.Context, image string, _ ...ImageHistoryOption) (ImageHistoryResult, error)
+	ImageLoad(ctx context.Context, input io.Reader, _ ...ImageLoadOption) (ImageLoadResult, error)
+	ImageSave(ctx context.Context, images []string, _ ...ImageSaveOption) (ImageSaveResult, error)
 }
 
 // NetworkAPIClient defines API client methods for the networks
@@ -131,9 +130,8 @@ type NetworkAPIClient interface {
 	NetworkConnect(ctx context.Context, network, container string, config *network.EndpointSettings) error
 	NetworkCreate(ctx context.Context, name string, options NetworkCreateOptions) (network.CreateResponse, error)
 	NetworkDisconnect(ctx context.Context, network, container string, force bool) error
-	NetworkInspect(ctx context.Context, network string, options NetworkInspectOptions) (network.Inspect, error)
-	NetworkInspectWithRaw(ctx context.Context, network string, options NetworkInspectOptions) (network.Inspect, []byte, error)
-	NetworkList(ctx context.Context, options NetworkListOptions) ([]network.Summary, error)
+	NetworkInspect(ctx context.Context, network string, options NetworkInspectOptions) (NetworkInspectResult, error)
+	NetworkList(ctx context.Context, options NetworkListOptions) (NetworkListResult, error)
 	NetworkRemove(ctx context.Context, network string) error
 	NetworksPrune(ctx context.Context, opts NetworkPruneOptions) (NetworkPruneResult, error)
 }
@@ -169,19 +167,19 @@ type ServiceAPIClient interface {
 	ServiceUpdate(ctx context.Context, serviceID string, version swarm.Version, service swarm.ServiceSpec, options ServiceUpdateOptions) (swarm.ServiceUpdateResponse, error)
 	ServiceLogs(ctx context.Context, serviceID string, options ContainerLogsOptions) (io.ReadCloser, error)
 	TaskLogs(ctx context.Context, taskID string, options ContainerLogsOptions) (io.ReadCloser, error)
-	TaskInspectWithRaw(ctx context.Context, taskID string) (swarm.Task, []byte, error)
-	TaskList(ctx context.Context, options TaskListOptions) ([]swarm.Task, error)
+	TaskInspect(ctx context.Context, taskID string) (TaskInspectResult, error)
+	TaskList(ctx context.Context, options TaskListOptions) (TaskListResult, error)
 }
 
 // SwarmAPIClient defines API client methods for the swarm
 type SwarmAPIClient interface {
-	SwarmInit(ctx context.Context, req swarm.InitRequest) (string, error)
-	SwarmJoin(ctx context.Context, req swarm.JoinRequest) error
-	SwarmGetUnlockKey(ctx context.Context) (swarm.UnlockKeyResponse, error)
-	SwarmUnlock(ctx context.Context, req swarm.UnlockRequest) error
-	SwarmLeave(ctx context.Context, force bool) error
-	SwarmInspect(ctx context.Context) (swarm.Swarm, error)
-	SwarmUpdate(ctx context.Context, version swarm.Version, swarm swarm.Spec, flags SwarmUpdateFlags) error
+	SwarmInit(ctx context.Context, options SwarmInitOptions) (SwarmInitResult, error)
+	SwarmJoin(ctx context.Context, options SwarmJoinOptions) (SwarmJoinResult, error)
+	SwarmGetUnlockKey(ctx context.Context) (SwarmGetUnlockKeyResult, error)
+	SwarmUnlock(ctx context.Context, options SwarmUnlockOptions) (SwarmUnlockResult, error)
+	SwarmLeave(ctx context.Context, options SwarmLeaveOptions) (SwarmLeaveResult, error)
+	SwarmInspect(ctx context.Context) (SwarmInspectResult, error)
+	SwarmUpdate(ctx context.Context, version swarm.Version, options SwarmUpdateOptions) (SwarmUpdateResult, error)
 }
 
 // SystemAPIClient defines API client methods for the system
@@ -195,7 +193,7 @@ type SystemAPIClient interface {
 
 // VolumeAPIClient defines API client methods for the volumes
 type VolumeAPIClient interface {
-	VolumeCreate(ctx context.Context, options volume.CreateOptions) (volume.Volume, error)
+	VolumeCreate(ctx context.Context, options VolumeCreateOptions) (VolumeCreateResult, error)
 	VolumeInspect(ctx context.Context, volumeID string) (VolumeInspectResult, error)
 	VolumeInspectWithRaw(ctx context.Context, volumeID string) (VolumeInspectResult, []byte, error)
 	VolumeList(ctx context.Context, options VolumeListOptions) (VolumeListResult, error)
@@ -215,9 +213,9 @@ type SecretAPIClient interface {
 
 // ConfigAPIClient defines API client methods for configs
 type ConfigAPIClient interface {
-	ConfigList(ctx context.Context, options ConfigListOptions) ([]swarm.Config, error)
-	ConfigCreate(ctx context.Context, config swarm.ConfigSpec) (swarm.ConfigCreateResponse, error)
-	ConfigRemove(ctx context.Context, id string) error
-	ConfigInspectWithRaw(ctx context.Context, name string) (swarm.Config, []byte, error)
-	ConfigUpdate(ctx context.Context, id string, version swarm.Version, config swarm.ConfigSpec) error
+	ConfigList(ctx context.Context, options ConfigListOptions) (ConfigListResult, error)
+	ConfigCreate(ctx context.Context, options ConfigCreateOptions) (ConfigCreateResult, error)
+	ConfigRemove(ctx context.Context, id string, options ConfigRemoveOptions) (ConfigRemoveResult, error)
+	ConfigInspect(ctx context.Context, id string, options ConfigInspectOptions) (ConfigInspectResult, error)
+	ConfigUpdate(ctx context.Context, id string, options ConfigUpdateOptions) (ConfigUpdateResult, error)
 }
