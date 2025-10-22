@@ -94,10 +94,10 @@ func getAllContainers(ctx context.Context, t testing.TB, apiClient client.Contai
 
 func deleteAllImages(ctx context.Context, t testing.TB, apiclient client.ImageAPIClient, protectedImages map[string]struct{}) {
 	t.Helper()
-	images, err := apiclient.ImageList(ctx, client.ImageListOptions{})
+	imageList, err := apiclient.ImageList(ctx, client.ImageListOptions{})
 	assert.Check(t, err, "failed to list images")
 
-	for _, img := range images {
+	for _, img := range imageList.Items {
 		tags := tagsFromImageSummary(img)
 		if _, ok := protectedImages[img.ID]; ok {
 			continue
@@ -164,18 +164,18 @@ func deleteAllNetworks(ctx context.Context, t testing.TB, c client.NetworkAPICli
 
 func deleteAllPlugins(ctx context.Context, t testing.TB, c client.PluginAPIClient, protectedPlugins map[string]struct{}) {
 	t.Helper()
-	plugins, err := c.PluginList(ctx, client.PluginListOptions{})
+	res, err := c.PluginList(ctx, client.PluginListOptions{})
 	// Docker EE does not allow cluster-wide plugin management.
 	if cerrdefs.IsNotImplemented(err) {
 		return
 	}
 	assert.Check(t, err, "failed to list plugins")
 
-	for _, p := range plugins {
+	for _, p := range res.Items {
 		if _, ok := protectedPlugins[p.Name]; ok {
 			continue
 		}
-		err := c.PluginRemove(ctx, p.Name, client.PluginRemoveOptions{Force: true})
+		_, err := c.PluginRemove(ctx, p.Name, client.PluginRemoveOptions{Force: true})
 		assert.Check(t, err, "failed to remove plugin %s", p.ID)
 	}
 }

@@ -8,9 +8,7 @@ import (
 	"github.com/moby/moby/api/types"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
-	"github.com/moby/moby/api/types/image"
 	"github.com/moby/moby/api/types/network"
-	"github.com/moby/moby/api/types/plugin"
 	"github.com/moby/moby/api/types/registry"
 	"github.com/moby/moby/api/types/swarm"
 	"github.com/moby/moby/api/types/system"
@@ -36,7 +34,7 @@ type stableAPIClient interface {
 	DaemonHost() string
 	ServerVersion(ctx context.Context) (types.Version, error)
 	NegotiateAPIVersion(ctx context.Context)
-	NegotiateAPIVersionPing(types.Ping)
+	NegotiateAPIVersionPing(PingResult)
 	HijackDialer
 	Dialer() func(context.Context) (net.Conn, error)
 	Close() error
@@ -100,23 +98,23 @@ type ExecAPIClient interface {
 
 // DistributionAPIClient defines API client methods for the registry
 type DistributionAPIClient interface {
-	DistributionInspect(ctx context.Context, image, encodedRegistryAuth string) (registry.DistributionInspect, error)
+	DistributionInspect(ctx context.Context, image string, options DistributionInspectOptions) (DistributionInspectResult, error)
 }
 
 // ImageAPIClient defines API client methods for the images
 type ImageAPIClient interface {
-	ImageBuild(ctx context.Context, context io.Reader, options ImageBuildOptions) (ImageBuildResponse, error)
+	ImageBuild(ctx context.Context, context io.Reader, options ImageBuildOptions) (ImageBuildResult, error)
 	BuildCachePrune(ctx context.Context, opts BuildCachePruneOptions) (BuildCachePruneResult, error)
-	BuildCancel(ctx context.Context, id string, opts BuildCancelOptions) error
-	ImageCreate(ctx context.Context, parentReference string, options ImageCreateOptions) (io.ReadCloser, error)
-	ImageImport(ctx context.Context, source ImageImportSource, ref string, options ImageImportOptions) (io.ReadCloser, error)
+	BuildCancel(ctx context.Context, id string, opts BuildCancelOptions) (BuildCancelResult, error)
+	ImageCreate(ctx context.Context, parentReference string, options ImageCreateOptions) (ImageCreateResult, error)
+	ImageImport(ctx context.Context, source ImageImportSource, ref string, options ImageImportOptions) (ImageImportResult, error)
 
-	ImageList(ctx context.Context, options ImageListOptions) ([]image.Summary, error)
+	ImageList(ctx context.Context, options ImageListOptions) (ImageListResult, error)
 	ImagePull(ctx context.Context, ref string, options ImagePullOptions) (ImagePullResponse, error)
 	ImagePush(ctx context.Context, ref string, options ImagePushOptions) (ImagePushResponse, error)
-	ImageRemove(ctx context.Context, image string, options ImageRemoveOptions) ([]image.DeleteResponse, error)
-	ImageSearch(ctx context.Context, term string, options ImageSearchOptions) ([]registry.SearchResult, error)
-	ImageTag(ctx context.Context, image, ref string) error
+	ImageRemove(ctx context.Context, image string, options ImageRemoveOptions) (ImageRemoveResult, error)
+	ImageSearch(ctx context.Context, term string, options ImageSearchOptions) (ImageSearchResult, error)
+	ImageTag(ctx context.Context, options ImageTagOptions) (ImageTagResult, error)
 	ImagesPrune(ctx context.Context, opts ImagePruneOptions) (ImagePruneResult, error)
 
 	ImageInspect(ctx context.Context, image string, _ ...ImageInspectOption) (ImageInspectResult, error)
@@ -138,36 +136,36 @@ type NetworkAPIClient interface {
 
 // NodeAPIClient defines API client methods for the nodes
 type NodeAPIClient interface {
-	NodeInspectWithRaw(ctx context.Context, nodeID string) (swarm.Node, []byte, error)
-	NodeList(ctx context.Context, options NodeListOptions) ([]swarm.Node, error)
-	NodeRemove(ctx context.Context, nodeID string, options NodeRemoveOptions) error
-	NodeUpdate(ctx context.Context, nodeID string, version swarm.Version, node swarm.NodeSpec) error
+	NodeInspect(ctx context.Context, nodeID string, options NodeInspectOptions) (NodeInspectResult, error)
+	NodeList(ctx context.Context, options NodeListOptions) (NodeListResult, error)
+	NodeRemove(ctx context.Context, nodeID string, options NodeRemoveOptions) (NodeRemoveResult, error)
+	NodeUpdate(ctx context.Context, nodeID string, options NodeUpdateOptions) (NodeUpdateResult, error)
 }
 
 // PluginAPIClient defines API client methods for the plugins
 type PluginAPIClient interface {
-	PluginList(ctx context.Context, opts PluginListOptions) (plugin.ListResponse, error)
-	PluginRemove(ctx context.Context, name string, options PluginRemoveOptions) error
-	PluginEnable(ctx context.Context, name string, options PluginEnableOptions) error
-	PluginDisable(ctx context.Context, name string, options PluginDisableOptions) error
-	PluginInstall(ctx context.Context, name string, options PluginInstallOptions) (io.ReadCloser, error)
-	PluginUpgrade(ctx context.Context, name string, options PluginInstallOptions) (io.ReadCloser, error)
-	PluginPush(ctx context.Context, name string, registryAuth string) (io.ReadCloser, error)
-	PluginSet(ctx context.Context, name string, args []string) error
-	PluginInspectWithRaw(ctx context.Context, name string) (*plugin.Plugin, []byte, error)
-	PluginCreate(ctx context.Context, createContext io.Reader, options PluginCreateOptions) error
+	PluginList(ctx context.Context, options PluginListOptions) (PluginListResult, error)
+	PluginRemove(ctx context.Context, name string, options PluginRemoveOptions) (PluginRemoveResult, error)
+	PluginEnable(ctx context.Context, name string, options PluginEnableOptions) (PluginEnableResult, error)
+	PluginDisable(ctx context.Context, name string, options PluginDisableOptions) (PluginDisableResult, error)
+	PluginInstall(ctx context.Context, name string, options PluginInstallOptions) (PluginInstallResult, error)
+	PluginUpgrade(ctx context.Context, name string, options PluginUpgradeOptions) (PluginUpgradeResult, error)
+	PluginPush(ctx context.Context, name string, options PluginPushOptions) (PluginPushResult, error)
+	PluginSet(ctx context.Context, name string, options PluginSetOptions) (PluginSetResult, error)
+	PluginInspect(ctx context.Context, name string, options PluginInspectOptions) (PluginInspectResult, error)
+	PluginCreate(ctx context.Context, createContext io.Reader, options PluginCreateOptions) (PluginCreateResult, error)
 }
 
 // ServiceAPIClient defines API client methods for the services
 type ServiceAPIClient interface {
-	ServiceCreate(ctx context.Context, service swarm.ServiceSpec, options ServiceCreateOptions) (swarm.ServiceCreateResponse, error)
-	ServiceInspectWithRaw(ctx context.Context, serviceID string, options ServiceInspectOptions) (swarm.Service, []byte, error)
-	ServiceList(ctx context.Context, options ServiceListOptions) ([]swarm.Service, error)
-	ServiceRemove(ctx context.Context, serviceID string) error
-	ServiceUpdate(ctx context.Context, serviceID string, version swarm.Version, service swarm.ServiceSpec, options ServiceUpdateOptions) (swarm.ServiceUpdateResponse, error)
-	ServiceLogs(ctx context.Context, serviceID string, options ContainerLogsOptions) (io.ReadCloser, error)
-	TaskLogs(ctx context.Context, taskID string, options ContainerLogsOptions) (io.ReadCloser, error)
-	TaskInspect(ctx context.Context, taskID string) (TaskInspectResult, error)
+	ServiceCreate(ctx context.Context, service swarm.ServiceSpec, options ServiceCreateOptions) (ServiceCreateResult, error)
+	ServiceInspect(ctx context.Context, serviceID string, options ServiceInspectOptions) (ServiceInspectResult, error)
+	ServiceList(ctx context.Context, options ServiceListOptions) (ServiceListResult, error)
+	ServiceRemove(ctx context.Context, serviceID string, options ServiceRemoveOptions) (ServiceRemoveResult, error)
+	ServiceUpdate(ctx context.Context, serviceID string, version swarm.Version, service swarm.ServiceSpec, options ServiceUpdateOptions) (ServiceUpdateResult, error)
+	ServiceLogs(ctx context.Context, serviceID string, options ServiceLogsOptions) (ServiceLogsResult, error)
+	TaskLogs(ctx context.Context, taskID string, options TaskLogsOptions) (TaskLogsResult, error)
+	TaskInspect(ctx context.Context, taskID string, options TaskInspectOptions) (TaskInspectResult, error)
 	TaskList(ctx context.Context, options TaskListOptions) (TaskListResult, error)
 }
 
@@ -178,7 +176,7 @@ type SwarmAPIClient interface {
 	SwarmGetUnlockKey(ctx context.Context) (SwarmGetUnlockKeyResult, error)
 	SwarmUnlock(ctx context.Context, options SwarmUnlockOptions) (SwarmUnlockResult, error)
 	SwarmLeave(ctx context.Context, options SwarmLeaveOptions) (SwarmLeaveResult, error)
-	SwarmInspect(ctx context.Context) (SwarmInspectResult, error)
+	SwarmInspect(ctx context.Context, options SwarmInspectOptions) (SwarmInspectResult, error)
 	SwarmUpdate(ctx context.Context, version swarm.Version, options SwarmUpdateOptions) (SwarmUpdateResult, error)
 }
 
@@ -188,14 +186,13 @@ type SystemAPIClient interface {
 	Info(ctx context.Context) (system.Info, error)
 	RegistryLogin(ctx context.Context, auth registry.AuthConfig) (registry.AuthenticateOKBody, error)
 	DiskUsage(ctx context.Context, options DiskUsageOptions) (system.DiskUsage, error)
-	Ping(ctx context.Context) (types.Ping, error)
+	Ping(ctx context.Context, options PingOptions) (PingResult, error)
 }
 
 // VolumeAPIClient defines API client methods for the volumes
 type VolumeAPIClient interface {
 	VolumeCreate(ctx context.Context, options VolumeCreateOptions) (VolumeCreateResult, error)
-	VolumeInspect(ctx context.Context, volumeID string) (VolumeInspectResult, error)
-	VolumeInspectWithRaw(ctx context.Context, volumeID string) (VolumeInspectResult, []byte, error)
+	VolumeInspect(ctx context.Context, volumeID string, options VolumeInspectOptions) (VolumeInspectResult, error)
 	VolumeList(ctx context.Context, options VolumeListOptions) (VolumeListResult, error)
 	VolumeRemove(ctx context.Context, volumeID string, options VolumeRemoveOptions) error
 	VolumesPrune(ctx context.Context, opts VolumePruneOptions) (VolumePruneResult, error)
@@ -204,11 +201,11 @@ type VolumeAPIClient interface {
 
 // SecretAPIClient defines API client methods for secrets
 type SecretAPIClient interface {
-	SecretList(ctx context.Context, options SecretListOptions) ([]swarm.Secret, error)
-	SecretCreate(ctx context.Context, secret swarm.SecretSpec) (swarm.SecretCreateResponse, error)
-	SecretRemove(ctx context.Context, id string) error
-	SecretInspectWithRaw(ctx context.Context, name string) (swarm.Secret, []byte, error)
-	SecretUpdate(ctx context.Context, id string, version swarm.Version, secret swarm.SecretSpec) error
+	SecretList(ctx context.Context, options SecretListOptions) (SecretListResult, error)
+	SecretCreate(ctx context.Context, options SecretCreateOptions) (SecretCreateResult, error)
+	SecretRemove(ctx context.Context, id string, options SecretRemoveOptions) (SecretRemoveResult, error)
+	SecretInspect(ctx context.Context, id string, options SecretInspectOptions) (SecretInspectResult, error)
+	SecretUpdate(ctx context.Context, id string, options SecretUpdateOptions) (SecretUpdateResult, error)
 }
 
 // ConfigAPIClient defines API client methods for configs

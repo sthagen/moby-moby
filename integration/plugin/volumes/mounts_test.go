@@ -47,14 +47,14 @@ func TestPluginWithDevMounts(t *testing.T) {
 		c.IpcHost = true
 	})
 
-	err = c.PluginEnable(ctx, "test", client.PluginEnableOptions{Timeout: 30})
+	_, err = c.PluginEnable(ctx, "test", client.PluginEnableOptions{Timeout: 30})
 	assert.NilError(t, err)
 	defer func() {
-		err := c.PluginRemove(ctx, "test", client.PluginRemoveOptions{Force: true})
+		_, err := c.PluginRemove(ctx, "test", client.PluginRemoveOptions{Force: true})
 		assert.Check(t, err)
 	}()
 
-	p, _, err := c.PluginInspectWithRaw(ctx, "test")
+	resp, err := c.PluginInspect(ctx, "test", client.PluginInspectOptions{})
 	assert.NilError(t, err)
-	assert.Assert(t, p.Enabled)
+	assert.Assert(t, resp.Plugin.Enabled)
 }

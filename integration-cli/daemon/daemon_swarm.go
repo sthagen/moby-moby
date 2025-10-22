@@ -67,12 +67,12 @@ func (d *Daemon) CheckServiceUpdateState(ctx context.Context, service string) fu
 func (d *Daemon) CheckPluginRunning(ctx context.Context, plugin string) func(c *testing.T) (any, string) {
 	return func(t *testing.T) (any, string) {
 		apiclient := d.NewClientT(t)
-		resp, _, err := apiclient.PluginInspectWithRaw(ctx, plugin)
+		resp, err := apiclient.PluginInspect(ctx, plugin, client.PluginInspectOptions{})
 		if cerrdefs.IsNotFound(err) {
 			return false, fmt.Sprintf("%v", err)
 		}
 		assert.NilError(t, err)
-		return resp.Enabled, fmt.Sprintf("%+v", resp)
+		return resp.Plugin.Enabled, fmt.Sprintf("%+v", resp.Plugin)
 	}
 }
 
@@ -80,12 +80,12 @@ func (d *Daemon) CheckPluginRunning(ctx context.Context, plugin string) func(c *
 func (d *Daemon) CheckPluginImage(ctx context.Context, plugin string) func(c *testing.T) (any, string) {
 	return func(t *testing.T) (any, string) {
 		apiclient := d.NewClientT(t)
-		resp, _, err := apiclient.PluginInspectWithRaw(ctx, plugin)
+		resp, err := apiclient.PluginInspect(ctx, plugin, client.PluginInspectOptions{})
 		if cerrdefs.IsNotFound(err) {
 			return false, fmt.Sprintf("%v", err)
 		}
 		assert.NilError(t, err)
-		return resp.PluginReference, fmt.Sprintf("%+v", resp)
+		return resp.Plugin.PluginReference, fmt.Sprintf("%+v", resp.Plugin)
 	}
 }
 
@@ -103,13 +103,13 @@ func (d *Daemon) CheckRunningTaskNetworks(ctx context.Context) func(t *testing.T
 		cli := d.NewClientT(t)
 		defer cli.Close()
 
-		taskResult, err := cli.TaskList(ctx, client.TaskListOptions{
+		taskList, err := cli.TaskList(ctx, client.TaskListOptions{
 			Filters: make(client.Filters).Add("desired-state", "running"),
 		})
 		assert.NilError(t, err)
 
 		result := make(map[string]int)
-		for _, task := range taskResult.Tasks {
+		for _, task := range taskList.Items {
 			for _, network := range task.Spec.Networks {
 				result[network.Target]++
 			}
@@ -124,13 +124,13 @@ func (d *Daemon) CheckRunningTaskImages(ctx context.Context) func(t *testing.T) 
 		cli := d.NewClientT(t)
 		defer cli.Close()
 
-		taskResult, err := cli.TaskList(ctx, client.TaskListOptions{
+		taskList, err := cli.TaskList(ctx, client.TaskListOptions{
 			Filters: make(client.Filters).Add("desired-state", "running"),
 		})
 		assert.NilError(t, err)
 
 		result := make(map[string]int)
-		for _, task := range taskResult.Tasks {
+		for _, task := range taskList.Items {
 			if task.Status.State == swarm.TaskStateRunning && task.Spec.ContainerSpec != nil {
 				result[task.Spec.ContainerSpec.Image]++
 			}
@@ -178,12 +178,12 @@ func (d *Daemon) CheckLeader(ctx context.Context) func(t *testing.T) (any, strin
 
 		errList := "could not get node list"
 
-		ls, err := cli.NodeList(ctx, client.NodeListOptions{})
+		result, err := cli.NodeList(ctx, client.NodeListOptions{})
 		if err != nil {
 			return err, errList
 		}
 
-		for _, node := range ls {
+		for _, node := range result.Items {
 			if node.ManagerStatus != nil && node.ManagerStatus.Leader {
 				return nil, ""
 			}

@@ -35,19 +35,19 @@ func TestServicePlugin(t *testing.T) {
 	apiclient := d.NewClientT(t)
 	err := plugin.Create(ctx, apiclient, repo)
 	assert.NilError(t, err)
-	r, err := apiclient.PluginPush(ctx, repo, "")
+	r, err := apiclient.PluginPush(ctx, repo, client.PluginPushOptions{})
 	assert.NilError(t, err)
 	_, err = io.Copy(io.Discard, r)
 	assert.NilError(t, err)
-	err = apiclient.PluginRemove(ctx, repo, client.PluginRemoveOptions{})
+	_, err = apiclient.PluginRemove(ctx, repo, client.PluginRemoveOptions{})
 	assert.NilError(t, err)
 	err = plugin.Create(ctx, apiclient, repo2)
 	assert.NilError(t, err)
-	r, err = apiclient.PluginPush(ctx, repo2, "")
+	r, err = apiclient.PluginPush(ctx, repo2, client.PluginPushOptions{})
 	assert.NilError(t, err)
 	_, err = io.Copy(io.Discard, r)
 	assert.NilError(t, err)
-	err = apiclient.PluginRemove(ctx, repo2, client.PluginRemoveOptions{})
+	_, err = apiclient.PluginRemove(ctx, repo2, client.PluginRemoveOptions{})
 	assert.NilError(t, err)
 	d.Stop(t)
 
@@ -72,10 +72,10 @@ func TestServicePlugin(t *testing.T) {
 		t.Log("No tasks found for plugin service")
 		t.Fail()
 	}
-	p, _, err := d1.NewClientT(t).PluginInspectWithRaw(ctx, name)
+	res, err := d1.NewClientT(t).PluginInspect(ctx, name, client.PluginInspectOptions{})
 	assert.NilError(t, err, "Error inspecting service plugin")
 	found := false
-	for _, env := range p.Settings.Env {
+	for _, env := range res.Plugin.Settings.Env {
 		assert.Equal(t, strings.HasPrefix(env, "baz"), false, "Environment variable entry %q is invalid and should not be present", "baz")
 		if strings.HasPrefix(env, "foo=") {
 			found = true
