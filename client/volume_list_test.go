@@ -1,11 +1,8 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"testing"
 
@@ -54,26 +51,19 @@ func TestVolumeList(t *testing.T) {
 			if actualFilters != listCase.expectedFilters {
 				return nil, fmt.Errorf("filters not set in URL query properly. Expected '%s', got %s", listCase.expectedFilters, actualFilters)
 			}
-			content, err := json.Marshal(volume.ListResponse{
+			return mockJSONResponse(http.StatusOK, nil, volume.ListResponse{
 				Volumes: []*volume.Volume{
 					{
 						Name:   "volume",
 						Driver: "local",
 					},
 				},
-			})
-			if err != nil {
-				return nil, err
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader(content)),
-			}, nil
+			})(req)
 		}))
 		assert.NilError(t, err)
 
 		result, err := client.VolumeList(context.Background(), VolumeListOptions{Filters: listCase.filters})
 		assert.NilError(t, err)
-		assert.Check(t, is.Len(result.Items.Volumes, 1))
+		assert.Check(t, is.Len(result.Items, 1))
 	}
 }

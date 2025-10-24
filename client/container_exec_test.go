@@ -1,11 +1,9 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"testing"
 
@@ -63,25 +61,18 @@ func TestExecCreate(t *testing.T) {
 			if execConfig.User != "user" {
 				return nil, fmt.Errorf("expected an execConfig with User == 'user', got %v", execConfig)
 			}
-			b, err := json.Marshal(container.ExecCreateResponse{
+			return mockJSONResponse(http.StatusOK, nil, container.ExecCreateResponse{
 				ID: "exec_id",
-			})
-			if err != nil {
-				return nil, err
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader(b)),
-			}, nil
+			})(req)
 		}),
 	)
 	assert.NilError(t, err)
 
-	r, err := client.ExecCreate(context.Background(), "container_id", ExecCreateOptions{
+	res, err := client.ExecCreate(context.Background(), "container_id", ExecCreateOptions{
 		User: "user",
 	})
 	assert.NilError(t, err)
-	assert.Check(t, is.Equal(r.ID, "exec_id"))
+	assert.Check(t, is.Equal(res.ID, "exec_id"))
 }
 
 func TestExecStartError(t *testing.T) {
@@ -111,11 +102,7 @@ func TestExecStart(t *testing.T) {
 			if request.Tty || !request.Detach {
 				return nil, fmt.Errorf("expected ExecStartOptions{Detach:true,Tty:false}, got %v", request)
 			}
-
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(""))),
-			}, nil
+			return mockResponse(http.StatusOK, nil, "")(req)
 		}),
 	)
 	assert.NilError(t, err)
@@ -144,23 +131,16 @@ func TestExecInspect(t *testing.T) {
 			if err := assertRequest(req, http.MethodGet, expectedURL); err != nil {
 				return nil, err
 			}
-			b, err := json.Marshal(container.ExecInspectResponse{
+			return mockJSONResponse(http.StatusOK, nil, container.ExecInspectResponse{
 				ID:          "exec_id",
 				ContainerID: "container_id",
-			})
-			if err != nil {
-				return nil, err
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader(b)),
-			}, nil
+			})(req)
 		}),
 	)
 	assert.NilError(t, err)
 
 	inspect, err := client.ExecInspect(context.Background(), "exec_id", ExecInspectOptions{})
 	assert.NilError(t, err)
-	assert.Check(t, is.Equal(inspect.ExecID, "exec_id"))
+	assert.Check(t, is.Equal(inspect.ID, "exec_id"))
 	assert.Check(t, is.Equal(inspect.ContainerID, "container_id"))
 }

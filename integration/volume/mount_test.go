@@ -12,8 +12,8 @@ import (
 	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/api/types/network"
-	"github.com/moby/moby/api/types/versions"
 	"github.com/moby/moby/client"
+	"github.com/moby/moby/client/pkg/versions"
 	"github.com/moby/moby/v2/daemon/volume/safepath"
 	"github.com/moby/moby/v2/integration/internal/container"
 	"github.com/moby/moby/v2/internal/testutil/fakecontext"
@@ -80,7 +80,12 @@ func TestRunMountVolumeSubdir(t *testing.T) {
 			}
 
 			ctrName := strings.ReplaceAll(t.Name(), "/", "_")
-			create, creatErr := apiClient.ContainerCreate(ctx, &cfg, &hostCfg, &network.NetworkingConfig{}, nil, ctrName)
+			create, creatErr := apiClient.ContainerCreate(ctx, client.ContainerCreateOptions{
+				Config:           &cfg,
+				HostConfig:       &hostCfg,
+				NetworkingConfig: &network.NetworkingConfig{},
+				Name:             ctrName,
+			})
 			id := create.ID
 			if id != "" {
 				defer apiClient.ContainerRemove(ctx, id, client.ContainerRemoveOptions{Force: true})
@@ -146,7 +151,9 @@ func TestRunMountImage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testImage := setupTestImage(t, ctx, apiClient, tc.name)
 			if testImage != "" {
-				defer apiClient.ImageRemove(ctx, testImage, client.ImageRemoveOptions{Force: true})
+				defer func() {
+					_, _ = apiClient.ImageRemove(ctx, testImage, client.ImageRemoveOptions{Force: true})
+				}()
 			}
 
 			cfg := containertypes.Config{
@@ -175,7 +182,12 @@ func TestRunMountImage(t *testing.T) {
 			}
 
 			ctrName := strings.ReplaceAll(t.Name(), "/", "_")
-			create, creatErr := apiClient.ContainerCreate(ctx, &cfg, &hostCfg, &network.NetworkingConfig{}, nil, ctrName)
+			create, creatErr := apiClient.ContainerCreate(ctx, client.ContainerCreateOptions{
+				Config:           &cfg,
+				HostConfig:       &hostCfg,
+				NetworkingConfig: &network.NetworkingConfig{},
+				Name:             ctrName,
+			})
 			id := create.ID
 			if id != "" {
 				defer container.Remove(ctx, t, apiClient, id, client.ContainerRemoveOptions{Force: true})

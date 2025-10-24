@@ -1,9 +1,7 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"testing"
 
@@ -19,20 +17,20 @@ func TestNodeUpdateError(t *testing.T) {
 
 	_, err = client.NodeUpdate(context.Background(), "node_id", NodeUpdateOptions{
 		Version: swarm.Version{},
-		Node:    swarm.NodeSpec{},
+		Spec:    swarm.NodeSpec{},
 	})
 	assert.Check(t, is.ErrorType(err, cerrdefs.IsInternal))
 
 	_, err = client.NodeUpdate(context.Background(), "", NodeUpdateOptions{
 		Version: swarm.Version{},
-		Node:    swarm.NodeSpec{},
+		Spec:    swarm.NodeSpec{},
 	})
 	assert.Check(t, is.ErrorType(err, cerrdefs.IsInvalidArgument))
 	assert.Check(t, is.ErrorContains(err, "value is empty"))
 
 	_, err = client.NodeUpdate(context.Background(), "    ", NodeUpdateOptions{
 		Version: swarm.Version{},
-		Node:    swarm.NodeSpec{},
+		Spec:    swarm.NodeSpec{},
 	})
 	assert.Check(t, is.ErrorType(err, cerrdefs.IsInvalidArgument))
 	assert.Check(t, is.ErrorContains(err, "value is empty"))
@@ -45,16 +43,13 @@ func TestNodeUpdate(t *testing.T) {
 		if err := assertRequest(req, http.MethodPost, expectedURL); err != nil {
 			return nil, err
 		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(bytes.NewReader([]byte("body"))),
-		}, nil
+		return mockResponse(http.StatusOK, nil, "body")(req)
 	}))
 	assert.NilError(t, err)
 
 	_, err = client.NodeUpdate(context.Background(), "node_id", NodeUpdateOptions{
 		Version: swarm.Version{},
-		Node:    swarm.NodeSpec{},
+		Spec:    swarm.NodeSpec{},
 	})
 	assert.NilError(t, err)
 }

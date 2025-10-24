@@ -1,11 +1,8 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"testing"
 
@@ -79,22 +76,10 @@ func TestImageRemove(t *testing.T) {
 					return nil, fmt.Errorf("%s not set in URL query properly. Expected '%s', got %s", key, expected, actual)
 				}
 			}
-			b, err := json.Marshal([]image.DeleteResponse{
-				{
-					Untagged: "image_id1",
-				},
-				{
-					Deleted: "image_id",
-				},
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader(b)),
-			}, nil
+			return mockJSONResponse(http.StatusOK, nil, []image.DeleteResponse{
+				{Untagged: "image_id1"},
+				{Deleted: "image_id"},
+			})(req)
 		}))
 		assert.NilError(t, err)
 
@@ -106,8 +91,8 @@ func TestImageRemove(t *testing.T) {
 			opts.Platforms = []ocispec.Platform{*removeCase.platform}
 		}
 
-		imageDeletes, err := client.ImageRemove(context.Background(), "image_id", opts)
+		res, err := client.ImageRemove(context.Background(), "image_id", opts)
 		assert.NilError(t, err)
-		assert.Check(t, is.Len(imageDeletes.Deleted, 2))
+		assert.Check(t, is.Len(res.Items, 2))
 	}
 }

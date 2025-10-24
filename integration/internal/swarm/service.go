@@ -202,6 +202,21 @@ func ServiceWithPidsLimit(limit int64) ServiceSpecOpt {
 	}
 }
 
+func ServiceWithMemorySwap(swap *int64, memoryLimit int64) ServiceSpecOpt {
+	return func(spec *swarmtypes.ServiceSpec) {
+		ensureResources(spec)
+		spec.TaskTemplate.Resources.SwapBytes = swap
+		spec.TaskTemplate.Resources.Limits.MemoryBytes = memoryLimit
+	}
+}
+
+func ServiceWithMemorySwappiness(swappiness *int64) ServiceSpecOpt {
+	return func(spec *swarmtypes.ServiceSpec) {
+		ensureResources(spec)
+		spec.TaskTemplate.Resources.MemorySwappiness = swappiness
+	}
+}
+
 // GetRunningTasks gets the list of running tasks for a service
 func GetRunningTasks(ctx context.Context, t *testing.T, c client.ServiceAPIClient, serviceID string) []swarmtypes.Task {
 	t.Helper()
@@ -222,10 +237,10 @@ func ExecTask(ctx context.Context, t *testing.T, d *daemon.Daemon, task swarmtyp
 	apiClient := d.NewClientT(t)
 	defer apiClient.Close()
 
-	resp, err := apiClient.ExecCreate(ctx, task.Status.ContainerStatus.ContainerID, options)
+	res, err := apiClient.ExecCreate(ctx, task.Status.ContainerStatus.ContainerID, options)
 	assert.NilError(t, err, "error creating exec")
 
-	attach, err := apiClient.ExecAttach(ctx, resp.ID, client.ExecAttachOptions{})
+	attach, err := apiClient.ExecAttach(ctx, res.ID, client.ExecAttachOptions{})
 	assert.NilError(t, err, "error attaching to exec")
 	return attach.HijackedResponse
 }
