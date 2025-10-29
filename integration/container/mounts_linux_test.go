@@ -98,10 +98,11 @@ func TestMountDaemonRoot(t *testing.T) {
 
 	ctx := setupTest(t)
 	apiClient := testEnv.APIClient()
-	info, err := apiClient.Info(ctx)
+	result, err := apiClient.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	info := result.Info
 
 	for _, test := range []struct {
 		desc        string
@@ -479,7 +480,7 @@ func TestContainerCopyLeaksMounts(t *testing.T) {
 
 	mountsBefore := getMounts()
 
-	_, _, err := apiClient.CopyFromContainer(ctx, cid, "/etc/passwd")
+	_, err := apiClient.CopyFromContainer(ctx, cid, client.CopyFromContainerOptions{SourcePath: "/etc/passwd"})
 	assert.NilError(t, err)
 
 	mountsAfter := getMounts()

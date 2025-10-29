@@ -276,9 +276,10 @@ func systemTime(ctx context.Context, t *testing.T, apiClient client.APIClient, t
 		return time.Now()
 	}
 
-	info, err := apiClient.Info(ctx)
+	result, err := apiClient.Info(ctx, client.InfoOptions{})
 	assert.NilError(t, err)
 
+	info := result.Info
 	dt, err := time.Parse(time.RFC3339Nano, info.SystemTime)
 	assert.NilError(t, err, "invalid time format in GET /info response")
 	return dt
@@ -289,9 +290,9 @@ func systemEventsSince(ctx context.Context, apiClient client.APIClient, since st
 		Since: since,
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	events, errs := apiClient.Events(ctx, eventOptions)
+	result := apiClient.Events(ctx, eventOptions)
 
-	return events, errs, cancel
+	return result.Messages, result.Err, cancel
 }
 
 func TestAuthZPluginErrorResponse(t *testing.T) {
@@ -362,7 +363,7 @@ func TestAuthZPluginEnsureLoadImportWorking(t *testing.T) {
 
 	cID := container.Run(ctx, t, c)
 
-	responseReader, err := c.ContainerExport(ctx, cID)
+	responseReader, err := c.ContainerExport(ctx, cID, client.ContainerExportOptions{})
 	assert.NilError(t, err)
 	defer responseReader.Close()
 	file, err := os.Create(exportedImagePath)
@@ -414,12 +415,12 @@ func TestAuthzPluginEnsureContainerCopyToFrom(t *testing.T) {
 	dstDir, preparedArchive, err := archive.PrepareArchiveCopy(srcArchive, srcInfo, archive.CopyInfo{Path: "/test"})
 	assert.NilError(t, err)
 
-	err = c.CopyToContainer(ctx, cID, dstDir, preparedArchive, client.CopyToContainerOptions{})
+	_, err = c.CopyToContainer(ctx, cID, client.CopyToContainerOptions{DestinationPath: dstDir, Content: preparedArchive})
 	assert.NilError(t, err)
 
-	rdr, _, err := c.CopyFromContainer(ctx, cID, "/test")
+	res, err := c.CopyFromContainer(ctx, cID, client.CopyFromContainerOptions{SourcePath: "/test"})
 	assert.NilError(t, err)
-	_, err = io.Copy(io.Discard, rdr)
+	_, err = io.Copy(io.Discard, res.Content)
 	assert.NilError(t, err)
 }
 

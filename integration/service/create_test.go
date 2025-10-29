@@ -64,13 +64,13 @@ func testServiceCreateInit(ctx context.Context, daemonEnabled bool) func(t *test
 
 func inspectServiceContainer(ctx context.Context, t *testing.T, apiClient client.APIClient, serviceID string) container.InspectResponse {
 	t.Helper()
-	containers, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
+	list, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
 		Filters: make(client.Filters).Add("label", "com.docker.swarm.service.id="+serviceID),
 	})
 	assert.NilError(t, err)
-	assert.Check(t, is.Len(containers, 1))
+	assert.Check(t, is.Len(list.Items, 1))
 
-	inspect, err := apiClient.ContainerInspect(ctx, containers[0].ID, client.ContainerInspectOptions{})
+	inspect, err := apiClient.ContainerInspect(ctx, list.Items[0].ID, client.ContainerInspectOptions{})
 	assert.NilError(t, err)
 	return inspect.Container
 }
@@ -122,7 +122,7 @@ func TestCreateServiceMultipleTimes(t *testing.T) {
 	poll.WaitOn(t, swarm.NoTasksForService(ctx, apiClient, serviceID2), swarm.ServicePoll)
 
 	for retry := 0; retry < 5; retry++ {
-		err = apiClient.NetworkRemove(ctx, overlayID)
+		_, err = apiClient.NetworkRemove(ctx, overlayID, client.NetworkRemoveOptions{})
 		// TODO(dperny): using strings.Contains for error checking is awful,
 		// but so is the fact that swarm functions don't return errdefs errors.
 		// I don't have time at this moment to fix the latter, so I guess I'll

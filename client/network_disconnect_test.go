@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	cerrdefs "github.com/containerd/errdefs"
+	"github.com/moby/moby/api/types/network"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 )
@@ -16,15 +17,19 @@ func TestNetworkDisconnectError(t *testing.T) {
 	client, err := NewClientWithOpts(WithMockClient(errorMock(http.StatusInternalServerError, "Server error")))
 	assert.NilError(t, err)
 
-	err = client.NetworkDisconnect(context.Background(), "network_id", "container_id", false)
+	_, err = client.NetworkDisconnect(context.Background(), "network_id", NetworkDisconnectOptions{
+		Container: "container_id",
+	})
 	assert.Check(t, is.ErrorType(err, cerrdefs.IsInternal))
 
 	// Empty network ID or container ID
-	err = client.NetworkDisconnect(context.Background(), "", "container_id", false)
+	_, err = client.NetworkDisconnect(context.Background(), "", NetworkDisconnectOptions{
+		Container: "container_id",
+	})
 	assert.Check(t, is.ErrorType(err, cerrdefs.IsInvalidArgument))
 	assert.Check(t, is.ErrorContains(err, "value is empty"))
 
-	err = client.NetworkDisconnect(context.Background(), "network_id", "", false)
+	_, err = client.NetworkDisconnect(context.Background(), "network_id", NetworkDisconnectOptions{})
 	assert.Check(t, is.ErrorType(err, cerrdefs.IsInvalidArgument))
 	assert.Check(t, is.ErrorContains(err, "value is empty"))
 }
@@ -37,7 +42,7 @@ func TestNetworkDisconnect(t *testing.T) {
 			return nil, err
 		}
 
-		var disconnect NetworkDisconnectOptions
+		var disconnect network.DisconnectRequest
 		if err := json.NewDecoder(req.Body).Decode(&disconnect); err != nil {
 			return nil, err
 		}
@@ -54,6 +59,6 @@ func TestNetworkDisconnect(t *testing.T) {
 	}))
 	assert.NilError(t, err)
 
-	err = client.NetworkDisconnect(context.Background(), "network_id", "container_id", true)
+	_, err = client.NetworkDisconnect(context.Background(), "network_id", NetworkDisconnectOptions{Container: "container_id", Force: true})
 	assert.NilError(t, err)
 }

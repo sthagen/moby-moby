@@ -21,11 +21,11 @@ import (
 func TestContainerWaitError(t *testing.T) {
 	client, err := NewClientWithOpts(WithMockClient(errorMock(http.StatusInternalServerError, "Server error")))
 	assert.NilError(t, err)
-	resultC, errC := client.ContainerWait(context.Background(), "nothing", "")
+	wait := client.ContainerWait(t.Context(), "nothing", ContainerWaitOptions{})
 	select {
-	case result := <-resultC:
+	case result := <-wait.Result:
 		t.Fatalf("expected to not get a wait result, got %d", result.StatusCode)
-	case err := <-errC:
+	case err := <-wait.Error:
 		assert.Check(t, is.ErrorType(err, cerrdefs.IsInternal))
 	}
 }
@@ -38,11 +38,11 @@ func TestContainerWaitConnectionError(t *testing.T) {
 	client, err := NewClientWithOpts(WithAPIVersionNegotiation(), WithHost("tcp://no-such-host.invalid"))
 	assert.NilError(t, err)
 
-	resultC, errC := client.ContainerWait(context.Background(), "nothing", "")
+	wait := client.ContainerWait(t.Context(), "nothing", ContainerWaitOptions{})
 	select {
-	case result := <-resultC:
+	case result := <-wait.Result:
 		t.Fatalf("expected to not get a wait result, got %d", result.StatusCode)
-	case err := <-errC:
+	case err := <-wait.Error:
 		assert.Check(t, is.ErrorType(err, IsErrConnectionFailed))
 	}
 }
@@ -59,11 +59,11 @@ func TestContainerWait(t *testing.T) {
 	}))
 	assert.NilError(t, err)
 
-	resultC, errC := client.ContainerWait(context.Background(), "container_id", "")
+	wait := client.ContainerWait(t.Context(), "container_id", ContainerWaitOptions{})
 	select {
-	case err := <-errC:
+	case err := <-wait.Error:
 		assert.NilError(t, err)
-	case result := <-resultC:
+	case result := <-wait.Result:
 		assert.Check(t, is.Equal(result.StatusCode, int64(15)))
 	}
 }
@@ -82,11 +82,11 @@ func TestContainerWaitProxyInterrupt(t *testing.T) {
 	}))
 	assert.NilError(t, err)
 
-	resultC, errC := client.ContainerWait(context.Background(), "container_id", "")
+	wait := client.ContainerWait(t.Context(), "container_id", ContainerWaitOptions{})
 	select {
-	case err := <-errC:
+	case err := <-wait.Error:
 		assert.Check(t, is.ErrorContains(err, expErr))
-	case result := <-resultC:
+	case result := <-wait.Result:
 		t.Fatalf("Unexpected result: %v", result)
 	}
 }
@@ -102,12 +102,12 @@ func TestContainerWaitProxyInterruptLong(t *testing.T) {
 	}))
 	assert.NilError(t, err)
 
-	resultC, errC := client.ContainerWait(context.Background(), "container_id", "")
+	wait := client.ContainerWait(t.Context(), "container_id", ContainerWaitOptions{})
 	select {
-	case err := <-errC:
+	case err := <-wait.Error:
 		// LimitReader limiting isn't exact, because of how the Readers do chunking.
 		assert.Check(t, len(err.Error()) <= containerWaitErrorMsgLimit*2, "Expected error to be limited around %d, actual length: %d", containerWaitErrorMsgLimit, len(err.Error()))
-	case result := <-resultC:
+	case result := <-wait.Result:
 		t.Fatalf("Unexpected result: %v", result)
 	}
 }
@@ -124,7 +124,7 @@ func TestContainerWaitErrorHandling(t *testing.T) {
 		{name: "connection reset", rdr: iotest.ErrReader(syscall.ECONNRESET), exp: syscall.ECONNRESET},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			client, err := NewClientWithOpts(WithMockClient(func(req *http.Request) (*http.Response, error) {
@@ -134,12 +134,12 @@ func TestContainerWaitErrorHandling(t *testing.T) {
 				}, nil
 			}))
 			assert.NilError(t, err)
-			resultC, errC := client.ContainerWait(ctx, "container_id", "")
+			wait := client.ContainerWait(ctx, "container_id", ContainerWaitOptions{})
 			select {
-			case err := <-errC:
+			case err := <-wait.Error:
 				assert.Check(t, is.Equal(err.Error(), test.exp.Error()))
 				return
-			case result := <-resultC:
+			case result := <-wait.Result:
 				t.Fatalf("expected to not get a wait result, got %d", result.StatusCode)
 				return
 			}
@@ -153,8 +153,8 @@ func ExampleClient_ContainerWait_withTimeout() {
 	defer cancel()
 
 	client, _ := NewClientWithOpts(FromEnv)
-	_, errC := client.ContainerWait(ctx, "container_id", "")
-	if err := <-errC; err != nil {
+	wait := client.ContainerWait(ctx, "container_id", ContainerWaitOptions{})
+	if err := <-wait.Error; err != nil {
 		log.Fatal(err)
 	}
 }

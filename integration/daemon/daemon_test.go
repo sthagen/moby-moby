@@ -566,7 +566,7 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 			d.Restart(t, "--live-restore", "--iptables=false", "--ip6tables=false")
 
 			// Try to remove the volume
-			err = c.VolumeRemove(ctx, volName, client.VolumeRemoveOptions{})
+			_, err = c.VolumeRemove(ctx, volName, client.VolumeRemoveOptions{})
 			assert.ErrorContains(t, err, "volume is in use")
 
 			_, err = c.VolumeInspect(ctx, volName, client.VolumeInspectOptions{})
@@ -607,7 +607,7 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 
 		// Wait until container creates a file in the volume.
 		poll.WaitOn(t, func(t poll.LogT) poll.Result {
-			stat, err := c.ContainerStatPath(ctx, cID, "/foo/test.txt")
+			res, err := c.ContainerStatPath(ctx, cID, client.ContainerStatPathOptions{Path: "/foo/test.txt"})
 			if err != nil {
 				if cerrdefs.IsNotFound(err) {
 					return poll.Continue("file doesn't yet exist")
@@ -615,8 +615,8 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 				return poll.Error(err)
 			}
 
-			if int(stat.Size) != len(testContent)+1 {
-				return poll.Error(fmt.Errorf("unexpected test file size: %d", stat.Size))
+			if int(res.Stat.Size) != len(testContent)+1 {
+				return poll.Error(fmt.Errorf("unexpected test file size: %d", res.Stat.Size))
 			}
 
 			return poll.Success()
@@ -626,7 +626,7 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 
 		// Try to remove the volume
 		// This should fail since its used by a container
-		err = c.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{})
+		_, err = c.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{})
 		assert.ErrorContains(t, err, "volume is in use")
 
 		t.Run("volume still mounted", func(t *testing.T) {
@@ -660,7 +660,7 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 		assert.NilError(t, err)
 
 		// Now we should be able to remove the volume
-		err = c.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{})
+		_, err = c.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{})
 		assert.NilError(t, err)
 	})
 
@@ -680,7 +680,7 @@ func testLiveRestoreVolumeReferences(t *testing.T) {
 		defer c.ContainerRemove(ctx, cID, client.ContainerRemoveOptions{Force: true})
 
 		waitFn := func(t poll.LogT) poll.Result {
-			_, err := c.ContainerStatPath(ctx, cID, "/image/hello")
+			_, err := c.ContainerStatPath(ctx, cID, client.ContainerStatPathOptions{Path: "/image/hello"})
 			if err != nil {
 				if cerrdefs.IsNotFound(err) {
 					return poll.Continue("file doesn't yet exist")

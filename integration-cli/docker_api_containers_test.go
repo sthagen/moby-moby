@@ -42,12 +42,12 @@ func (s *DockerAPISuite) TestContainerAPIGetAll(c *testing.T) {
 	defer apiClient.Close()
 
 	ctx := testutil.GetContext(c)
-	containers, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
+	list, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
 		All: true,
 	})
 	assert.NilError(c, err)
-	assert.Equal(c, len(containers), startCount+1)
-	actual := containers[0].Names[0]
+	assert.Equal(c, len(list.Items), startCount+1)
+	actual := list.Items[0].Names[0]
 	assert.Equal(c, actual, "/"+name)
 }
 
@@ -64,10 +64,10 @@ func (s *DockerAPISuite) TestContainerAPIGetJSONNoFieldsOmitted(c *testing.T) {
 		All: true,
 	}
 	ctx := testutil.GetContext(c)
-	containers, err := apiClient.ContainerList(ctx, options)
+	list, err := apiClient.ContainerList(ctx, options)
 	assert.NilError(c, err)
-	assert.Equal(c, len(containers), startCount+1)
-	actual := fmt.Sprintf("%+v", containers[0])
+	assert.Equal(c, len(list.Items), startCount+1)
+	actual := fmt.Sprintf("%+v", list.Items[0])
 
 	// empty Labels field triggered this bug, make sense to check for everything
 	// cause even Ports for instance can trigger this bug
@@ -103,7 +103,7 @@ func (s *DockerAPISuite) TestContainerAPIGetExport(c *testing.T) {
 	assert.NilError(c, err)
 	defer apiClient.Close()
 
-	body, err := apiClient.ContainerExport(testutil.GetContext(c), name)
+	body, err := apiClient.ContainerExport(testutil.GetContext(c), name, client.ContainerExportOptions{})
 	assert.NilError(c, err)
 	defer body.Close()
 	found := false
@@ -375,7 +375,7 @@ func (s *DockerAPISuite) TestContainerAPIPause(c *testing.T) {
 		c.Fatalf("there should be one paused container and not %d", len(pausedContainers))
 	}
 
-	_, err = apiClient.ContainerUnpause(testutil.GetContext(c), ContainerID, client.ContainerUnPauseOptions{})
+	_, err = apiClient.ContainerUnpause(testutil.GetContext(c), ContainerID, client.ContainerUnpauseOptions{})
 	assert.NilError(c, err)
 
 	pausedContainers = getPaused(c)
@@ -393,7 +393,7 @@ func (s *DockerAPISuite) TestContainerAPITop(c *testing.T) {
 	defer apiClient.Close()
 
 	// sort by comm[andline] to make sure order stays the same in case of PID rollover
-	top, err := apiClient.ContainerTop(testutil.GetContext(c), id, []string{"aux", "--sort=comm"})
+	top, err := apiClient.ContainerTop(testutil.GetContext(c), id, client.ContainerTopOptions{Arguments: []string{"aux", "--sort=comm"}})
 	assert.NilError(c, err)
 	assert.Equal(c, len(top.Titles), 11, fmt.Sprintf("expected 11 titles, found %d: %v", len(top.Titles), top.Titles))
 
@@ -414,7 +414,7 @@ func (s *DockerAPISuite) TestContainerAPITopWindows(c *testing.T) {
 	assert.NilError(c, err)
 	defer apiClient.Close()
 
-	top, err := apiClient.ContainerTop(testutil.GetContext(c), id, nil)
+	top, err := apiClient.ContainerTop(testutil.GetContext(c), id, client.ContainerTopOptions{})
 	assert.NilError(c, err)
 	assert.Equal(c, len(top.Titles), 4, "expected 4 titles, found %d: %v", len(top.Titles), top.Titles)
 
@@ -820,12 +820,12 @@ func (s *DockerAPISuite) TestContainerAPIWait(c *testing.T) {
 	assert.NilError(c, err)
 	defer apiClient.Close()
 
-	waitResC, errC := apiClient.ContainerWait(testutil.GetContext(c), name, "")
+	wait := apiClient.ContainerWait(testutil.GetContext(c), name, client.ContainerWaitOptions{})
 
 	select {
-	case err = <-errC:
+	case err = <-wait.Error:
 		assert.NilError(c, err)
-	case waitRes := <-waitResC:
+	case waitRes := <-wait.Result:
 		assert.Equal(c, waitRes.StatusCode, int64(0))
 	}
 }
@@ -991,7 +991,7 @@ func (s *DockerAPISuite) TestPutContainerArchiveErrSymlinkInVolumeToReadOnlyRoot
 	apiClient, err := client.NewClientWithOpts(client.FromEnv)
 	assert.NilError(c, err)
 
-	err = apiClient.CopyToContainer(testutil.GetContext(c), cID, "/vol2/symlinkToAbsDir", nil, client.CopyToContainerOptions{})
+	_, err = apiClient.CopyToContainer(testutil.GetContext(c), cID, client.CopyToContainerOptions{DestinationPath: "/vol2/symlinkToAbsDir"})
 	assert.ErrorContains(c, err, "container rootfs is marked read-only")
 }
 

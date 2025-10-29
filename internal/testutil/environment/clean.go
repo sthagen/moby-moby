@@ -43,7 +43,7 @@ func unpauseAllContainers(ctx context.Context, t testing.TB, apiClient client.Co
 	containers := getPausedContainers(ctx, t, apiClient)
 	if len(containers) > 0 {
 		for _, ctr := range containers {
-			_, err := apiClient.ContainerUnpause(ctx, ctr.ID, client.ContainerUnPauseOptions{})
+			_, err := apiClient.ContainerUnpause(ctx, ctr.ID, client.ContainerUnpauseOptions{})
 			assert.Check(t, err, "failed to unpause container %s", ctr.ID)
 		}
 	}
@@ -51,12 +51,12 @@ func unpauseAllContainers(ctx context.Context, t testing.TB, apiClient client.Co
 
 func getPausedContainers(ctx context.Context, t testing.TB, apiClient client.ContainerAPIClient) []container.Summary {
 	t.Helper()
-	containers, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
+	list, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
 		Filters: make(client.Filters).Add("status", "paused"),
 		All:     true,
 	})
 	assert.Check(t, err, "failed to list containers")
-	return containers
+	return list.Items
 }
 
 func deleteAllContainers(ctx context.Context, t testing.TB, apiclient client.ContainerAPIClient, protectedContainers map[string]struct{}) {
@@ -85,11 +85,11 @@ func deleteAllContainers(ctx context.Context, t testing.TB, apiclient client.Con
 
 func getAllContainers(ctx context.Context, t testing.TB, apiClient client.ContainerAPIClient) []container.Summary {
 	t.Helper()
-	containers, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
+	list, err := apiClient.ContainerList(ctx, client.ContainerListOptions{
 		All: true,
 	})
 	assert.Check(t, err, "failed to list containers")
-	return containers
+	return list.Items
 }
 
 func deleteAllImages(ctx context.Context, t testing.TB, apiclient client.ImageAPIClient, protectedImages map[string]struct{}) {
@@ -134,7 +134,7 @@ func deleteAllVolumes(ctx context.Context, t testing.TB, c client.VolumeAPIClien
 		if _, ok := protectedVolumes[v.Name]; ok {
 			continue
 		}
-		err := c.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{
+		_, err := c.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{
 			Force: true,
 		})
 		assert.Check(t, err, "failed to remove volume %s", v.Name)
@@ -157,7 +157,7 @@ func deleteAllNetworks(ctx context.Context, t testing.TB, c client.NetworkAPICli
 			// nat is a pre-defined network on Windows and cannot be removed
 			continue
 		}
-		err := c.NetworkRemove(ctx, nw.ID)
+		_, err := c.NetworkRemove(ctx, nw.ID, client.NetworkRemoveOptions{})
 		assert.Check(t, err, "failed to remove network %s", nw.ID)
 	}
 }

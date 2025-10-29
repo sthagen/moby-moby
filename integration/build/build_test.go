@@ -116,7 +116,7 @@ func TestBuildWithRemoveAndForceRemove(t *testing.T) {
 			assert.NilError(t, err)
 			remainingContainers, err := apiClient.ContainerList(ctx, client.ContainerListOptions{Filters: filter, All: true})
 			assert.NilError(t, err)
-			assert.Equal(t, tc.numberOfIntermediateContainers, len(remainingContainers), "Expected %v remaining intermediate containers, got %v", tc.numberOfIntermediateContainers, len(remainingContainers))
+			assert.Equal(t, tc.numberOfIntermediateContainers, len(remainingContainers.Items), "Expected %v remaining intermediate containers, got %v", tc.numberOfIntermediateContainers, len(remainingContainers.Items))
 		})
 	}
 }
@@ -740,10 +740,12 @@ func TestBuildEmitsImageCreateEvent(t *testing.T) {
 			assert.NilError(t, err)
 			buildLogs := out.String()
 
-			eventsChan, errs := apiClient.Events(ctx, client.EventsListOptions{
+			result := apiClient.Events(ctx, client.EventsListOptions{
 				Since: since.Format(time.RFC3339Nano),
 				Until: time.Now().Format(time.RFC3339Nano),
 			})
+			eventsChan := result.Messages
+			errs := result.Err
 
 			var eventsReceived []string
 			imageCreateEvts := 0

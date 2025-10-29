@@ -34,16 +34,18 @@ func TestPause(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Check(t, is.Equal(true, inspect.Container.State.Paused))
 
-	_, err = apiClient.ContainerUnpause(ctx, cID, client.ContainerUnPauseOptions{})
+	_, err = apiClient.ContainerUnpause(ctx, cID, client.ContainerUnpauseOptions{})
 	assert.NilError(t, err)
 
 	until := request.DaemonUnixTime(ctx, t, apiClient, testEnv)
 
-	messages, errs := apiClient.Events(ctx, client.EventsListOptions{
+	result := apiClient.Events(ctx, client.EventsListOptions{
 		Since:   since,
 		Until:   until,
 		Filters: make(client.Filters).Add(string(events.ContainerEventType), cID),
 	})
+	messages := result.Messages
+	errs := result.Err
 	assert.Check(t, is.DeepEqual([]events.Action{events.ActionPause, events.ActionUnPause}, getEventActions(t, messages, errs)))
 }
 

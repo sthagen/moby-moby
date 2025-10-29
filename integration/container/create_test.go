@@ -498,7 +498,7 @@ func TestCreateTmpfsOverrideAnonymousVolume(t *testing.T) {
 	// Normally an anonymous volume would, except now tmpfs should prevent that.
 	assert.Assert(t, is.Len(inspect.Container.Mounts, 0))
 
-	chWait, chErr := apiClient.ContainerWait(ctx, id, container.WaitConditionNextExit)
+	wait := apiClient.ContainerWait(ctx, id, client.ContainerWaitOptions{Condition: container.WaitConditionNextExit})
 	_, err = apiClient.ContainerStart(ctx, id, client.ContainerStartOptions{})
 	assert.NilError(t, err)
 
@@ -508,13 +508,13 @@ func TestCreateTmpfsOverrideAnonymousVolume(t *testing.T) {
 	select {
 	case <-timeout.C:
 		t.Fatal("timeout waiting for container to exit")
-	case status := <-chWait:
+	case status := <-wait.Result:
 		var errMsg string
 		if status.Error != nil {
 			errMsg = status.Error.Message
 		}
 		assert.Equal(t, int(status.StatusCode), 0, errMsg)
-	case err := <-chErr:
+	case err := <-wait.Error:
 		assert.NilError(t, err)
 	}
 }
@@ -807,9 +807,10 @@ func TestContainerdContainerImageInfo(t *testing.T) {
 	apiClient := testEnv.APIClient()
 	defer apiClient.Close()
 
-	info, err := apiClient.Info(ctx)
+	result, err := apiClient.Info(ctx, client.InfoOptions{})
 	assert.NilError(t, err)
 
+	info := result.Info
 	skip.If(t, info.Containerd == nil, "requires containerd")
 
 	// Currently a containerd container is only created when the container is started.
