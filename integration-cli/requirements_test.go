@@ -31,7 +31,7 @@ func DaemonIsLinux() bool {
 }
 
 func OnlyDefaultNetworks(ctx context.Context) bool {
-	apiClient, err := client.NewClientWithOpts(client.FromEnv)
+	apiClient, err := client.New(client.FromEnv)
 	if err != nil {
 		return false
 	}
@@ -43,11 +43,11 @@ func OnlyDefaultNetworks(ctx context.Context) bool {
 }
 
 func IsAmd64() bool {
-	return testEnv.DaemonVersion.Arch == "amd64"
+	return testEnv.DaemonInfo.Architecture == "amd64"
 }
 
 func NotPpc64le() bool {
-	return testEnv.DaemonVersion.Arch != "ppc64le"
+	return testEnv.DaemonInfo.Architecture != "ppc64le"
 }
 
 func UnixCli() bool {

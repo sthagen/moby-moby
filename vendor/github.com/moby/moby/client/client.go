@@ -6,10 +6,12 @@ https://docs.docker.com/reference/api/engine/
 
 # Usage
 
-You use the library by constructing a client object using [NewClientWithOpts]
+You use the library by constructing a client object using [New]
 and calling methods on it. The client can be configured from environment
-variables by passing the [FromEnv] option, or configured manually by passing any
-of the other available [Opts].
+variables by passing the [FromEnv] option, and the [WithAPIVersionNegotiation]
+option to allow downgrading the API version used when connecting with an older
+daemon version. Other options cen be configured manually by passing any of
+the available [Opt] options.
 
 For example, to list running containers (the equivalent of "docker ps"):
 
@@ -18,23 +20,33 @@ For example, to list running containers (the equivalent of "docker ps"):
 	import (
 		"context"
 		"fmt"
+		"log"
 
 		"github.com/moby/moby/client"
 	)
 
 	func main() {
-		cli, err := client.NewClientWithOpts(client.FromEnv)
+		// Create a new client that handles common environment variables
+		// for configuration (DOCKER_HOST, DOCKER_API_VERSION), and does
+		// API-version negotiation to allow downgrading the API version
+		// when connecting with an older daemon version.
+		apiClient, err := client.New(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
-		containers, err := cli.ContainerList(context.Background(), client.ContainerListOptions{})
+		// List all containers (both stopped and running).
+		result, err := apiClient.ContainerList(context.Background(), client.ContainerListOptions{
+			All: true,
+		})
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
-		for _, ctr := range containers {
-			fmt.Printf("%s %s\n", ctr.ID, ctr.Image)
+		// Print each container's ID, status and the image it was created from.
+		fmt.Printf("%s  %-22s  %s\n", "ID", "STATUS", "IMAGE")
+		for _, ctr := range result.Items {
+			fmt.Printf("%s  %-22s  %s\n", ctr.ID, ctr.Status, ctr.Image)
 		}
 	}
 */
@@ -148,7 +160,14 @@ func CheckRedirect(_ *http.Request, via []*http.Request) error {
 	return ErrRedirect
 }
 
-// NewClientWithOpts initializes a new API client with a default HTTPClient, and
+// NewClientWithOpts initializes a new API client.
+//
+// Deprecated: use New. This function will be removed in the next release.
+func NewClientWithOpts(ops ...Opt) (*Client, error) {
+	return New(ops...)
+}
+
+// New initializes a new API client with a default HTTPClient, and
 // default API host and version. It also initializes the custom HTTP headers to
 // add to each request.
 //
@@ -158,11 +177,11 @@ func CheckRedirect(_ *http.Request, via []*http.Request) error {
 // itself with values from environment variables ([FromEnv]), and has automatic
 // API version negotiation enabled ([WithAPIVersionNegotiation]).
 //
-//	cli, err := client.NewClientWithOpts(
+//	cli, err := client.New(
 //		client.FromEnv,
 //		client.WithAPIVersionNegotiation(),
 //	)
-func NewClientWithOpts(ops ...Opt) (*Client, error) {
+func New(ops ...Opt) (*Client, error) {
 	hostURL, err := ParseHostURL(DefaultDockerHost)
 	if err != nil {
 		return nil, err
