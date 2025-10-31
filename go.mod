@@ -60,8 +60,8 @@ require (
 	github.com/moby/go-archive v0.1.0
 	github.com/moby/ipvs v1.1.0
 	github.com/moby/locker v1.0.1
-	github.com/moby/moby/api v1.52.0-beta.2
-	github.com/moby/moby/client v0.1.0-beta.2
+	github.com/moby/moby/api v1.52.0-beta.4
+	github.com/moby/moby/client v0.1.0-beta.3
 	github.com/moby/patternmatcher v0.6.0
 	github.com/moby/profiles/apparmor v0.1.0
 	github.com/moby/profiles/seccomp v0.1.0
@@ -154,7 +154,7 @@ require (
 	github.com/containernetworking/cni v1.3.0 // indirect
 	github.com/containernetworking/plugins v1.7.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/docker/libtrust v0.0.0-20150526203908-9cbd2a1374f4 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
@@ -196,7 +196,7 @@ require (
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -243,22 +243,3 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 	tags.cncf.io/container-device-interface/specs-go v1.0.0 // indirect
 )
-
-exclude (
-	// These dependencies were updated to "master" in some modules we depend on,
-	// but have no code-changes since their last release. Unfortunately, this also
-	// causes a ripple effect, forcing all users of the containerd module to also
-	// update these dependencies to an unrelease / un-tagged version.
-	//
-	// Both these dependencies will unlikely do a new release in the near future,
-	// so exclude these versions so that we can downgrade to the current release.
-	//
-	// For additional details, see this PR and links mentioned in that PR:
-	// https://github.com/kubernetes-sigs/kustomize/pull/5830#issuecomment-2569960859
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
-)
-
-replace github.com/moby/moby/api => ./api
-
-replace github.com/moby/moby/client => ./client

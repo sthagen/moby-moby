@@ -4,12 +4,13 @@ import (
 	"context"
 	"io"
 	"iter"
+	"net/http"
 	"net/url"
-	"strings"
 
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/distribution/reference"
 	"github.com/moby/moby/api/types/jsonstream"
+	"github.com/moby/moby/api/types/registry"
 	"github.com/moby/moby/client/internal"
 )
 
@@ -44,10 +45,13 @@ func (cli *Client) ImagePull(ctx context.Context, refStr string, options ImagePu
 	if !options.All {
 		query.Set("tag", getAPITagFromNamedRef(ref))
 	}
-	if options.Platform != "" {
-		query.Set("platform", strings.ToLower(options.Platform))
+	if len(options.Platforms) > 0 {
+		if len(options.Platforms) > 1 {
+			// TODO(thaJeztah): update API spec and add equivalent check on the daemon. We need this still for older daemons, which would ignore it.
+			return nil, cerrdefs.ErrInvalidArgument.WithMessage("specifying multiple platforms is not yet supported")
+		}
+		query.Set("platform", formatPlatform(options.Platforms[0]))
 	}
-
 	resp, err := cli.tryImageCreate(ctx, query, staticAuth(options.RegistryAuth))
 	if cerrdefs.IsUnauthorized(err) && options.PrivilegeFunc != nil {
 		resp, err = cli.tryImageCreate(ctx, query, options.PrivilegeFunc)
@@ -72,4 +76,18 @@ func getAPITagFromNamedRef(ref reference.Named) string {
 		return tagged.Tag()
 	}
 	return ""
+}
+
+func (cli *Client) tryImageCreate(ctx context.Context, query url.Values, resolveAuth registry.RequestAuthConfig) (*http.Response, error) {
+	hdr := http.Header{}
+	if resolveAuth != nil {
+		registryAuth, err := resolveAuth(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if registryAuth != "" {
+			hdr.Set(registry.AuthHeader, registryAuth)
+		}
+	}
+	return cli.post(ctx, "/images/create", query, nil, hdr)
 }

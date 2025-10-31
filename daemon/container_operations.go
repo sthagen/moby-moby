@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"os"
 	"runtime"
@@ -534,7 +533,7 @@ func validateEndpointSettings(nw *libnetwork.Network, nwName string, epConfig *n
 			errs = append(errs, cerrdefs.ErrInvalidArgument.WithMessage("user specified IP address is supported on user defined networks only"))
 		}
 		if len(epConfig.Aliases) > 0 && !serviceDiscoveryOnDefaultNetwork() {
-			errs = append(errs, cerrdefs.ErrInvalidArgument.WithMessage("network-scoped alias is supported only for containers in user defined networks"))
+			errs = append(errs, cerrdefs.ErrInvalidArgument.WithMessage("network-scoped aliases are only supported for user-defined networks"))
 		}
 	}
 
@@ -543,13 +542,6 @@ func validateEndpointSettings(nw *libnetwork.Network, nwName string, epConfig *n
 	if nw != nil {
 		_, _, v4Configs, v6Configs := nw.IpamConfig()
 		errs = validateIPAMConfigIsInRange(errs, ipamConfig, v4Configs, v6Configs)
-	}
-
-	if epConfig.MacAddress != "" {
-		_, err := net.ParseMAC(epConfig.MacAddress)
-		if err != nil {
-			return fmt.Errorf("invalid MAC address %s", epConfig.MacAddress)
-		}
 	}
 
 	if sysctls, ok := epConfig.DriverOpts[netlabel.EndpointSysctls]; ok {
@@ -647,7 +639,7 @@ func cleanOperationalData(es *network.EndpointSettings) {
 	es.IPv6Gateway = netip.Addr{}
 	es.GlobalIPv6Address = netip.Addr{}
 	es.GlobalIPv6PrefixLen = 0
-	es.MacAddress = ""
+	es.MacAddress = nil
 	if es.IPAMOperational {
 		es.IPAMConfig = nil
 	}
