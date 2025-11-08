@@ -5,10 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/moby/moby/api/types/build"
-	containertypes "github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/api/types/image"
-	"github.com/moby/moby/api/types/volume"
 	"github.com/moby/moby/client"
 	"github.com/moby/moby/v2/integration/internal/container"
 	"github.com/moby/moby/v2/internal/testutil"
@@ -56,19 +52,12 @@ func TestDiskUsage(t *testing.T) {
 				}
 
 				assert.DeepEqual(t, du, client.DiskUsageResult{
-					Containers: client.ContainersDiskUsage{
-						Items: []containertypes.Summary{},
-					},
+					Containers: client.ContainersDiskUsage{},
 					Images: client.ImagesDiskUsage{
 						TotalSize: expectedLayersSize,
-						Items:     []image.Summary{},
 					},
-					BuildCache: client.BuildCacheDiskUsage{
-						Items: []build.CacheRecord{},
-					},
-					Volumes: client.VolumesDiskUsage{
-						Items: []volume.Volume{},
-					},
+					BuildCache: client.BuildCacheDiskUsage{},
+					Volumes:    client.VolumesDiskUsage{},
 				})
 				return du
 			},
@@ -112,8 +101,8 @@ func TestDiskUsage(t *testing.T) {
 				})
 				assert.NilError(t, err)
 
-				assert.Equal(t, du.Containers.ActiveContainers, int64(1))
-				assert.Equal(t, du.Containers.TotalContainers, int64(1))
+				assert.Equal(t, du.Containers.ActiveCount, int64(1))
+				assert.Equal(t, du.Containers.TotalCount, int64(1))
 				assert.Equal(t, len(du.Containers.Items), 1)
 				assert.Equal(t, len(du.Containers.Items[0].Names), 1)
 				assert.Assert(t, len(prev.Images.Items) > 0)
@@ -122,8 +111,8 @@ func TestDiskUsage(t *testing.T) {
 				// Additional container layer could add to the size
 				assert.Check(t, du.Images.TotalSize >= prev.Images.TotalSize)
 
-				assert.Equal(t, du.Images.ActiveImages, int64(1))
-				assert.Equal(t, du.Images.TotalImages, int64(1))
+				assert.Equal(t, du.Images.ActiveCount, int64(1))
+				assert.Equal(t, du.Images.TotalCount, int64(1))
 				assert.Equal(t, len(du.Images.Items), 1)
 				assert.Equal(t, du.Images.Items[0].Containers, prev.Images.Items[0].Containers+1)
 
@@ -155,9 +144,9 @@ func TestDiskUsage(t *testing.T) {
 					},
 					expected: client.DiskUsageResult{
 						Containers: stepDU.Containers,
-						Images:     client.ImagesDiskUsage{Items: []image.Summary{}},
-						BuildCache: client.BuildCacheDiskUsage{Items: []build.CacheRecord{}},
-						Volumes:    client.VolumesDiskUsage{Items: []volume.Volume{}},
+						Images:     client.ImagesDiskUsage{},
+						BuildCache: client.BuildCacheDiskUsage{},
+						Volumes:    client.VolumesDiskUsage{},
 					},
 				},
 				{
@@ -167,10 +156,10 @@ func TestDiskUsage(t *testing.T) {
 						Verbose: true,
 					},
 					expected: client.DiskUsageResult{
-						Containers: client.ContainersDiskUsage{Items: []containertypes.Summary{}},
+						Containers: client.ContainersDiskUsage{},
 						Images:     stepDU.Images,
-						BuildCache: client.BuildCacheDiskUsage{Items: []build.CacheRecord{}},
-						Volumes:    client.VolumesDiskUsage{Items: []volume.Volume{}},
+						BuildCache: client.BuildCacheDiskUsage{},
+						Volumes:    client.VolumesDiskUsage{},
 					},
 				},
 				{
@@ -180,9 +169,9 @@ func TestDiskUsage(t *testing.T) {
 						Verbose: true,
 					},
 					expected: client.DiskUsageResult{
-						Containers: client.ContainersDiskUsage{Items: []containertypes.Summary{}},
-						Images:     client.ImagesDiskUsage{Items: []image.Summary{}},
-						BuildCache: client.BuildCacheDiskUsage{Items: []build.CacheRecord{}},
+						Containers: client.ContainersDiskUsage{},
+						Images:     client.ImagesDiskUsage{},
+						BuildCache: client.BuildCacheDiskUsage{},
 						Volumes:    stepDU.Volumes,
 					},
 				},
@@ -193,10 +182,10 @@ func TestDiskUsage(t *testing.T) {
 						Verbose:    true,
 					},
 					expected: client.DiskUsageResult{
-						Containers: client.ContainersDiskUsage{Items: []containertypes.Summary{}},
-						Images:     client.ImagesDiskUsage{Items: []image.Summary{}},
+						Containers: client.ContainersDiskUsage{},
+						Images:     client.ImagesDiskUsage{},
 						BuildCache: stepDU.BuildCache,
-						Volumes:    client.VolumesDiskUsage{Items: []volume.Volume{}},
+						Volumes:    client.VolumesDiskUsage{},
 					},
 				},
 				{
@@ -208,8 +197,8 @@ func TestDiskUsage(t *testing.T) {
 					},
 					expected: client.DiskUsageResult{
 						Containers: stepDU.Containers,
-						Images:     client.ImagesDiskUsage{Items: []image.Summary{}},
-						BuildCache: client.BuildCacheDiskUsage{Items: []build.CacheRecord{}},
+						Images:     client.ImagesDiskUsage{},
+						BuildCache: client.BuildCacheDiskUsage{},
 						Volumes:    stepDU.Volumes,
 					},
 				},
@@ -221,10 +210,10 @@ func TestDiskUsage(t *testing.T) {
 						Verbose:    true,
 					},
 					expected: client.DiskUsageResult{
-						Containers: client.ContainersDiskUsage{Items: []containertypes.Summary{}},
+						Containers: client.ContainersDiskUsage{},
 						Images:     stepDU.Images,
 						BuildCache: stepDU.BuildCache,
-						Volumes:    client.VolumesDiskUsage{Items: []volume.Volume{}},
+						Volumes:    client.VolumesDiskUsage{},
 					},
 				},
 				{
@@ -237,9 +226,7 @@ func TestDiskUsage(t *testing.T) {
 					},
 					expected: client.DiskUsageResult{
 						Containers: stepDU.Containers,
-						Images: client.ImagesDiskUsage{
-							Items: []image.Summary{},
-						},
+						Images:     client.ImagesDiskUsage{},
 						BuildCache: stepDU.BuildCache,
 						Volumes:    stepDU.Volumes,
 					},
@@ -253,9 +240,7 @@ func TestDiskUsage(t *testing.T) {
 						Verbose:    true,
 					},
 					expected: client.DiskUsageResult{
-						Containers: client.ContainersDiskUsage{
-							Items: []containertypes.Summary{},
-						},
+						Containers: client.ContainersDiskUsage{},
 						Images:     stepDU.Images,
 						BuildCache: stepDU.BuildCache,
 						Volumes:    stepDU.Volumes,
@@ -272,10 +257,8 @@ func TestDiskUsage(t *testing.T) {
 					expected: client.DiskUsageResult{
 						Containers: stepDU.Containers,
 						Images:     stepDU.Images,
-						BuildCache: client.BuildCacheDiskUsage{
-							Items: []build.CacheRecord{},
-						},
-						Volumes: stepDU.Volumes,
+						BuildCache: client.BuildCacheDiskUsage{},
+						Volumes:    stepDU.Volumes,
 					},
 				},
 				{

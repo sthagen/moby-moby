@@ -13,24 +13,24 @@ type DiskUsage struct {
 	// Count of active volumes.
 	//
 	// Example: 1
-	ActiveVolumes int64 `json:"ActiveVolumes,omitempty"`
+	ActiveCount int64 `json:"ActiveCount,omitempty"`
 
 	// List of volumes.
 	//
-	Items []*Volume `json:"Items,omitempty"`
+	Items []Volume `json:"Items,omitempty"`
 
 	// Disk space that can be reclaimed by removing inactive volumes.
 	//
 	// Example: 12345678
 	Reclaimable int64 `json:"Reclaimable,omitempty"`
 
+	// Count of all volumes.
+	//
+	// Example: 4
+	TotalCount int64 `json:"TotalCount,omitempty"`
+
 	// Disk space in use by volumes.
 	//
 	// Example: 98765432
 	TotalSize int64 `json:"TotalSize,omitempty"`
-
-	// Count of all volumes.
-	//
-	// Example: 4
-	TotalVolumes int64 `json:"TotalVolumes,omitempty"`
 }

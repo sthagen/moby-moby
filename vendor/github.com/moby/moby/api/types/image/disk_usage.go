@@ -13,11 +13,11 @@ type DiskUsage struct {
 	// Count of active images.
 	//
 	// Example: 1
-	ActiveImages int64 `json:"ActiveImages,omitempty"`
+	ActiveCount int64 `json:"ActiveCount,omitempty"`
 
 	// List of image summaries.
 	//
-	Items []*Summary `json:"Items,omitempty"`
+	Items []Summary `json:"Items,omitempty"`
 
 	// Disk space that can be reclaimed by removing unused images.
 	//
@@ -27,7 +27,7 @@ type DiskUsage struct {
 	// Count of all images.
 	//
 	// Example: 4
-	TotalImages int64 `json:"TotalImages,omitempty"`
+	TotalCount int64 `json:"TotalCount,omitempty"`
 
 	// Disk space in use by images.
 	//
