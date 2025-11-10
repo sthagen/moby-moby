@@ -131,9 +131,9 @@ type Daemon struct {
 	seccompProfile     []byte
 	seccompProfilePath string
 
-	usageContainers singleflight.Group[struct{}, *backend.ContainerDiskUsage]
-	usageImages     singleflight.Group[struct{}, *backend.ImageDiskUsage]
-	usageVolumes    singleflight.Group[struct{}, *backend.VolumeDiskUsage]
+	usageContainers singleflight.Group[bool, *backend.ContainerDiskUsage]
+	usageImages     singleflight.Group[bool, *backend.ImageDiskUsage]
+	usageVolumes    singleflight.Group[bool, *backend.VolumeDiskUsage]
 	usageLayer      singleflight.Group[struct{}, int64]
 
 	pruneRunning atomic.Bool
@@ -203,6 +203,11 @@ func (daemon *Daemon) Features() map[string]bool {
 // UsesSnapshotter returns true if feature flag to use containerd snapshotter is enabled
 func (daemon *Daemon) UsesSnapshotter() bool {
 	return daemon.usesSnapshotter
+}
+
+// DefaultIsolation returns the default isolation mode for the daemon to run in (only applicable on Windows).
+func (daemon *Daemon) DefaultIsolation() containertypes.Isolation {
+	return daemon.defaultIsolation
 }
 
 func (daemon *Daemon) loadContainers(ctx context.Context) (map[string]map[string]*container.Container, error) {
@@ -1492,6 +1497,12 @@ func (daemon *Daemon) Shutdown(ctx context.Context) error {
 	if daemon.mdDB != nil {
 		daemon.mdDB.Close()
 	}
+
+	// At this point, everything has been shut down and no containers are
+	// running anymore. If there are still some open connections to the
+	// '/events' endpoint, closing the EventsService should tear them down
+	// immediately.
+	daemon.EventsService.Close()
 
 	return daemon.cleanupMounts(cfg)
 }
