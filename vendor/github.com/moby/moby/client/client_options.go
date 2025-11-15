@@ -41,6 +41,22 @@ type clientConfig struct {
 	// manualOverride is set to true when the version was set by users.
 	manualOverride bool
 
+	// manualAPIVersion contains the API version set by users. This field
+	// will only be non-empty if a valid-formed version was set through
+	// [WithAPIVersion].
+	//
+	// If both manualAPIVersion and envAPIVersion are set, manualAPIVersion
+	// takes precedence. Either field disables API-version negotiation.
+	manualAPIVersion string
+
+	// envAPIVersion contains the API version set by users. This field
+	// will only be non-empty if a valid-formed version was set through
+	// [WithAPIVersionFromEnv].
+	//
+	// If both manualAPIVersion and envAPIVersion are set, manualAPIVersion
+	// takes precedence. Either field disables API-version negotiation.
+	envAPIVersion string
+
 	// negotiateVersion indicates if the client should automatically negotiate
 	// the API version to use when making requests. API version negotiation is
 	// performed on the first request, after which negotiated is set to "true"
@@ -56,7 +72,7 @@ type Opt func(*clientConfig) error
 
 // FromEnv configures the client with values from environment variables. It
 // is the equivalent of using the [WithTLSClientConfigFromEnv], [WithHostFromEnv],
-// and [WithVersionFromEnv] options.
+// and [WithAPIVersionFromEnv] options.
 //
 // FromEnv uses the following environment variables:
 //
@@ -71,7 +87,7 @@ func FromEnv(c *clientConfig) error {
 	ops := []Opt{
 		WithTLSClientConfigFromEnv(),
 		WithHostFromEnv(),
-		WithVersionFromEnv(),
+		WithAPIVersionFromEnv(),
 	}
 	for _, op := range ops {
 		if err := op(c); err != nil {
@@ -241,17 +257,60 @@ func WithTLSClientConfigFromEnv() Opt {
 	}
 }
 
-// WithVersion overrides the client version with the specified one. If an empty
-// version is provided, the value is ignored to allow version negotiation
-// (see [WithAPIVersionNegotiation]).
+// WithAPIVersion overrides the client's API version with the specified one,
+// and disables API version negotiation. If an empty version is provided,
+// this option is ignored to allow version negotiation. The given version
+// should be formatted "<major>.<minor>" (for example, "1.52"). It returns
+// an error if the given value not in the correct format.
 //
-// WithVersion does not validate if the client supports the given version,
-// and callers should verify if the version is in the correct format and
-// lower than the maximum supported version as defined by [MaxAPIVersion].
-func WithVersion(version string) Opt {
+// WithAPIVersion does not validate if the client supports the given version,
+// and callers should verify if the version lower than the maximum supported
+// version as defined by [MaxAPIVersion].
+//
+// [WithAPIVersionFromEnv] takes precedence if [WithAPIVersion] and
+// [WithAPIVersionFromEnv] are both set.
+func WithAPIVersion(version string) Opt {
 	return func(c *clientConfig) error {
-		if v := strings.TrimPrefix(version, "v"); v != "" {
-			c.version = v
+		version = strings.TrimSpace(version)
+		if val := strings.TrimPrefix(version, "v"); val != "" {
+			ver, err := parseAPIVersion(val)
+			if err != nil {
+				return fmt.Errorf("invalid API version (%s): %w", version, err)
+			}
+			c.manualAPIVersion = ver
+			c.manualOverride = true
+		}
+		return nil
+	}
+}
+
+// WithVersion overrides the client version with the specified one.
+//
+// Deprecated: use [WithAPIVersion] instead.
+func WithVersion(version string) Opt {
+	return WithAPIVersion(version)
+}
+
+// WithAPIVersionFromEnv overrides the client version with the version specified in
+// the DOCKER_API_VERSION ([EnvOverrideAPIVersion]) environment variable.
+// If DOCKER_API_VERSION is not set, or set to an empty value, the version
+// is not modified.
+//
+// WithAPIVersion does not validate if the client supports the given version,
+// and callers should verify if the version lower than the maximum supported
+// version as defined by [MaxAPIVersion].
+//
+// [WithAPIVersionFromEnv] takes precedence if [WithAPIVersion] and
+// [WithAPIVersionFromEnv] are both set.
+func WithAPIVersionFromEnv() Opt {
+	return func(c *clientConfig) error {
+		version := strings.TrimSpace(os.Getenv(EnvOverrideAPIVersion))
+		if val := strings.TrimPrefix(version, "v"); val != "" {
+			ver, err := parseAPIVersion(val)
+			if err != nil {
+				return fmt.Errorf("invalid API version (%s): %w", version, err)
+			}
+			c.envAPIVersion = ver
 			c.manualOverride = true
 		}
 		return nil
@@ -260,16 +319,10 @@ func WithVersion(version string) Opt {
 
 // WithVersionFromEnv overrides the client version with the version specified in
 // the DOCKER_API_VERSION ([EnvOverrideAPIVersion]) environment variable.
-// If DOCKER_API_VERSION is not set, or set to an empty value, the version
-// is not modified.
 //
-// WithVersion does not validate if the client supports the given version,
-// and callers should verify if the version is in the correct format and
-// lower than the maximum supported version as defined by [MaxAPIVersion].
+// Deprecated: use [WithAPIVersionFromEnv] instead.
 func WithVersionFromEnv() Opt {
-	return func(c *clientConfig) error {
-		return WithVersion(os.Getenv(EnvOverrideAPIVersion))(c)
-	}
+	return WithAPIVersionFromEnv()
 }
 
 // WithAPIVersionNegotiation enables automatic API version negotiation for the client.

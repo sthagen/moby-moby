@@ -20,7 +20,7 @@ type PingOptions struct {
 	//
 	// If a manual override is in place, either through the "DOCKER_API_VERSION"
 	// ([EnvOverrideAPIVersion]) environment variable, or if the client is initialized
-	// with a fixed version ([WithVersion]), no negotiation is performed.
+	// with a fixed version ([WithAPIVersion]), no negotiation is performed.
 	//
 	// If the API server's ping response does not contain an API version, or if the
 	// client did not get a successful ping response, it assumes it is connected with
@@ -29,9 +29,8 @@ type PingOptions struct {
 	NegotiateAPIVersion bool
 
 	// ForceNegotiate forces the client to re-negotiate the API version, even if
-	// API-version negotiation already happened. This option cannot be
-	// used if the client is configured with a fixed version using (using
-	// [WithVersion] or [WithVersionFromEnv]).
+	// API-version negotiation already happened or it the client is configured
+	// with a fixed version (using [WithAPIVersion] or [WithAPIVersionFromEnv]).
 	//
 	// This option has no effect if NegotiateAPIVersion is not set.
 	ForceNegotiate bool
@@ -72,7 +71,8 @@ type SwarmStatus struct {
 // for other non-success status codes, failing to connect to the API, or failing
 // to parse the API response.
 func (cli *Client) Ping(ctx context.Context, options PingOptions) (PingResult, error) {
-	if cli.manualOverride {
+	if (cli.manualOverride || cli.negotiated.Load()) && !options.ForceNegotiate {
+		// API version was already negotiated or manually set.
 		return cli.ping(ctx)
 	}
 	if !options.NegotiateAPIVersion && !cli.negotiateVersion {
@@ -85,10 +85,14 @@ func (cli *Client) Ping(ctx context.Context, options PingOptions) (PingResult, e
 
 	ping, err := cli.ping(ctx)
 	if err != nil {
-		return cli.ping(ctx)
+		return ping, err
 	}
 
 	if cli.negotiated.Load() && !options.ForceNegotiate {
+		// API version was already negotiated or manually set.
+		//
+		// We check cli.negotiated again under lock, to account for race
+		// conditions with the check at the start of this function.
 		return ping, nil
 	}
 
