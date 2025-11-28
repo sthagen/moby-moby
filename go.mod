@@ -54,7 +54,7 @@ require (
 	github.com/in-toto/in-toto-golang v0.9.0
 	github.com/ishidawataru/sctp v0.0.0-20251114114122-19ddcbc6aae2
 	github.com/miekg/dns v1.1.66
-	github.com/mistifyio/go-zfs/v3 v3.0.1
+	github.com/mistifyio/go-zfs/v3 v3.1.0
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/moby/buildkit v0.26.2
 	github.com/moby/docker-image-spec v1.3.1
@@ -62,7 +62,7 @@ require (
 	github.com/moby/ipvs v1.1.0
 	github.com/moby/locker v1.0.1
 	github.com/moby/moby/api v1.52.0
-	github.com/moby/moby/client v0.1.0
+	github.com/moby/moby/client v0.2.1
 	github.com/moby/patternmatcher v0.6.0
 	github.com/moby/policy-helpers v0.0.0-20251105011237-bcaa71c99f14
 	github.com/moby/profiles/apparmor v0.1.0
@@ -84,7 +84,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/opencontainers/runtime-spec v1.2.1
-	github.com/opencontainers/selinux v1.13.0
+	github.com/opencontainers/selinux v1.13.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
@@ -243,7 +243,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/api v0.248.0 // indirect
@@ -253,7 +253,3 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 	tags.cncf.io/container-device-interface/specs-go v1.0.0 // indirect
 )
-
-replace github.com/moby/moby/api => ./api
-
-replace github.com/moby/moby/client => ./client
