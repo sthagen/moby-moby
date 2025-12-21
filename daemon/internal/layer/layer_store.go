@@ -294,12 +294,15 @@ func (ls *layerStore) registerWithDescriptor(ts io.Reader, parent ChainID, descr
 		descriptor:     descriptor,
 	}
 
-	if cErr = ls.driver.Create(layer.cacheID, pid, nil); cErr != nil {
+	tx, cErr := ls.store.StartTransaction()
+	if cErr != nil {
 		return nil, cErr
 	}
 
-	tx, cErr := ls.store.StartTransaction()
-	if cErr != nil {
+	if cErr = ls.driver.Create(layer.cacheID, pid, nil); cErr != nil {
+		if err := tx.Cancel(); err != nil {
+			log.G(context.TODO()).WithFields(log.Fields{"cache-id": layer.cacheID, "error": err}).Error("Error canceling metadata transaction")
+		}
 		return nil, cErr
 	}
 
@@ -532,6 +535,9 @@ func (ls *layerStore) CreateRWLayer(name string, parent ChainID, opts *CreateRWL
 		return nil, err
 	}
 	if err := ls.saveMount(m); err != nil {
+		if removeErr := ls.driver.Remove(m.mountID); removeErr != nil {
+			log.G(context.TODO()).WithFields(log.Fields{"mount-id": m.mountID, "error": removeErr}).Error("Failed to clean up RW layer after mount save failure")
+		}
 		return nil, err
 	}
 
@@ -642,7 +648,7 @@ func (ls *layerStore) saveMount(mount *mountedLayer) error {
 	return nil
 }
 
-func (ls *layerStore) initMount(graphID, parent, mountLabel string, initFunc MountInit, storageOpt map[string]string) (string, error) {
+func (ls *layerStore) initMount(graphID, parent, mountLabel string, initFunc MountInit, storageOpt map[string]string) (_ string, retErr error) {
 	// Use "<graph-id>-init" to maintain compatibility with graph drivers
 	// which are expecting this layer with this special name. If all
 	// graph drivers can be updated to not rely on knowing about this layer
@@ -657,6 +663,16 @@ func (ls *layerStore) initMount(graphID, parent, mountLabel string, initFunc Mou
 	if err := ls.driver.CreateReadWrite(initID, parent, createOpts); err != nil {
 		return "", err
 	}
+
+	// Clean up init layer if any subsequent operation fails
+	defer func() {
+		if retErr != nil {
+			if err := ls.driver.Remove(initID); err != nil {
+				log.G(context.TODO()).WithFields(log.Fields{"init-id": initID, "error": err}).Error("Failed to clean up init layer after error")
+			}
+		}
+	}()
+
 	p, err := ls.driver.Get(initID, "")
 	if err != nil {
 		return "", err

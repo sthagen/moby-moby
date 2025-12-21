@@ -24,7 +24,6 @@ import (
 
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/defaults"
-	"github.com/containerd/containerd/v2/pkg/dialer"
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/distribution/reference"
@@ -37,6 +36,7 @@ import (
 	networktypes "github.com/moby/moby/api/types/network"
 	registrytypes "github.com/moby/moby/api/types/registry"
 	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/v2/daemon/internal/nri"
 	"github.com/moby/sys/user"
 	"github.com/moby/sys/userns"
 	"github.com/pkg/errors"
@@ -45,8 +45,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
-	"google.golang.org/grpc/credentials/insecure"
 	"resenje.org/singleflight"
 	"tags.cncf.io/container-device-interface/pkg/cdi"
 
@@ -116,6 +114,7 @@ type Daemon struct {
 	shutdown          bool
 	idMapping         user.IdentityMapping
 	PluginStore       *plugin.Store // TODO: remove
+	nri               *nri.NRI
 	pluginManager     *plugin.Manager
 	linkIndex         *linkIndex
 	containerdClient  *containerd.Client
@@ -641,18 +640,25 @@ func (daemon *Daemon) restore(ctx context.Context, cfg *configStore, containers 
 	}
 	group.Wait()
 
-	for id := range removeContainers {
+	for id, c := range removeContainers {
 		group.Add(1)
-		go func(cid string) {
+		go func(cid string, c *container.Container) {
 			_ = sem.Acquire(context.Background(), 1)
+			defer group.Done()
+			defer sem.Release(1)
+
+			if c.State.IsDead() {
+				if err := daemon.cleanupContainer(c, backend.ContainerRmConfig{ForceRemove: true, RemoveVolume: true}); err != nil {
+					log.G(ctx).WithField("container", cid).WithError(err).Error("failed to remove dead container")
+				}
+				return
+			}
 
 			if err := daemon.containerRm(&cfg.Config, cid, &backend.ContainerRmConfig{ForceRemove: true, RemoveVolume: true}); err != nil {
 				log.G(ctx).WithField("container", cid).WithError(err).Error("failed to remove container")
 			}
 
-			sem.Release(1)
-			group.Done()
-		}(id)
+		}(id, c)
 	}
 	group.Wait()
 
@@ -962,30 +968,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 
 	const connTimeout = 60 * time.Second
 
-	// Set the max backoff delay to match our containerd.WithTimeout(),
-	// aligning with how containerd client's defaults sets this;
-	// https://github.com/containerd/containerd/blob/v2.0.2/client/client.go#L129-L136
-	backoffConfig := backoff.DefaultConfig
-	backoffConfig.MaxDelay = connTimeout
-	connParams := grpc.ConnectParams{
-		Backoff: backoffConfig,
-	}
 	gopts := []grpc.DialOption{
-		// ------------------------------------------------------------------
-		// options below are copied from containerd client's default options
-		//
-		// We need to set these options, because setting any custom DialOptions
-		// currently overwrites (not appends to) the defaults;
-		// https://github.com/containerd/containerd/blob/v2.0.2/client/client.go#L129-L141
-		//
-		// TODO(thaJeztah): use containerd.WithExtraDialOpts() once https://github.com/containerd/containerd/pull/11276 is merged and in a release.
-		// ------------------------------------------------------------------
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithConnectParams(connParams),
-		grpc.WithContextDialer(dialer.ContextDialer),
-		// ------------------------------------------------------------------
-		// end of options copied from containerd client's default
-		// ------------------------------------------------------------------
 		grpc.WithStatsHandler(tracing.ClientStatsHandler(otelgrpc.WithTracerProvider(otel.GetTracerProvider()))),
 		grpc.WithUnaryInterceptor(grpcerrors.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(grpcerrors.StreamClientInterceptor),
@@ -999,7 +982,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		d.containerdClient, err = containerd.New(
 			cfgStore.ContainerdAddr,
 			containerd.WithDefaultNamespace(cfgStore.ContainerdNamespace),
-			containerd.WithDialOpts(gopts),
+			containerd.WithExtraDialOpts(gopts),
 			containerd.WithTimeout(connTimeout),
 		)
 		if err != nil {
@@ -1014,7 +997,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 			pluginCli, err = containerd.New(
 				cfgStore.ContainerdAddr,
 				containerd.WithDefaultNamespace(cfgStore.ContainerdPluginNamespace),
-				containerd.WithDialOpts(gopts),
+				containerd.WithExtraDialOpts(gopts),
 				containerd.WithTimeout(connTimeout),
 			)
 			if err != nil {
@@ -1092,6 +1075,14 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	d.linkIndex = newLinkIndex()
 
 	containers, err := d.loadContainers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	d.nri, err = nri.NewNRI(ctx, nri.Config{
+		DaemonConfig:    config.NRIOpts,
+		ContainerLister: d.containers,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1485,6 +1476,10 @@ func (daemon *Daemon) Shutdown(ctx context.Context) error {
 
 	// Shutdown plugins after containers and layerstore. Don't change the order.
 	daemon.pluginShutdown()
+
+	if daemon.nri != nil {
+		daemon.nri.Shutdown(ctx)
+	}
 
 	// trigger libnetwork Stop only if it's initialized
 	if daemon.netController != nil {

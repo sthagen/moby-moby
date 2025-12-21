@@ -44,7 +44,7 @@ import (
 	"github.com/moby/moby/v2/daemon/server/router/container"
 	debugrouter "github.com/moby/moby/v2/daemon/server/router/debug"
 	distributionrouter "github.com/moby/moby/v2/daemon/server/router/distribution"
-	grpcrouter "github.com/moby/moby/v2/daemon/server/router/grpc"
+	grpcrouter "github.com/moby/moby/v2/daemon/server/router/grpc" //nolint:staticcheck // Deprecated endpoint kept for backward compatibility
 	"github.com/moby/moby/v2/daemon/server/router/image"
 	"github.com/moby/moby/v2/daemon/server/router/network"
 	pluginrouter "github.com/moby/moby/v2/daemon/server/router/plugin"
@@ -57,6 +57,7 @@ import (
 	"github.com/moby/moby/v2/pkg/homedir"
 	"github.com/moby/moby/v2/pkg/pidfile"
 	"github.com/moby/moby/v2/pkg/plugingetter"
+	"github.com/moby/sys/userns"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -306,13 +307,23 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 		}
 	}
 
+	// Enable HTTP/1, HTTP/2 and h2c on the HTTP server. h2c won't be used for *tls.Conn listeners, and HTTP/2 won't be
+	// used for non-TLS connections.
+	var p http.Protocols
+	p.SetHTTP1(true)
+	p.SetHTTP2(true)
+	p.SetUnencryptedHTTP2(true)
+
 	routers := buildRouters(routerOptions{
 		features: d.Features,
 		daemon:   d,
 		cluster:  c,
 		builder:  b,
 	})
-	httpServer.Handler = apiServer.CreateMux(ctx, routers...)
+	gs := newGRPCServer(ctx)
+	b.backend.RegisterGRPC(gs)
+	httpServer.Protocols = &p
+	httpServer.Handler = newHTTPHandler(ctx, gs, apiServer.CreateMux(ctx, routers...))
 
 	go d.ProcessClusterNotifications(ctx, c.GetWatchStream())
 
@@ -656,7 +667,35 @@ func loadDaemonCliConfig(opts *daemonOptions) (*config.Config, error) {
 	if conf.CDISpecDirs == nil {
 		// If the CDISpecDirs is not set at this stage, we set it to the default.
 		conf.CDISpecDirs = append([]string(nil), cdi.DefaultSpecDirs...)
-	} else if len(conf.CDISpecDirs) == 1 && conf.CDISpecDirs[0] == "" {
+		if rootless.RunningWithRootlessKit() {
+			// In rootless mode, we add the user-specific CDI spec directory.
+			xch, err := homedir.GetConfigHome()
+			if err != nil {
+				return nil, err
+			}
+			xrd, err := homedir.GetRuntimeDir()
+			if err != nil {
+				return nil, err
+			}
+			conf.CDISpecDirs = append(conf.CDISpecDirs, filepath.Join(xch, "cdi"), filepath.Join(xrd, "cdi"))
+		}
+	}
+	// Filter out CDI spec directories that are not readable, and log appropriately
+	var cdiSpecDirs []string
+	for _, dir := range conf.CDISpecDirs {
+		// Non-existing directories are not filtered out here, as CDI spec directories are allowed to not exist.
+		if _, err := os.ReadDir(dir); err == nil || errors.Is(err, os.ErrNotExist) {
+			cdiSpecDirs = append(cdiSpecDirs, dir)
+		} else {
+			logLevel := log.ErrorLevel
+			if userns.RunningInUserNS() && errors.Is(err, os.ErrPermission) {
+				logLevel = log.DebugLevel
+			}
+			log.L.WithField("dir", dir).WithError(err).Log(logLevel, "CDI spec directory cannot be accessed, skipping")
+		}
+	}
+	conf.CDISpecDirs = cdiSpecDirs
+	if len(conf.CDISpecDirs) == 1 && conf.CDISpecDirs[0] == "" {
 		// If CDISpecDirs is set to an empty string, we clear it to ensure that CDI is disabled.
 		conf.CDISpecDirs = nil
 	}
@@ -720,7 +759,7 @@ func buildRouters(opts routerOptions) []router.Router {
 		systemrouter.NewRouter(opts.daemon, opts.cluster, opts.builder.buildkit, opts.daemon.Features),
 		volume.NewRouter(opts.daemon.VolumesService(), opts.cluster),
 		build.NewRouter(opts.builder.backend, opts.daemon),
-		sessionrouter.NewRouter(opts.builder.sessionManager),
+		sessionrouter.NewRouter(opts.builder.sessionManager), //nolint:staticcheck // Deprecated endpoint kept for backward compatibility
 		swarmrouter.NewRouter(opts.cluster),
 		pluginrouter.NewRouter(opts.daemon.PluginManager()),
 		distributionrouter.NewRouter(opts.daemon.ImageBackend()),
@@ -729,7 +768,7 @@ func buildRouters(opts routerOptions) []router.Router {
 	}
 
 	if opts.builder.backend != nil {
-		routers = append(routers, grpcrouter.NewRouter(opts.builder.backend))
+		routers = append(routers, grpcrouter.NewRouter(opts.builder.backend)) //nolint:staticcheck // Deprecated endpoint kept for backward compatibility
 	}
 
 	if opts.daemon.HasExperimental() {
@@ -816,6 +855,7 @@ func newAPIServerTLSConfig(cfg *config.Config) (*tls.Config, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid TLS configuration")
 		}
+		tlsConfig.NextProtos = []string{"h2", "http/1.1"}
 	}
 
 	return tlsConfig, nil

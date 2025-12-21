@@ -19,6 +19,7 @@ import (
 	"github.com/docker/go-units"
 	"github.com/moby/go-archive"
 	"github.com/moby/go-archive/chrootarchive"
+	"github.com/moby/go-archive/compression"
 	"github.com/moby/locker"
 	"github.com/moby/moby/v2/daemon/graphdriver"
 	"github.com/moby/moby/v2/daemon/graphdriver/overlayutils"
@@ -469,7 +470,7 @@ func (d *Driver) getLowerDirs(id string) ([]string, error) {
 	var lowersArray []string
 	lowers, err := os.ReadFile(path.Join(d.dir(id), lowerFile))
 	if err == nil {
-		for _, s := range strings.Split(string(lowers), ":") {
+		for s := range strings.SplitSeq(string(lowers), ":") {
 			lp, err := os.Readlink(path.Join(d.home, s))
 			if err != nil {
 				return nil, err
@@ -721,7 +722,7 @@ func (d *Driver) Diff(id, parent string) (io.ReadCloser, error) {
 	diffPath := d.getDiffPath(id)
 	logger.Debugf("Tar with options on %s", diffPath)
 	return archive.TarWithOptions(diffPath, &archive.TarOptions{
-		Compression:    archive.Uncompressed,
+		Compression:    compression.None,
 		IDMap:          d.idMap,
 		WhiteoutFormat: archive.OverlayWhiteoutFormat,
 	})

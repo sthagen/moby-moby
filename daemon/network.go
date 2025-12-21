@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -304,9 +305,7 @@ func (daemon *Daemon) createNetwork(ctx context.Context, cfg *config.Config, cre
 	}
 
 	networkOptions := make(map[string]string)
-	for k, v := range create.Options {
-		networkOptions[k] = v
-	}
+	maps.Copy(networkOptions, create.Options)
 	if defaultOpts, ok := cfg.DefaultNetworkOpts[driver]; create.ConfigFrom == nil && ok {
 		for k, v := range defaultOpts {
 			if _, ok := networkOptions[k]; !ok {
@@ -435,10 +434,8 @@ func (daemon *Daemon) pluginRefCount(driver, capability string, mode int) {
 		// other capabilities can be ignored for now
 	}
 
-	for _, d := range builtinDrivers {
-		if d == driver {
-			return
-		}
+	if slices.Contains(builtinDrivers, driver) {
+		return
 	}
 
 	if daemon.PluginStore != nil {
@@ -1038,10 +1035,13 @@ func buildPortsRelatedCreateEndpointOptions(c *container.Container, n *libnetwor
 	)
 
 	ports := c.HostConfig.PortBindings
-	if c.HostConfig.PublishAllPorts {
+	if c.HostConfig.PublishAllPorts && len(c.Config.ExposedPorts) > 0 {
 		// Add exposed ports to a copy of the map to make sure a "publishedPorts" entry is created
 		// for each exposed port, even if there's no specific binding.
 		ports = maps.Clone(c.HostConfig.PortBindings)
+		if ports == nil {
+			ports = networktypes.PortMap{}
+		}
 		for p := range c.Config.ExposedPorts {
 			if _, exists := ports[p]; !exists {
 				ports[p] = nil
