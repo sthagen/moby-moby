@@ -1,12 +1,15 @@
 package client
 
 import (
+	"crypto/tls"
 	"net/http"
+	"net/http/cookiejar"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 )
@@ -298,7 +301,7 @@ func TestWithUserAgent(t *testing.T) {
 	t.Run("user-agent", func(t *testing.T) {
 		c, err := New(
 			WithUserAgent(userAgent),
-			WithMockClient(func(req *http.Request) (*http.Response, error) {
+			WithBaseMockClient(func(req *http.Request) (*http.Response, error) {
 				assert.Check(t, is.Equal(req.Header.Get("User-Agent"), userAgent))
 				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
@@ -312,7 +315,7 @@ func TestWithUserAgent(t *testing.T) {
 		c, err := New(
 			WithUserAgent(userAgent),
 			WithHTTPHeaders(map[string]string{"User-Agent": "should-be-ignored/1.0.0", "Other-Header": "hello-world"}),
-			WithMockClient(func(req *http.Request) (*http.Response, error) {
+			WithBaseMockClient(func(req *http.Request) (*http.Response, error) {
 				assert.Check(t, is.Equal(req.Header.Get("User-Agent"), userAgent))
 				assert.Check(t, is.Equal(req.Header.Get("Other-Header"), "hello-world"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
@@ -326,7 +329,7 @@ func TestWithUserAgent(t *testing.T) {
 	t.Run("custom headers", func(t *testing.T) {
 		c, err := New(
 			WithHTTPHeaders(map[string]string{"User-Agent": "from-custom-headers/1.0.0", "Other-Header": "hello-world"}),
-			WithMockClient(func(req *http.Request) (*http.Response, error) {
+			WithBaseMockClient(func(req *http.Request) (*http.Response, error) {
 				assert.Check(t, is.Equal(req.Header.Get("User-Agent"), "from-custom-headers/1.0.0"))
 				assert.Check(t, is.Equal(req.Header.Get("Other-Header"), "hello-world"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
@@ -340,7 +343,7 @@ func TestWithUserAgent(t *testing.T) {
 	t.Run("no user-agent set", func(t *testing.T) {
 		c, err := New(
 			WithHTTPHeaders(map[string]string{"Other-Header": "hello-world"}),
-			WithMockClient(func(req *http.Request) (*http.Response, error) {
+			WithBaseMockClient(func(req *http.Request) (*http.Response, error) {
 				assert.Check(t, is.Equal(req.Header.Get("User-Agent"), ""))
 				assert.Check(t, is.Equal(req.Header.Get("Other-Header"), "hello-world"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
@@ -355,7 +358,7 @@ func TestWithUserAgent(t *testing.T) {
 		c, err := New(
 			WithUserAgent(""),
 			WithHTTPHeaders(map[string]string{"User-Agent": "from-custom-headers/1.0.0", "Other-Header": "hello-world"}),
-			WithMockClient(func(req *http.Request) (*http.Response, error) {
+			WithBaseMockClient(func(req *http.Request) (*http.Response, error) {
 				assert.Check(t, is.Equal(req.Header.Get("User-Agent"), ""))
 				assert.Check(t, is.Equal(req.Header.Get("Other-Header"), "hello-world"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
@@ -366,4 +369,24 @@ func TestWithUserAgent(t *testing.T) {
 		assert.NilError(t, err)
 		assert.NilError(t, c.Close())
 	})
+}
+
+func TestWithHTTPClient(t *testing.T) {
+	cookieJar, err := cookiejar.New(nil)
+	assert.NilError(t, err)
+	pristineHTTPClient := func() *http.Client {
+		return &http.Client{
+			Timeout: 42 * time.Second,
+			Jar:     cookieJar,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{ServerName: "example.com", MinVersion: tls.VersionTLS12},
+			},
+		}
+	}
+	hc := pristineHTTPClient()
+	_, err = New(WithHTTPClient(hc), WithHost("tcp://example.com:443"))
+	assert.NilError(t, err)
+	assert.DeepEqual(t, hc, pristineHTTPClient(),
+		cmpopts.IgnoreUnexported(http.Transport{}, tls.Config{}),
+		cmpopts.EquateComparable(&cookiejar.Jar{}))
 }
