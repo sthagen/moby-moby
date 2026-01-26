@@ -38,8 +38,8 @@ cloud.google.com/go/logging/internal
 cloud.google.com/go/longrunning
 cloud.google.com/go/longrunning/autogen
 cloud.google.com/go/longrunning/autogen/longrunningpb
-# code.cloudfoundry.org/clock v1.37.0
-## explicit; go 1.23.0
+# code.cloudfoundry.org/clock v1.59.0
+## explicit; go 1.24.9
 code.cloudfoundry.org/clock
 code.cloudfoundry.org/clock/fakeclock
 # cyphar.com/go-pathrs v0.2.1
@@ -330,7 +330,7 @@ github.com/cilium/ebpf/internal/testutils/fdtrace
 github.com/cilium/ebpf/internal/tracefs
 github.com/cilium/ebpf/internal/unix
 github.com/cilium/ebpf/link
-# github.com/cloudflare/cfssl v1.6.4
+# github.com/cloudflare/cfssl v1.6.5
 ## explicit; go 1.18
 github.com/cloudflare/cfssl/api
 github.com/cloudflare/cfssl/auth
@@ -944,7 +944,7 @@ github.com/ishidawataru/sctp
 # github.com/jmoiron/sqlx v1.4.0
 ## explicit; go 1.10
 github.com/jmoiron/sqlx/types
-# github.com/klauspost/compress v1.18.2
+# github.com/klauspost/compress v1.18.3
 ## explicit; go 1.23
 github.com/klauspost/compress
 github.com/klauspost/compress/fse
@@ -1599,20 +1599,23 @@ github.com/vishvananda/netlink/nl
 # github.com/vishvananda/netns v0.0.5
 ## explicit; go 1.17
 github.com/vishvananda/netns
-# github.com/weppos/publicsuffix-go v0.15.1-0.20210511084619-b1f36a2d6c0b
-## explicit; go 1.11
-github.com/weppos/publicsuffix-go/publicsuffix
-# github.com/zmap/zcrypto v0.0.0-20210511125630-18f1e0152cfc
+# github.com/weppos/publicsuffix-go v0.30.0
 ## explicit; go 1.16
+github.com/weppos/publicsuffix-go/publicsuffix
+# github.com/zmap/zcrypto v0.0.0-20230310154051-c8b263fd8300
+## explicit; go 1.16
+github.com/zmap/zcrypto/cryptobyte
+github.com/zmap/zcrypto/cryptobyte/asn1
 github.com/zmap/zcrypto/dsa
+github.com/zmap/zcrypto/encoding/asn1
 github.com/zmap/zcrypto/internal/randutil
 github.com/zmap/zcrypto/json
 github.com/zmap/zcrypto/util
 github.com/zmap/zcrypto/x509
 github.com/zmap/zcrypto/x509/ct
 github.com/zmap/zcrypto/x509/pkix
-# github.com/zmap/zlint/v3 v3.1.0
-## explicit; go 1.15
+# github.com/zmap/zlint/v3 v3.5.0
+## explicit; go 1.18
 github.com/zmap/zlint/v3
 github.com/zmap/zlint/v3/lint
 github.com/zmap/zlint/v3/lints/apple
@@ -1812,7 +1815,7 @@ go.yaml.in/yaml/v2
 # go.yaml.in/yaml/v3 v3.0.4
 ## explicit; go 1.16
 go.yaml.in/yaml/v3
-# golang.org/x/crypto v0.46.0
+# golang.org/x/crypto v0.47.0
 ## explicit; go 1.24.0
 golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
@@ -1838,13 +1841,13 @@ golang.org/x/crypto/scrypt
 golang.org/x/crypto/sha3
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
-# golang.org/x/mod v0.31.0
+# golang.org/x/mod v0.32.0
 ## explicit; go 1.24.0
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
 golang.org/x/mod/sumdb/note
-# golang.org/x/net v0.48.0
+# golang.org/x/net v0.49.0
 ## explicit; go 1.24.0
 golang.org/x/net/bpf
 golang.org/x/net/context
@@ -1879,7 +1882,7 @@ golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
 golang.org/x/sync/syncmap
-# golang.org/x/sys v0.39.0
+# golang.org/x/sys v0.40.0
 ## explicit; go 1.24.0
 golang.org/x/sys/cpu
 golang.org/x/sys/plan9
@@ -1890,10 +1893,10 @@ golang.org/x/sys/windows/svc
 golang.org/x/sys/windows/svc/debug
 golang.org/x/sys/windows/svc/eventlog
 golang.org/x/sys/windows/svc/mgr
-# golang.org/x/term v0.38.0
+# golang.org/x/term v0.39.0
 ## explicit; go 1.24.0
 golang.org/x/term
-# golang.org/x/text v0.32.0
+# golang.org/x/text v0.33.0
 ## explicit; go 1.24.0
 golang.org/x/text/encoding
 golang.org/x/text/encoding/internal
@@ -1908,7 +1911,7 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.14.0
 ## explicit; go 1.24.0
 golang.org/x/time/rate
-# golang.org/x/tools v0.40.0
+# golang.org/x/tools v0.41.0
 ## explicit; go 1.24.0
 golang.org/x/tools/go/ast/edge
 golang.org/x/tools/go/ast/inspector
