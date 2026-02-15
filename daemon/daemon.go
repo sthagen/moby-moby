@@ -233,17 +233,14 @@ func (daemon *Daemon) loadContainers(ctx context.Context) (map[string]map[string
 	sem := semaphore.NewWeighted(int64(parallelLimit))
 
 	for _, v := range dir {
-		group.Add(1)
-		go func(id string) {
-			defer group.Done()
-			_ = sem.Acquire(context.Background(), 1)
+		id := v.Name()
+		group.Go(func() {
+			_ = sem.Acquire(context.WithoutCancel(ctx), 1)
 			defer sem.Release(1)
-
-			logger := log.G(ctx).WithField("container", id)
 
 			c, err := daemon.load(id)
 			if err != nil {
-				logger.WithError(err).Error("failed to load container")
+				log.G(ctx).WithFields(log.Fields{"error": err, "container": id}).Error("Failed to load container")
 				return
 			}
 
@@ -256,7 +253,7 @@ func (daemon *Daemon) loadContainers(ctx context.Context) (map[string]map[string
 				containers[c.ID] = c
 			}
 			mapLock.Unlock()
-		}(v.Name())
+		})
 	}
 	group.Wait()
 
@@ -284,10 +281,11 @@ func (daemon *Daemon) restore(ctx context.Context, cfg *configStore, containers 
 	activeSandboxes := make(map[string]any)
 
 	for _, c := range containers {
-		group.Add(1)
-		go func(c *container.Container) {
-			defer group.Done()
-			_ = sem.Acquire(context.Background(), 1)
+		group.Go(func() {
+			if err := sem.Acquire(context.WithoutCancel(ctx), 1); err != nil {
+				// ctx is done; should never happen.
+				return
+			}
 			defer sem.Release(1)
 
 			logger := log.G(ctx).WithField("container", c.ID)
@@ -304,20 +302,20 @@ func (daemon *Daemon) restore(ctx context.Context, cfg *configStore, containers 
 			}).Debug("loaded container")
 
 			if err := daemon.registerName(c); err != nil {
-				log.G(ctx).WithError(err).Errorf("failed to register container name: %s", c.Name)
+				logger.WithError(err).Errorf("failed to register container name: %s", c.Name)
 				mapLock.Lock()
 				delete(containers, c.ID)
 				mapLock.Unlock()
 				return
 			}
-			if err := daemon.register(context.TODO(), c); err != nil {
-				log.G(ctx).WithError(err).Error("failed to register container")
+			if err := daemon.register(ctx, c); err != nil {
+				logger.WithError(err).Error("failed to register container")
 				mapLock.Lock()
 				delete(containers, c.ID)
 				mapLock.Unlock()
 				return
 			}
-		}(c)
+		})
 	}
 	group.Wait()
 
@@ -716,27 +714,29 @@ func (daemon *Daemon) restartSwarmContainers(ctx context.Context, cfg *configSto
 	sem := semaphore.NewWeighted(int64(parallelLimit))
 
 	for _, c := range daemon.List() {
-		if !c.State.IsRunning() && !c.State.IsPaused() {
-			// Autostart all the containers which has a
-			// swarm endpoint now that the cluster is
-			// initialized.
-			if cfg.AutoRestart && c.ShouldRestart() && c.NetworkSettings.HasSwarmEndpoint && c.HasBeenStartedBefore {
-				group.Add(1)
-				go func(c *container.Container) {
-					if err := sem.Acquire(ctx, 1); err != nil {
-						// ctx is done.
-						group.Done()
-						return
-					}
+		if c.State.IsRunning() || c.State.IsPaused() {
+			continue
+		}
 
-					if err := daemon.containerStart(ctx, cfg, c, "", "", true); err != nil {
-						log.G(ctx).WithField("container", c.ID).WithError(err).Error("failed to start swarm container")
-					}
-
-					sem.Release(1)
+		// Autostart all the containers which has a
+		// swarm endpoint now that the cluster is
+		// initialized.
+		if cfg.AutoRestart && c.ShouldRestart() && c.NetworkSettings.HasSwarmEndpoint && c.HasBeenStartedBefore {
+			group.Add(1)
+			go func(c *container.Container) {
+				if err := sem.Acquire(ctx, 1); err != nil {
+					// ctx is done.
 					group.Done()
-				}(c)
-			}
+					return
+				}
+
+				if err := daemon.containerStart(ctx, cfg, c, "", "", true); err != nil {
+					log.G(ctx).WithField("container", c.ID).WithError(err).Error("failed to start swarm container")
+				}
+
+				sem.Release(1)
+				group.Done()
+			}(c)
 		}
 	}
 	group.Wait()
@@ -1323,10 +1323,11 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 				continue
 			}
 			for id := range all {
-				log.G(ctx).WithField("container", id).
-					WithField("driver", driver).
-					WithField("current_driver", driverName).
-					Debugf("not restoring container because it was created with another storage driver (%s)", driver)
+				log.G(ctx).WithFields(log.Fields{
+					"container":      id,
+					"driver":         driver,
+					"current_driver": driverName,
+				}).Debugf("not restoring container because it was created with another storage driver (%s)", driver)
 			}
 		}
 	}
