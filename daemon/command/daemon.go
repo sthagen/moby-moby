@@ -115,7 +115,7 @@ func newDaemonCLI(opts *daemonOptions) (*daemonCLI, error) {
 	}, nil
 }
 
-func (cli *daemonCLI) start(ctx context.Context) (err error) {
+func (cli *daemonCLI) start(ctx context.Context) (retErr error) {
 	if err := daemon.CheckSystem(); err != nil {
 		return fmt.Errorf("system requirements not met: %w", err)
 	}
@@ -125,6 +125,13 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 	}
 
 	log.G(ctx).Info("Starting up")
+	defer func() {
+		l := log.G(ctx)
+		if retErr != nil && !errors.Is(retErr, context.Canceled) {
+			l = l.WithError(retErr)
+		}
+		l.Info("Daemon shutdown complete")
+	}()
 
 	if cli.Config.Debug {
 		debug.Enable()
@@ -156,10 +163,10 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 	potentiallyUnderRuntimeDir := []string{cli.Config.ExecRoot}
 
 	if cli.Pidfile != "" {
-		if err = os.MkdirAll(filepath.Dir(cli.Pidfile), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(cli.Pidfile), 0o755); err != nil {
 			return errors.Wrap(err, "failed to create pidfile directory")
 		}
-		if err = pidfile.Write(cli.Pidfile, os.Getpid()); err != nil {
+		if err := pidfile.Write(cli.Pidfile, os.Getpid()); err != nil {
 			return errors.Wrapf(err, "failed to start daemon, ensure docker is not running or delete %s", cli.Pidfile)
 		}
 		potentiallyUnderRuntimeDir = append(potentiallyUnderRuntimeDir, cli.Pidfile)
@@ -279,10 +286,11 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 	}
 
 	var apiServer apiserver.Server
-	cli.authzMiddleware, err = initMiddlewares(ctx, &apiServer, cli.Config, pluginStore)
+	authz, err := initMiddlewares(ctx, &apiServer, cli.Config, pluginStore)
 	if err != nil {
 		return errors.Wrap(err, "failed to start API server")
 	}
+	cli.authzMiddleware = authz
 
 	d, err := daemon.NewDaemon(ctx, cli.Config, pluginStore, cli.authzMiddleware)
 	if err != nil {
@@ -345,22 +353,22 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 
 	cli.setupConfigReloadTrap()
 
-	// after the daemon is done setting up we can notify systemd api
-	notifyReady()
 	log.G(ctx).Info("Daemon has completed initialization")
 
 	// Daemon is fully initialized. Start handling API traffic
 	// and wait for serve API to complete.
 	var (
-		apiWG  sync.WaitGroup
-		errAPI = make(chan error, 1)
+		apiWG      sync.WaitGroup
+		errAPI     = make(chan error, 1)
+		apiStartWG sync.WaitGroup
 	)
+
+	apiStartWG.Add(len(lss))
 	for _, ls := range lss {
-		apiWG.Add(1)
-		go func(ls net.Listener) {
-			defer apiWG.Done()
+		apiWG.Go(func() {
 			log.G(ctx).Infof("API listen on %s", ls.Addr())
-			if err := httpServer.Serve(ls); err != http.ErrServerClosed {
+			apiStartWG.Done()
+			if err := httpServer.Serve(ls); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.G(ctx).WithFields(log.Fields{
 					"error":    err,
 					"listener": ls.Addr(),
@@ -371,8 +379,20 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 				default:
 				}
 			}
-		}(ls)
+		})
 	}
+
+	// Wait for all API listeners to start handling requests.
+	apiStartWG.Wait()
+
+	select {
+	case <-errAPI:
+		// An API listener failed to start; skip notifying systemd that we're ready.
+	default:
+		// All API listeners started handling requests; notify systemd that we're ready.
+		notifyReady()
+	}
+
 	apiWG.Wait()
 	close(errAPI)
 
@@ -396,7 +416,6 @@ func (cli *daemonCLI) start(ctx context.Context) (err error) {
 		log.G(ctx).WithError(err).Error("Failed to shutdown OTEL tracing")
 	}
 
-	log.G(ctx).Info("Daemon shutdown complete")
 	return nil
 }
 
