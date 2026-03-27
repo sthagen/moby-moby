@@ -293,10 +293,12 @@ func (daemon *Daemon) restore(ctx context.Context, cfg *configStore, containers 
 
 			rwlayer, err := daemon.imageService.GetLayerByID(c.ID)
 			if err != nil {
+				// A container without a rwlayer is in a bad state, but we must register that container to let users
+				// remove it. So, log the error but do not early-return.
 				logger.WithError(err).Error("failed to load container mount")
-				return
+			} else {
+				c.RWLayer = rwlayer
 			}
-			c.RWLayer = rwlayer
 			logger.WithFields(log.Fields{
 				"running": c.State.IsRunning(),
 				"paused":  c.State.IsPaused(),
@@ -863,6 +865,10 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		}
 		_ = os.Setenv("TEMP", realTmp)
 		_ = os.Setenv("TMP", realTmp)
+		// Set the SystemTemp environment variable, because for system processes
+		// GetTempPath2() uses it rather than TEMP/TMP:
+		// https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettemppath2w
+		_ = os.Setenv("SystemTemp", realTmp)
 	} else {
 		_ = os.Setenv("TMPDIR", realTmp)
 	}
