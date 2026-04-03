@@ -14,8 +14,7 @@ import (
 
 var readBuildInfo = sync.OnceValues(debug.ReadBuildInfo)
 
-// Version returns a best-effort version string for the given module path,
-// similar to [mod.Version] in the daemon.
+// Version returns a best-effort version string for the given module path.
 //
 // If the module is present in [debug.BuildInfo] dependencies, its version
 // is returned. Tagged versions are returned as-is (with "+incompatible"
@@ -32,7 +31,6 @@ var readBuildInfo = sync.OnceValues(debug.ReadBuildInfo)
 // The returned value is intended for display purposes (e.g., in a default
 // User-Agent), not for version comparison.
 //
-// [mod.Version]: https://pkg.go.dev/github.com/moby/moby/v2@v2.0.0-beta.7/daemon/internal/builder-next/worker/mod#Version
 // [module.PseudoVersionBase]: https://pkg.go.dev/golang.org/x/mod@v0.34.0/module#PseudoVersionBase
 // [Pseudo-versions]: https://cs.opensource.google/go/x/mod/+/refs/tags/v0.34.0:module/pseudo.go;l=5-33
 func Version(name string) string {
@@ -70,7 +68,10 @@ func getVersion(name string, dep *debug.Module) (string, bool) {
 
 	v := dep.Version
 	if dep.Replace != nil && dep.Replace.Version != "" {
-		v = dep.Replace.Version
+		// we currently do not include a version if a "replace" is used;
+		// see https://github.com/moby/moby/pull/52170#issuecomment-4178353517
+		// v = dep.Replace.Version
+		return "", true
 	}
 	if v == "" || v == "(devel)" {
 		return "", true
