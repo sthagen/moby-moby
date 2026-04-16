@@ -21,7 +21,7 @@ require (
 	github.com/cloudflare/cfssl v1.6.5
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.10.0
-	github.com/containerd/containerd/v2 v2.2.2
+	github.com/containerd/containerd/v2 v2.2.3
 	github.com/containerd/continuity v0.4.5
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/fifo v1.1.0
@@ -32,10 +32,9 @@ require (
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/cpuguy83/tar2go v0.3.1
 	github.com/creack/pty v1.1.24
-	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/distribution/reference v0.6.0
 	github.com/docker/distribution v2.8.3+incompatible
-	github.com/docker/go-connections v0.6.0
+	github.com/docker/go-connections v0.7.0
 	github.com/docker/go-events v0.0.0-20250808211157-605354379745
 	github.com/docker/go-metrics v0.0.1
 	github.com/docker/go-units v0.5.0
@@ -79,7 +78,6 @@ require (
 	github.com/moby/sys/user v0.4.0
 	github.com/moby/sys/userns v0.1.0
 	github.com/moby/term v0.5.2
-	github.com/montanaflynn/stats v0.9.0
 	github.com/opencontainers/cgroups v0.0.6
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1

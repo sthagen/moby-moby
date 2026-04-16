@@ -712,6 +712,14 @@ func setupLabelFilter(ctx context.Context, store content.Store, fltrs filters.Ar
 		errFoundConfig := errors.New("success, found matching config")
 
 		err := c8dimages.Dispatch(ctx, presentChildrenHandler(store, c8dimages.HandlerFunc(func(ctx context.Context, desc ocispec.Descriptor) (subdescs []ocispec.Descriptor, _ error) {
+			if c8dimages.IsManifestType(desc.MediaType) {
+				// BuildKit attestation manifests carry a config with no user
+				// labels, which would cause negated label filters
+				// (label!=key=value) to spuriously match. Skip the whole subtree.
+				if _, has := desc.Annotations[attestation.DockerAnnotationReferenceType]; has {
+					return nil, c8dimages.ErrSkipDesc
+				}
+			}
 			if !c8dimages.IsConfigType(desc.MediaType) {
 				return nil, nil
 			}
@@ -743,6 +751,9 @@ func setupLabelFilter(ctx context.Context, store content.Store, fltrs filters.Ar
 					continue
 				} else if !exists {
 					// We are checking value and label doesn't exist.
+					if check.negate {
+						continue
+					}
 					return nil, nil
 				}
 
