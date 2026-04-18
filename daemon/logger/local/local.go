@@ -77,11 +77,8 @@ func New(info logger.Info) (logger.Logger, error) {
 }
 
 func marshal(m *logger.Message, buffer *[]byte) error {
-	proto := logdriver.LogEntry{}
-	md := logdriver.PartialLogEntryMetadata{}
-
-	resetProto(&proto)
-
+	var proto logdriver.LogEntry
+	var md logdriver.PartialLogEntryMetadata
 	messageToProto(m, &proto, &md)
 	protoSize := proto.Size()
 	writeLen := protoSize + (2 * encodeBinaryLen) // + len(messageDelimiter)
