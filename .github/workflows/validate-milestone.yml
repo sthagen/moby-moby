@@ -12,24 +12,33 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          sparse-checkout: releases
-
       - name: Validate milestone matches docker next version
-        run: |
-          expected=$(yq -r '.docker.next' releases/versions.yaml)
-          milestone="${{ github.event.pull_request.milestone.title }}"
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          MILESTONE: ${{ github.event.pull_request.milestone.title }}
+        with:
+          script: |
+            const resp = await github.rest.repos.getContent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: 'releases/versions.yaml',
+              ref: context.payload.pull_request.base.sha,
+            });
+            const content = Buffer.from(resp.data.content, resp.data.encoding).toString('utf8');
+            const line = content.split('\n').find(l => l.includes('next:'));
+            if (!line) {
+              core.setFailed('Could not find docker.next in releases/versions.yaml');
+              return;
+            }
+            const expected = line.trim().replace('next: ', '').replaceAll('"', '');
+            const milestone = process.env.MILESTONE;
 
-          if [[ -z "$milestone" ]]; then
-            echo "::error::PR must have a milestone set (expected: $expected)"
-            exit 1
-          fi
-
-          if [[ "$milestone" != "$expected" ]]; then
-            echo "::error::Milestone '$milestone' does not match docker next version '$expected'"
-            exit 1
-          fi
-
-          echo "Milestone: $milestone ✓"
+            if (!milestone) {
+              core.setFailed(`PR must have a milestone set (expected: ${expected})`);
+              return;
+            }
+            if (milestone !== expected) {
+              core.setFailed(`Milestone '${milestone}' does not match docker next version '${expected}'`);
+              return;
+            }
+            core.info(`Milestone: ${milestone} ✓`);
