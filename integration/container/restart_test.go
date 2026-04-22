@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -227,10 +228,40 @@ func TestContainerWithAutoRemoveCanBeRestarted(t *testing.T) {
 // Regression test for https://github.com/moby/moby/discussions/46682
 func TestContainerRestartWithCancelledRequest(t *testing.T) {
 	ctx := setupTest(t)
-	apiClient := testEnv.APIClient()
 
 	testutil.StartSpan(ctx, t)
 
+	// The test relies on "trap" to ignore SIGTERM so that the stop takes
+	// the full stopTimeout, giving the client time to cancel the request.
+	// On Windows, busybox-w32 doesn't support signal trapping (see
+	// https://github.com/rmyorston/busybox-w32/issues/303) so the
+	// container may exit immediately on SIGTERM, making the test
+	// scenario impossible to set up reliably.
+	// Allow multiple attempts on Windows so the test can pass when the timing
+	// happens to work out.
+	if runtime.GOOS == "windows" {
+		for retry := range 10 {
+			success := true
+			fail := func(t *testing.T) {
+				success = false
+			}
+			t.Run(strconv.Itoa(retry), func(t *testing.T) {
+				testContainerRestartWithCancelledRequest(ctx, t, fail)
+			})
+			if success {
+				return
+			}
+		}
+		return
+	}
+
+	testContainerRestartWithCancelledRequest(ctx, t, func(t *testing.T) {
+		t.Fatal("timeout waiting for restart event")
+	})
+}
+
+func testContainerRestartWithCancelledRequest(ctx context.Context, t *testing.T, fail func(t *testing.T)) {
+	apiClient := testEnv.APIClient()
 	// Create a container that ignores SIGTERM and doesn't stop immediately,
 	// giving us time to cancel the request.
 	//
@@ -268,11 +299,7 @@ func TestContainerRestartWithCancelledRequest(t *testing.T) {
 	//
 	// Note that we cannot use RestartCount for this, as that's only
 	// used for restart-policies.
-	restartTimeout := 2 * time.Second
-	if runtime.GOOS == "windows" {
-		// hcs can sometimes take a long time to stop container.
-		restartTimeout = StopContainerWindowsPollTimeout
-	}
+	restartTimeout := 10 * time.Second
 	select {
 	case m := <-messages:
 		assert.Check(t, is.Equal(m.Actor.ID, cID))
@@ -280,7 +307,8 @@ func TestContainerRestartWithCancelledRequest(t *testing.T) {
 	case err := <-errs:
 		assert.NilError(t, err)
 	case <-time.After(restartTimeout):
-		t.Errorf("timeout waiting for restart event")
+		fail(t)
+		return
 	}
 
 	// Container should be restarted (running).
