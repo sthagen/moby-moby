@@ -401,6 +401,10 @@ type CSV struct {
 	// character as the delimiter.
 	Delimiter *string
 
+	// The path to the parent field to put transformed key value pairs under. If you
+	// omit this value, the key value pairs will be placed under the root node.
+	Destination *string
+
 	// The character used used as a text qualifier for a single column of data. If you
 	// omit this, the double quotation mark " character is used.
 	QuoteCharacter *string
@@ -2400,11 +2404,18 @@ type QueryDefinition struct {
 // in a DescribeQueries operation.
 type QueryInfo struct {
 
+	// The total number of bytes scanned by the query. This indicates the cost
+	// associated with the query.
+	BytesScanned *float64
+
 	// The date and time that this query was created.
 	CreateTime *int64
 
 	// The name of the log group scanned by this query.
 	LogGroupName *string
+
+	// The duration in milliseconds that the query took to execute.
+	QueryDuration *int64
 
 	// The unique ID number of this query.
 	QueryId *string
@@ -2421,6 +2432,9 @@ type QueryInfo struct {
 	// The status of this query. Possible values are Cancelled , Complete , Failed ,
 	// Running , Scheduled , and Unknown .
 	Status QueryStatus
+
+	// The ARN of the user who ran the query.
+	UserIdentity *string
 
 	noSmithyDocumentSerde
 }
@@ -2662,10 +2676,10 @@ type S3Configuration struct {
 	RoleArn *string
 
 	// The Amazon Resource Name (ARN) of the KMS encryption key. Must belong to the
-	// same AWS Region as the destination Amazon S3 bucket.
+	// same Amazon Web Services Region as the destination Amazon S3 bucket.
 	KmsKeyId *string
 
-	// The AWS accountId for the bucket owning account.
+	// The Amazon Web Services accountId for the bucket owning account.
 	OwnerAccountId *string
 
 	noSmithyDocumentSerde

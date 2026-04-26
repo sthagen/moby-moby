@@ -7045,6 +7045,11 @@ func awsAwsjson11_serializeDocumentCSV(v *types.CSV, value smithyjson.Value) err
 		ok.String(*v.Delimiter)
 	}
 
+	if v.Destination != nil {
+		ok := object.Key("destination")
+		ok.String(*v.Destination)
+	}
+
 	if v.QuoteCharacter != nil {
 		ok := object.Key("quoteCharacter")
 		ok.String(*v.QuoteCharacter)
@@ -9974,6 +9979,16 @@ func awsAwsjson11_serializeOpDocumentGetLookupTableInput(v *GetLookupTableInput,
 func awsAwsjson11_serializeOpDocumentGetQueryResultsInput(v *GetQueryResultsInput, value smithyjson.Value) error {
 	object := value.Object()
 	defer object.Close()
+
+	if v.MaxItems != nil {
+		ok := object.Key("maxItems")
+		ok.Integer(*v.MaxItems)
+	}
+
+	if v.NextToken != nil {
+		ok := object.Key("nextToken")
+		ok.String(*v.NextToken)
+	}
 
 	if v.QueryId != nil {
 		ok := object.Key("queryId")
