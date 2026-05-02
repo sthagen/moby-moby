@@ -110,6 +110,7 @@ func (r *ringLogger) Close() error {
 
 		if err := r.l.Log(msg); err != nil {
 			logDriverError(r.l.Name(), string(msg.Line), err)
+			PutMessage(msg)
 			logErr = true
 		}
 	}
@@ -132,6 +133,7 @@ func (r *ringLogger) run() {
 		}
 		if err := r.l.Log(msg); err != nil {
 			logDriverError(r.l.Name(), string(msg.Line), err)
+			PutMessage(msg)
 		}
 	}
 }
@@ -174,6 +176,7 @@ func (r *messageRing) Enqueue(m *Message) error {
 	if mSize+r.sizeBytes > r.maxBytes && len(r.queue) > 0 {
 		r.wait.Signal()
 		r.mu.Unlock()
+		PutMessage(m)
 		return nil
 	}
 

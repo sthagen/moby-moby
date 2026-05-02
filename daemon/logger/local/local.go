@@ -111,18 +111,20 @@ func (d *driver) Name() string {
 	return Name
 }
 
-func (d *driver) Log(msg *logger.Message) error {
+func (d *driver) Log(msg *logger.Message) (err error) {
+	defer func() {
+		if err == nil {
+			logger.PutMessage(msg)
+		}
+	}()
+
 	buf := buffersPool.Get().(*[]byte)
 	defer buffersPool.Put(buf)
 
-	timestamp := msg.Timestamp
-	err := marshal(msg, buf)
-	logger.PutMessage(msg)
-
-	if err != nil {
+	if err := marshal(msg, buf); err != nil {
 		return errors.Wrap(err, "error marshalling logger.Message")
 	}
-	return d.logfile.WriteLogEntry(timestamp, *buf)
+	return d.logfile.WriteLogEntry(msg.Timestamp, *buf)
 }
 
 func (d *driver) Close() error {

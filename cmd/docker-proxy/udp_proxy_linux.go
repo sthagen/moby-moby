@@ -199,6 +199,13 @@ func (proxy *UDPProxy) Run() {
 		for i := 0; i != read; {
 			written, err := cte.conn.Write(readBuf[i:read])
 			if err != nil {
+				if opErr, ok := err.(*net.OpError); ok && errors.Is(opErr.Err, syscall.ECONNREFUSED) {
+					// A previous write to the backend may have resulted in an
+					// ICMP port-unreachable. The kernel queues this as an error
+					// on the socket, which is returned on the next Write. Retry
+					// so the current datagram is not silently dropped.
+					continue
+				}
 				log.Printf("Can't proxy a datagram to udp/%s: %s\n", proxy.backendAddr, err)
 				break
 			}

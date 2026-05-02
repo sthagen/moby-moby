@@ -16,13 +16,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.16
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.15
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.22
-	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.70.0
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.71.0
 	github.com/aws/smithy-go v1.25.1
 	github.com/cloudflare/cfssl v1.6.5
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.10.0
 	github.com/containerd/containerd/v2 v2.2.3
-	github.com/containerd/continuity v0.4.5
+	github.com/containerd/continuity v0.5.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/fifo v1.1.0
 	github.com/containerd/log v0.1.0
@@ -65,7 +65,7 @@ require (
 	github.com/moby/patternmatcher v0.6.1
 	github.com/moby/policy-helpers v0.0.0-20260324161837-b7c0b994300b
 	github.com/moby/profiles/apparmor v0.2.0
-	github.com/moby/profiles/seccomp v0.2.0
+	github.com/moby/profiles/seccomp v0.2.2
 	github.com/moby/pubsub v1.0.0
 	github.com/moby/swarmkit/v2 v2.1.2
 	github.com/moby/sys/atomicwriter v0.1.0
@@ -91,7 +91,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/tonistiigi/go-archvariant v1.0.0
-	github.com/vbatts/tar-split v0.12.2
+	github.com/vbatts/tar-split v0.12.3
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	go.etcd.io/bbolt v1.4.3

@@ -245,7 +245,7 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2
 github.com/aws/aws-sdk-go-v2/internal/v4a
 github.com/aws/aws-sdk-go-v2/internal/v4a/internal/crypto
 github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4
-# github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.70.0
+# github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.71.0
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs
 github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/internal/endpoints
@@ -481,7 +481,7 @@ github.com/containerd/containerd/v2/plugins/services
 github.com/containerd/containerd/v2/plugins/services/content/contentserver
 github.com/containerd/containerd/v2/plugins/snapshots/overlay/overlayutils
 github.com/containerd/containerd/v2/version
-# github.com/containerd/continuity v0.4.5
+# github.com/containerd/continuity v0.5.0
 ## explicit; go 1.21
 github.com/containerd/continuity/devices
 github.com/containerd/continuity/driver
@@ -1219,7 +1219,7 @@ github.com/moby/policy-helpers/types
 # github.com/moby/profiles/apparmor v0.2.0
 ## explicit; go 1.23.0
 github.com/moby/profiles/apparmor
-# github.com/moby/profiles/seccomp v0.2.0
+# github.com/moby/profiles/seccomp v0.2.2
 ## explicit; go 1.23.0
 github.com/moby/profiles/seccomp
 # github.com/moby/pubsub v1.0.0
@@ -1595,8 +1595,8 @@ github.com/transparency-dev/merkle
 github.com/transparency-dev/merkle/compact
 github.com/transparency-dev/merkle/proof
 github.com/transparency-dev/merkle/rfc6962
-# github.com/vbatts/tar-split v0.12.2
-## explicit; go 1.17
+# github.com/vbatts/tar-split v0.12.3
+## explicit; go 1.22.0
 github.com/vbatts/tar-split/archive/tar
 github.com/vbatts/tar-split/tar/asm
 github.com/vbatts/tar-split/tar/storage

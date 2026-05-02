@@ -2,9 +2,9 @@ package buildkit
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/containerd/log"
 	"github.com/moby/buildkit/executor"
@@ -12,7 +12,6 @@ import (
 	"github.com/moby/buildkit/executor/runcexecutor"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/network"
-	"github.com/moby/moby/v2/daemon/internal/stringid"
 	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -81,13 +80,30 @@ func (iface *lnInterface) Set(s *specs.Spec) error {
 		log.G(context.TODO()).WithError(iface.err).Error("failed to set networking spec")
 		return iface.err
 	}
-	shortNetCtlrID := stringid.TruncateID(iface.provider.Controller.ID())
-	// attach netns to bridge within the container namespace, using reexec in a prestart hook
-	s.Hooks = &specs.Hooks{
-		Prestart: []specs.Hook{{
-			Path: filepath.Join("/proc", strconv.Itoa(os.Getpid()), "exe"),
-			Args: []string{"libnetwork-setkey", "-exec-root=" + iface.provider.Config().ExecRoot, iface.sbx.ContainerID(), shortNetCtlrID},
-		}},
+	nsPath, ok := iface.sbx.NetnsPath()
+	if !ok {
+		return fmt.Errorf("buildkit sandbox %s has no network namespace", iface.sbx.ContainerID())
 	}
+	// Tell runc to join the daemon-owned netns instead of creating a new one.
+	// This replaces the previous approach of using a "libnetwork-setkey" reexec
+	// prestart hook that bind-mounted /proc/<pid>/ns/net after container creation.
+	return setLinuxNamespace(s, specs.LinuxNamespace{
+		Type: specs.NetworkNamespace,
+		Path: nsPath,
+	})
+}
+
+// setLinuxNamespace sets or replaces a namespace entry in the OCI spec.
+func setLinuxNamespace(s *specs.Spec, ns specs.LinuxNamespace) error {
+	for i, n := range s.Linux.Namespaces {
+		if n.Type == ns.Type {
+			if n.Path != "" {
+				return fmt.Errorf("network namespace already set to %s", n.Path)
+			}
+			s.Linux.Namespaces[i] = ns
+			return nil
+		}
+	}
+	s.Linux.Namespaces = append(s.Linux.Namespaces, ns)
 	return nil
 }
