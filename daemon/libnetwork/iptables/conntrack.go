@@ -57,34 +57,36 @@ func DeleteConntrackEntries(nlh nlwrap.Handle, ipv4List []net.IP, ipv6List []net
 	return nil
 }
 
-func DeleteConntrackEntriesByPort(nlh nlwrap.Handle, proto types.Protocol, ports []uint16) error {
+func DeleteConntrackEntriesByPort(nlh nlwrap.Handle, proto types.Protocol, ports []types.PortBinding) error {
 	if err := checkConntrackProgrammable(nlh); err != nil {
 		return err
 	}
-
 	var totalIPv4FlowPurged uint
 	var totalIPv6FlowPurged uint
-
 	for _, port := range ports {
 		filter := &netlink.ConntrackFilter{}
 		if err := filter.AddProtocol(uint8(proto)); err != nil {
-			log.G(context.TODO()).Warnf("Failed to delete conntrack state for %s port %d: %v", proto.String(), port, err)
+			log.G(context.TODO()).Warnf("Failed to delete conntrack state for %s port %d: %v", proto.String(), port.Port, err)
 			continue
 		}
-		if err := filter.AddPort(netlink.ConntrackOrigDstPort, port); err != nil {
-			log.G(context.TODO()).Warnf("Failed to delete conntrack state for %s port %d: %v", proto.String(), port, err)
+		if err := filter.AddPort(netlink.ConntrackOrigDstPort, port.Port); err != nil {
+			log.G(context.TODO()).Warnf("Failed to delete conntrack state for %s port %d: %v", proto.String(), port.Port, err)
+			continue
+		}
+		if err := filter.AddIP(netlink.ConntrackOrigDstIP, port.HostIP); err != nil {
+			log.G(context.TODO()).Warnf("Failed to delete conntrack state for %s port %d: %v", proto.String(), port.Port, err)
 			continue
 		}
 
 		v4FlowPurged, err := nlh.ConntrackDeleteFilters(netlink.ConntrackTable, syscall.AF_INET, filter)
 		if err != nil {
-			log.G(context.TODO()).Warnf("Failed to delete conntrack state for IPv4 %s port %d: %v", proto.String(), port, err)
+			log.G(context.TODO()).Warnf("Failed to delete conntrack state for IPv4 %s port %d: %v", proto.String(), port.Port, err)
 		}
 		totalIPv4FlowPurged += v4FlowPurged
 
 		v6FlowPurged, err := nlh.ConntrackDeleteFilters(netlink.ConntrackTable, syscall.AF_INET6, filter)
 		if err != nil {
-			log.G(context.TODO()).Warnf("Failed to delete conntrack state for IPv6 %s port %d: %v", proto.String(), port, err)
+			log.G(context.TODO()).Warnf("Failed to delete conntrack state for IPv6 %s port %d: %v", proto.String(), port.Port, err)
 		}
 		totalIPv6FlowPurged += v6FlowPurged
 	}
