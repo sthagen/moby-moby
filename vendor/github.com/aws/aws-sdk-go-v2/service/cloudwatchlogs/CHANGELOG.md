@@ -1,3 +1,16 @@
+# v1.73.0 (2026-05-04)
+
+* **Feature**: Adding an additional optional deliverySourceConfiguration field to PutDeliverySource API. This enables customers to pass service-specific configurations through IngestionHub such as tracing enablement or sampling rates that will be propagated to the source resource.
+
+# v1.72.0 (2026-05-01)
+
+* **Feature**: Adds support for filtering log groups by tags in the ListLogGroups API via the new logGroupTags parameter.
+
+# v1.71.1 (2026-04-29)
+
+* **Dependency Update**: Update to smithy-go v1.25.1.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.71.0 (2026-04-27)
 
 * **Feature**: Adds support for selecting all logs sources and types in a single association.

@@ -1679,15 +1679,16 @@ func (ep *bridgeEndpoint) trimPortBindings(ctx context.Context, n *bridgeNetwork
 // See: #8795, #44688 & #44742.
 func clearConntrackEntries(nlh nlwrap.Handle, ep *bridgeEndpoint) {
 	var ipv4List []net.IP
-	var ipv6List []net.IP
-	var udpPorts []types.PortBinding
-
 	if ep.addr != nil {
 		ipv4List = append(ipv4List, ep.addr.IP)
 	}
+
+	var ipv6List []net.IP
 	if ep.addrv6 != nil {
 		ipv6List = append(ipv6List, ep.addrv6.IP)
 	}
+
+	var udpPorts []types.PortBinding
 	for _, pb := range ep.portMapping {
 		if pb.Proto == types.UDP {
 			udpPorts = append(udpPorts, pb.PortBinding)

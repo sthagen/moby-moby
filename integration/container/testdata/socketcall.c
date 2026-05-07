@@ -1,11 +1,18 @@
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/socket.h>
 #include <sys/mman.h>
 
 #define SYS_SOCKETCALL_I386 102
 #define SYS_SOCKET 1
-#define AF_ALG 38
-#define SOCK_SEQPACKET 5
+
+#ifndef SOCK_FAMILY
+#error "define SOCK_FAMILY via -DSOCK_FAMILY=..."
+#endif
+#ifndef SOCK_TYPE
+#error "define SOCK_TYPE via -DSOCK_TYPE=..."
+#endif
 
 int main() {
     /*
@@ -20,8 +27,8 @@ int main() {
         perror("mmap");
         return 2;
     }
-    args[0] = AF_ALG;
-    args[1] = SOCK_SEQPACKET;
+    args[0] = SOCK_FAMILY;
+    args[1] = SOCK_TYPE;
     args[2] = 0;
 
     int ret;
@@ -38,6 +45,7 @@ int main() {
         return 1;
     }
 
-    printf("AF_ALG socket created via socketcall\n");
+    printf("socket(%d, %d, 0) via socketcall succeeded\n", SOCK_FAMILY, SOCK_TYPE);
+    close(ret);
     return 0;
 }
