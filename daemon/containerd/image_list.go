@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"runtime"
 	"sort"
 	"strings"
@@ -665,13 +666,26 @@ func (i *ImageService) setupFilters(ctx context.Context, imageFilters filters.Ar
 			if err != nil {
 				return false
 			}
+			// Match the filter pattern against both the familiar and
+			// canonical forms of the image reference (with and
+			// without tag), so that e.g. "alpine" and
+			// "docker.io/library/alpine" (and their glob variants)
+			// both match.
+			targets := []string{
+				reference.FamiliarString(ref),
+				reference.FamiliarName(ref),
+				reference.TagNameOnly(ref).String(),
+				ref.Name(),
+			}
 			for _, value := range refs {
-				found, err := reference.FamiliarMatch(value, ref)
-				if err != nil {
-					return false
-				}
-				if found {
-					return found
+				for _, target := range targets {
+					matched, err := path.Match(value, target)
+					if err != nil {
+						return false
+					}
+					if matched {
+						return true
+					}
 				}
 			}
 			return false

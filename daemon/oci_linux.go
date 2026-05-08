@@ -276,6 +276,12 @@ func WithNamespaces(daemon *Daemon, c *container.Container) coci.SpecOpts {
 			}
 		}
 
+		// Remove time-namespace if not supported. We can remove this once we
+		// drop support for kernel < 5.6.
+		if !daemon.RawSysInfo().TimeNamespaces {
+			oci.RemoveNamespace(s, specs.TimeNamespace)
+		}
+
 		// ipc
 		ipcMode := c.HostConfig.IpcMode
 		if !ipcMode.Valid() {

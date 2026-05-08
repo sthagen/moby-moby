@@ -247,7 +247,12 @@ func (daemon *Daemon) loadContainers(ctx context.Context) (map[string]map[string
 				return
 			}
 			if c.ProcessLabel != "" {
-				selinux.ReserveLabel(c.ProcessLabel)
+				if err := selinux.ReserveLabelV2(c.ProcessLabel); err != nil {
+					// Don't treat this as a fatal error to preserve existing
+					// behavior, and because this is restoring existing state,
+					// so there's no practical way to resolve this.
+					log.G(ctx).WithFields(log.Fields{"error": err, "container": id}).Error("Failed to reserve SELinux label during load")
+				}
 			}
 
 			mapLock.Lock()
