@@ -61,6 +61,7 @@ func (iface *lnInterface) init(c *libnetwork.Controller, n *libnetwork.Network) 
 	sbx, err := c.NewSandbox(
 		context.TODO(),
 		id,
+		libnetwork.OptionUseExternalKey(),
 		libnetwork.OptionHostsPath(filepath.Join(iface.provider.Root, id, "hosts")),
 		libnetwork.OptionResolvConfPath(filepath.Join(iface.provider.Root, id, "resolv.conf")),
 	)

@@ -105,8 +105,10 @@ jobs:
           cache: false
       -
         name: BuildKit ref
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "$(./hack/buildkit-ref)" >> $GITHUB_ENV
+          ./hack/buildkit-ref >> "$GITHUB_ENV"
         working-directory: moby
       -
         name: Checkout BuildKit ${{ env.BUILDKIT_REF }}
@@ -328,8 +330,10 @@ jobs:
 
       - name: BuildKit ref
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "$(./hack/buildkit-ref)" >> $GITHUB_ENV
+          ./hack/buildkit-ref >> "$GITHUB_ENV"
         working-directory: moby
 
       - name: Checkout BuildKit ${{ env.BUILDKIT_REF }}

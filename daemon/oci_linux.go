@@ -12,13 +12,11 @@ import (
 
 	cdcgroups "github.com/containerd/cgroups/v3"
 	"github.com/containerd/containerd/v2/core/containers"
-	"github.com/containerd/containerd/v2/pkg/apparmor"
 	coci "github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/log"
 	containertypes "github.com/moby/moby/api/types/container"
 	dconfig "github.com/moby/moby/v2/daemon/config"
 	"github.com/moby/moby/v2/daemon/container"
-	"github.com/moby/moby/v2/daemon/internal/rootless"
 	"github.com/moby/moby/v2/daemon/internal/rootless/mountopts"
 	"github.com/moby/moby/v2/daemon/internal/rootless/specconv"
 	"github.com/moby/moby/v2/daemon/pkg/oci"
@@ -126,11 +124,7 @@ func WithSelinux(c *container.Container) coci.SpecOpts {
 // WithApparmor sets the apparmor profile
 func WithApparmor(c *container.Container) coci.SpecOpts {
 	return func(ctx context.Context, _ coci.Client, _ *containers.Container, s *coci.Spec) error {
-		if apparmor.HostSupports() {
-			// AppArmor is inaccessible with detached-netns because sysfs is netns-scoped.
-			if detachedNetNS, _ := rootless.DetachedNetNS(); detachedNetNS != "" {
-				return nil
-			}
+		if appArmorSupported() {
 			var appArmorProfile string
 			if c.AppArmorProfile != "" {
 				appArmorProfile = c.AppArmorProfile
@@ -1015,6 +1009,8 @@ func (daemon *Daemon) createSpec(ctx context.Context, daemonCfg *configStore, c 
 		withCgroups(daemon, &daemonCfg.Config, c),
 		WithResources(c),
 		WithSysctls(c),
+		// Set the user before CDI device injection, which may append supplementary groups.
+		WithUser(c),
 		WithDevices(daemon, c),
 		withRlimits(daemon, &daemonCfg.Config, c),
 		WithNamespaces(daemon, c),
@@ -1025,7 +1021,6 @@ func (daemon *Daemon) createSpec(ctx context.Context, daemonCfg *configStore, c 
 		WithSelinux(c),
 		WithOOMScore(&c.HostConfig.OomScoreAdj),
 		coci.WithAnnotations(c.HostConfig.Annotations),
-		WithUser(c),
 	)
 
 	if c.NoNewPrivileges {
