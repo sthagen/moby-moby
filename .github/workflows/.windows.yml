@@ -218,14 +218,6 @@ jobs:
           name: ${{ inputs.os }}-${{ inputs.storage }}-unit-reports
           path: ${{ env.GOPATH }}\src\github.com\docker\docker\bundles\*
           retention-days: 1
-      -
-        name: Upload test results (gotestsum JSON)
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: test-results-unit-${{ inputs.os }}-${{ inputs.storage }}
-          path: ${{ env.GOPATH }}\src\github.com\docker\docker\bundles\**\*go-test-report*.json
-          retention-days: 7
 
   unit-test-report:
     runs-on: ubuntu-24.04
@@ -329,6 +321,7 @@ jobs:
           cache: false
       -
         name: Set up OpenTelemetry Collector
+        id: setup-otel
         run: |
           New-Item -ItemType Directory -Force -Path bundles -ErrorAction Continue
           Start-Process "msiexec" -ArgumentList "/i",
@@ -393,6 +386,7 @@ jobs:
           }
       -
         name: Starting test daemon
+        id: start-daemon
         env:
           INPUT_STORAGE: ${{ inputs.storage }}
           MATRIX_RUNTIME: ${{ matrix.runtime }}
@@ -539,8 +533,9 @@ jobs:
         # as the daemon is registered as a service we have to check the event
         # logs against the docker provider.
         name: Daemon event logs
-        if: always()
+        if: ${{ always() && steps.start-daemon.outcome != 'skipped' }}
         run: |
+          New-Item -ItemType Directory -Force -Path ".\bundles" | Out-Null
           Get-WinEvent -ea SilentlyContinue `
             -FilterHashtable @{ProviderName= "docker"; LogName = "application"} |
               Sort-Object @{Expression="TimeCreated";Descending=$false} |
@@ -548,9 +543,12 @@ jobs:
               Tee-Object -file ".\bundles\daemon.log"
       -
         name: Stop OpenTelemetry Collector
-        if: always()
+        if: ${{ always() && steps.setup-otel.outcome != 'skipped' }}
         run: |
-          (Stop-Service -DisplayName "OpenTelemetry Collector" -PassThru).WaitForStatus('Stopped', (New-TimeSpan -Seconds 30))
+          $svc = Get-Service -DisplayName "OpenTelemetry Collector" -ErrorAction SilentlyContinue
+          if ($svc -and $svc.Status -ne "Stopped") {
+              ($svc | Stop-Service -PassThru).WaitForStatus("Stopped", (New-TimeSpan -Seconds 30))
+          }
       -
         name: Upload reports
         if: always()
@@ -559,14 +557,6 @@ jobs:
           name: ${{ inputs.os }}-${{ inputs.storage }}-integration-reports-${{ matrix.runtime }}-${{ env.TESTREPORTS_NAME }}
           path: ${{ env.GOPATH }}\src\github.com\docker\docker\bundles\*
           retention-days: 1
-      -
-        name: Upload test results (gotestsum JSON)
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: test-results-integration-${{ inputs.os }}-${{ inputs.storage }}-${{ matrix.runtime }}-${{ env.TESTREPORTS_NAME }}
-          path: ${{ env.GOPATH }}\src\github.com\docker\docker\bundles\**\*go-test-report*.json
-          retention-days: 7
 
   integration-test-report:
     runs-on: ubuntu-24.04

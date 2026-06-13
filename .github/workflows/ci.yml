@@ -2,7 +2,9 @@ name: ci
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel stale PR runs without interrupting push, tag, scheduled, or
+  # manually dispatched validation.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -156,6 +158,7 @@ jobs:
 
   build-dind:
     runs-on: ubuntu-24.04
+    timeout-minutes: 120 # guardrails timeout for the whole job
     if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'ci/validate-only') }}
     needs:
       - validate-dco
