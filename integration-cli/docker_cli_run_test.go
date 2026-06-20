@@ -1754,7 +1754,7 @@ func testRunWriteSpecialFilesAndNotCommit(t *testing.T, name, path string) {
 }
 
 func eqToBaseDiff(out string, t *testing.T) bool {
-	name := "eqToBaseDiff" + testutil.GenerateRandomAlphaOnlyString(32)
+	name := "eqToBaseDiff" + testutil.RandomAlpha(32)
 	cli.DockerCmd(t, "run", "--name", name, "busybox", "echo", "hello")
 	cID := getIDByName(t, name)
 	baseDiff := cli.DockerCmd(t, "diff", cID).Combined()
@@ -3501,7 +3501,9 @@ func (s *DockerCLIRunSuite) TestContainerWithConflictingNoneNetwork(c *testing.T
 
 // #11957 - stdin with no tty does not exit if stdin is not closed even though container exited
 func (s *DockerCLIRunSuite) TestRunStdinBlockedAfterContainerExit(c *testing.T) {
-	cmd := exec.Command(dockerBinary, "run", "-i", "--name=test", "busybox", "true")
+	name := "test-stdin-blocked-" + stringid.GenerateRandomID()
+
+	cmd := exec.Command(dockerBinary, "run", "-i", "--name", name, "busybox", "true")
 	in, err := cmd.StdinPipe()
 	assert.NilError(c, err)
 	defer in.Close()
@@ -3509,14 +3511,23 @@ func (s *DockerCLIRunSuite) TestRunStdinBlockedAfterContainerExit(c *testing.T) 
 	cmd.Stdout = stdout
 	cmd.Stderr = stdout
 	assert.NilError(c, cmd.Start())
+	c.Cleanup(func() {
+		dockerCmdWithError("rm", "-f", name)
+	})
 
-	waitChan := make(chan error, 1)
+	exitTimeout := 10 * time.Second
+	if DaemonIsWindows() {
+		exitTimeout = 60 * time.Second
+	}
+	cli.WaitExited(c, name, exitTimeout)
+
+	cmdExited := make(chan error, 1)
 	go func() {
-		waitChan <- cmd.Wait()
+		cmdExited <- cmd.Wait()
 	}()
 
 	select {
-	case err := <-waitChan:
+	case err := <-cmdExited:
 		assert.Assert(c, err == nil, stdout.String())
 	case <-time.After(30 * time.Second):
 		c.Fatal("timeout waiting for command to exit")

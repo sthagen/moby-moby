@@ -20,15 +20,15 @@ require (
 	github.com/Microsoft/hcsshim v0.14.1
 	github.com/RackSec/srslog v0.0.0-20180709174129-a4725f04ec91
 	github.com/aws/aws-sdk-go-v2 v1.42.0
-	github.com/aws/aws-sdk-go-v2/config v1.32.24
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.23
+	github.com/aws/aws-sdk-go-v2/config v1.32.25
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.29
-	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.75.2
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.76.0
 	github.com/aws/smithy-go v1.27.2
 	github.com/cloudflare/cfssl v1.6.5
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.10.0
-	github.com/containerd/containerd/v2 v2.2.4
+	github.com/containerd/containerd/v2 v2.2.5
 	github.com/containerd/continuity v0.5.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/fifo v1.1.0
@@ -61,13 +61,13 @@ require (
 	github.com/miekg/dns v1.1.72
 	github.com/mistifyio/go-zfs/v4 v4.0.0
 	github.com/mitchellh/copystructure v1.2.0
-	github.com/moby/buildkit v0.31.0-rc2
+	github.com/moby/buildkit v0.31.0
 	github.com/moby/docker-image-spec v1.3.1
 	github.com/moby/go-archive v0.2.0
 	github.com/moby/ipvs v1.1.0
 	github.com/moby/locker v1.0.1
-	github.com/moby/moby/api v1.55.0-rc.1
-	github.com/moby/moby/client v0.5.0-rc.1
+	github.com/moby/moby/api v1.55.0
+	github.com/moby/moby/client v0.5.0
 	github.com/moby/patternmatcher v0.6.1
 	github.com/moby/policy-helpers v0.0.0-20260612073044-d5411a945cfc
 	github.com/moby/profiles/apparmor v0.2.1
@@ -84,7 +84,7 @@ require (
 	github.com/moby/sys/user v0.4.0
 	github.com/moby/sys/userns v0.1.0
 	github.com/moby/term v0.5.2
-	github.com/opencontainers/cgroups v0.0.6
+	github.com/opencontainers/cgroups v0.0.7
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/opencontainers/runtime-spec v1.3.0
@@ -96,6 +96,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
+	github.com/tonistiigi/fsutil v0.0.0-20260609174605-b61e79c0c046
 	github.com/tonistiigi/go-archvariant v1.0.0
 	github.com/vbatts/tar-split v0.12.3
 	github.com/vishvananda/netlink v1.3.1
@@ -145,7 +146,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.1.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.2.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.31.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.3 // indirect
@@ -264,7 +265,6 @@ require (
 	github.com/theupdateframework/go-tuf/v2 v2.4.2 // indirect
 	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tonistiigi/dchapes-mode v0.0.0-20250318174251-73d941a28323 // indirect
-	github.com/tonistiigi/fsutil v0.0.0-20260609091201-0257b3308df4 // indirect
 	github.com/tonistiigi/go-actions-cache v0.0.0-20260120203934-54bc28c26fd2 // indirect
 	github.com/tonistiigi/go-csvvalue v0.0.0-20240814133006-030d3b2625d0 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
