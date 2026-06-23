@@ -142,7 +142,7 @@ WORKDIR /usr/src/containerd
 # It is used to build containerd binaries, and used for the integration tests.
 # The distributed docker .deb and .rpm packages depend on a separate (containerd.io)
 # package, which may be a different version than specified here.
-ARG CONTAINERD_VERSION=v2.2.5
+ARG CONTAINERD_VERSION=v2.3.2
 ADD https://github.com/containerd/containerd.git?ref=${CONTAINERD_VERSION}&keep-git-dir=1 .
 
 FROM base AS containerd-build
@@ -248,7 +248,7 @@ WORKDIR /usr/src/runc
 # This version should usually match the version that is used by the containerd version
 # that is used. If you need to update runc, open a pull request in the containerd
 # project first, and update both after that is merged.
-ARG RUNC_VERSION=v1.3.6
+ARG RUNC_VERSION=v1.4.3
 ADD https://github.com/opencontainers/runc.git?ref=${RUNC_VERSION}&keep-git-dir=1 .
 
 FROM base AS runc-build
