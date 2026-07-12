@@ -922,22 +922,21 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 
 	migrationThreshold := int64(-1)
 	if config.Features["containerd-migration"] {
+		migrationThreshold = 0
 		if ts := os.Getenv("DOCKER_MIGRATE_SNAPSHOTTER_THRESHOLD"); ts != "" {
 			v, err := units.FromHumanSize(ts)
-			if err == nil {
-				migrationThreshold = v
-			} else {
-				log.G(ctx).WithError(err).WithField("size", ts).Warn("Invalid migration threshold value, defaulting to 0")
-				migrationThreshold = 0
+			if err != nil {
+				return nil, fmt.Errorf("invalid migration threshold value (DOCKER_MIGRATE_SNAPSHOTTER_THRESHOLD=%s): %w", ts, err)
 			}
-
-		} else {
-			migrationThreshold = 0
+			if v < 0 {
+				return nil, fmt.Errorf("invalid migration threshold value (DOCKER_MIGRATE_SNAPSHOTTER_THRESHOLD=%s): value must not be negative", ts)
+			}
+			migrationThreshold = v
 		}
 		if migrationThreshold > 0 {
 			log.G(ctx).WithField("max_size", migrationThreshold).Info("(Experimental) Migration to containerd is enabled, driver will be switched to snapshotter after migration is complete")
 		} else {
-			log.G(ctx).WithField("env", os.Environ()).Info("Migration to containerd is enabled, driver will be switched to snapshotter if there are no images or containers")
+			log.G(ctx).Info("Migration to containerd is enabled, driver will be switched to snapshotter if there are no images or containers")
 		}
 	}
 
@@ -1046,7 +1045,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 			shim     string
 			shimOpts any
 		)
-		if runtime.GOOS != "windows" {
+		if !isWindows {
 			shim, shimOpts, err = rts.Get("")
 			if err != nil {
 				return nil, err
@@ -1420,7 +1419,7 @@ func verifierProvider(root string) func() (*policyverifier.Verifier, error) {
 		}
 
 		confDir := filepath.Join(root, "policy")
-		if err := os.MkdirAll(filepath.Join(confDir, "tuf"), 0o644); err != nil {
+		if err := os.MkdirAll(confDir, 0o700); err != nil {
 			return nil, errors.Wrapf(err, "failed to create policy verifier config dir")
 		}
 
@@ -1595,7 +1594,7 @@ func (daemon *Daemon) Mount(container *container.Container) error {
 		// The mount path reported by the graph driver should always be trusted on Windows, since the
 		// volume path for a given mounted layer may change over time.  This should only be an error
 		// on non-Windows operating systems.
-		if runtime.GOOS != "windows" {
+		if !isWindows {
 			daemon.Unmount(container)
 			driver := daemon.ImageService().StorageDriver()
 			return fmt.Errorf("driver %s is returning inconsistent paths for container %s ('%s' then '%s')",

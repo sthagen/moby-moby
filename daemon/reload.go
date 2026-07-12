@@ -149,7 +149,7 @@ func marshalAttributeSlice(v []string) string {
 
 // reloadDebug updates configuration with Debug option
 // and updates the passed attributes
-func (daemon *Daemon) reloadDebug(txn *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
+func (daemon *Daemon) reloadDebug(_ *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
 	// update corresponding configuration
 	if conf.IsValueSet("debug") {
 		newCfg.Debug = conf.Debug
@@ -192,7 +192,7 @@ func (daemon *Daemon) reloadMaxConcurrentDownloadsAndUploads(txn *reloadTxn, new
 
 // reloadMaxDownloadAttempts updates configuration with max concurrent
 // download attempts when a connection is lost and updates the passed attributes
-func (daemon *Daemon) reloadMaxDownloadAttempts(txn *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
+func (daemon *Daemon) reloadMaxDownloadAttempts(_ *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
 	// We always "reset" as the cost is lightweight and easy to maintain.
 	newCfg.MaxDownloadAttempts = config.DefaultDownloadAttempts
 	if conf.IsValueSet("max-download-attempts") && conf.MaxDownloadAttempts != 0 {
@@ -207,7 +207,7 @@ func (daemon *Daemon) reloadMaxDownloadAttempts(txn *reloadTxn, newCfg *configSt
 
 // reloadShutdownTimeout updates configuration with daemon shutdown timeout option
 // and updates the passed attributes
-func (daemon *Daemon) reloadShutdownTimeout(txn *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
+func (daemon *Daemon) reloadShutdownTimeout(_ *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
 	// update corresponding configuration
 	if conf.IsValueSet("shutdown-timeout") {
 		newCfg.ShutdownTimeout = conf.ShutdownTimeout
@@ -221,7 +221,7 @@ func (daemon *Daemon) reloadShutdownTimeout(txn *reloadTxn, newCfg *configStore,
 
 // reloadLabels updates configuration with engine labels
 // and updates the passed attributes
-func (daemon *Daemon) reloadLabels(txn *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
+func (daemon *Daemon) reloadLabels(_ *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
 	// update corresponding configuration
 	if conf.IsValueSet("labels") {
 		newCfg.Labels = conf.Labels
@@ -256,7 +256,7 @@ func (daemon *Daemon) reloadRegistryConfig(txn *reloadTxn, newCfg *configStore, 
 
 // reloadLiveRestore updates configuration with live restore option
 // and updates the passed attributes
-func (daemon *Daemon) reloadLiveRestore(txn *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
+func (daemon *Daemon) reloadLiveRestore(_ *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
 	// update corresponding configuration
 	if conf.IsValueSet("live-restore") {
 		newCfg.LiveRestoreEnabled = conf.LiveRestoreEnabled
@@ -285,13 +285,13 @@ func (daemon *Daemon) reloadNetworkDiagnosticPort(txn *reloadTxn, newCfg *config
 }
 
 // reloadFeatures updates configuration with enabled/disabled features
-func (daemon *Daemon) reloadFeatures(txn *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
+func (daemon *Daemon) reloadFeatures(_ *reloadTxn, newCfg *configStore, conf *config.Config, attributes map[string]string) error {
 	// update corresponding configuration
 	// note that we allow features option to be entirely unset
 	newCfg.Features = conf.Features
 
 	// prepare reload event attributes with updatable configurations
-	attributes["features"] = fmt.Sprintf("%v", newCfg.Features)
+	attributes["features"] = fmt.Sprint(newCfg.Features)
 	return nil
 }
 
@@ -315,6 +315,6 @@ func (daemon *Daemon) reloadNRI(txn *reloadTxn, newCfg *configStore, conf *confi
 		txn.OnCommit(commit)
 	}
 
-	attributes["nri-opts"] = fmt.Sprintf("%v", newCfg.NRIOpts)
+	attributes["nri-opts"] = fmt.Sprint(newCfg.NRIOpts)
 	return nil
 }

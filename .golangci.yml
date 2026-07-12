@@ -2,7 +2,7 @@ version: "2"
 
 run:
   # prevent golangci-lint from deducting the go version to lint for through go.mod,
-  go: "1.26.4"
+  go: "1.26.5"
   # Only supported with go modules enabled (build flag -mod=vendor only valid when using modules)
   # modules-download-mode: vendor
 
@@ -39,6 +39,7 @@ linters:
     - nakedret                  # Detects uses of naked returns.
     - nilnesserr                # Detects returning nil errors. It combines the features of nilness and nilerr,
     - nosprintfhostport         # Detects misuse of Sprintf to construct a host with port in a URL.
+    - perfsprint                # Detects if fmt.Sprintf can be replaced with a faster alternative.
     - reassign                  # Detects reassigning a top-level variable in another package.
     - revive                    # Metalinter; drop-in replacement for golint.
     - spancheck                 # Detects mistakes with OpenTelemetry/Census spans.

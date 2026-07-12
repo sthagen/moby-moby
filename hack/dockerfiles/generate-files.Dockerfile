@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.26.4
+ARG GO_VERSION=1.26.5
 ARG BASE_DEBIAN_DISTRO="bookworm"
 ARG PROTOC_VERSION=3.11.4
 
@@ -17,7 +17,7 @@ RUN <<EOT
   wget -q https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${TARGETOS}-${arch}.zip
   unzip protoc-${PROTOC_VERSION}-${TARGETOS}-${arch}.zip -d /usr/local
 EOT
-WORKDIR /go/src/github.com/moby/moby
+WORKDIR /usr/src/moby
 
 FROM base AS src
 WORKDIR /out
