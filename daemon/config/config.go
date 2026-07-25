@@ -119,6 +119,10 @@ var skipDuplicates = map[string]bool{
 	"runtimes": true,
 }
 
+// errEmbeddedContainerdWithCRI is returned when both the "embedded-containerd"
+// feature and CRI support are enabled.
+var errEmbeddedContainerdWithCRI = errors.New(`conflicting options: cannot use the "embedded-containerd" feature and CRI support (--cri-containerd) at the same time`)
+
 // migratedNamedConfig describes legacy configuration file keys that have been migrated
 // from simple entries equivalent to command line flags, to a named option.
 //
@@ -211,11 +215,11 @@ type CommonConfig struct {
 	LiveRestoreEnabled bool `json:"live-restore,omitempty"`
 
 	// MaxConcurrentDownloads is the maximum number of downloads that
-	// may take place at a time for each pull.
+	// may take place at a time across all pulls.
 	MaxConcurrentDownloads int `json:"max-concurrent-downloads,omitempty"`
 
 	// MaxConcurrentUploads is the maximum number of uploads that
-	// may take place at a time for each push.
+	// may take place at a time across all pushes.
 	MaxConcurrentUploads int `json:"max-concurrent-uploads,omitempty"`
 
 	// MaxDownloadAttempts is the maximum number of attempts that
@@ -708,6 +712,10 @@ func ValidateMinAPIVersion(ver string) error {
 func Validate(config *Config) error {
 	if err := validateDaemonLogConfig(config.DaemonLogConfig); err != nil {
 		return err
+	}
+
+	if config.Features["embedded-containerd"] && config.CriContainerd {
+		return errEmbeddedContainerdWithCRI
 	}
 
 	// validate DNSSearch

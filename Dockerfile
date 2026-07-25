@@ -20,7 +20,7 @@ ARG DOCKERCLI_INTEGRATION_VERSION=v25.0.5
 ARG BUILDX_VERSION=0.35.0
 
 # COMPOSE_VERSION is the version of compose to install in the dev container.
-ARG COMPOSE_VERSION=v5.1.4
+ARG COMPOSE_VERSION=v5.3.1
 
 ARG SYSTEMD="false"
 ARG FIREWALLD="false"
@@ -142,7 +142,7 @@ WORKDIR /usr/src/containerd
 # It is used to build containerd binaries, and used for the integration tests.
 # The distributed docker .deb and .rpm packages depend on a separate (containerd.io)
 # package, which may be a different version than specified here.
-ARG CONTAINERD_VERSION=v2.3.2
+ARG CONTAINERD_VERSION=v2.3.3
 ADD https://github.com/containerd/containerd.git?ref=${CONTAINERD_VERSION}&keep-git-dir=1 .
 
 FROM base AS containerd-build
@@ -259,6 +259,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-runc-aptlib,target=/var/lib/apt \
         apt-get update && xx-apt-get install -y --no-install-recommends \
             gcc \
             libc6-dev \
+            linux-libc-dev \
             libseccomp-dev \
             pkg-config
 ARG DOCKER_STATIC
@@ -304,6 +305,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-tini-aptlib,target=/var/lib/apt \
         xx-apt-get install -y --no-install-recommends \
             gcc \
             libc6-dev \
+            linux-libc-dev \
             pkg-config
 RUN --mount=from=tini-src,src=/usr/src/tini,rw \
     --mount=type=cache,target=/root/.cache/go-build,id=tini-build-$TARGETPLATFORM <<EOT
@@ -322,7 +324,7 @@ FROM tini-${TARGETOS} AS tini
 # rootlesskit
 FROM base AS rootlesskit-src
 WORKDIR /usr/src/rootlesskit
-ARG ROOTLESSKIT_VERSION=v3.0.1
+ARG ROOTLESSKIT_VERSION=v3.0.2
 ADD https://github.com/rootless-containers/rootlesskit.git?ref=${ROOTLESSKIT_VERSION}&keep-git-dir=1 .
 
 FROM base AS rootlesskit-build
@@ -333,6 +335,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-rootlesskit-aptlib,target=/var/lib
         apt-get update && xx-apt-get install -y --no-install-recommends \
             gcc \
             libc6-dev \
+            linux-libc-dev \
             pkg-config
 ARG DOCKER_STATIC
 RUN --mount=from=rootlesskit-src,src=/usr/src/rootlesskit,rw \
@@ -541,6 +544,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-build-aptlib,target=/var/lib/apt \
         xx-apt-get install --no-install-recommends -y \
             gcc \
             libc6-dev \
+            linux-libc-dev \
             libnftables-dev \
             libseccomp-dev \
             libsystemd-dev \
