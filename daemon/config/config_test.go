@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -37,11 +38,13 @@ func TestDaemonConfigurationNotFound(t *testing.T) {
 	assert.Check(t, os.IsNotExist(err), "got: %[1]T: %[1]v", err)
 }
 
-func TestDaemonBrokenConfiguration(t *testing.T) {
-	configFile := makeConfigFile(t, `{"Debug": tru`)
+func TestDaemonConfigurationMalformedJSON(t *testing.T) {
+	configFile := makeConfigFile(t, `{"debug": tru`)
 
 	_, err := MergeDaemonConfigurations(&Config{}, nil, configFile)
-	assert.ErrorContains(t, err, `invalid character ' ' in literal true`)
+	assert.Check(t, is.ErrorContains(err, "invalid JSON"))
+	var syntaxErr *json.SyntaxError
+	assert.Check(t, errors.As(err, &syntaxErr), `got: %[1]T: %[1]v`, err)
 }
 
 // TestDaemonConfigurationUnicodeVariations feeds various variations of Unicode into the JSON parser, ensuring that we
@@ -141,6 +144,42 @@ func TestDaemonConfigurationMergeConcurrentError(t *testing.T) {
 
 	_, err := MergeDaemonConfigurations(&Config{}, nil, configFile)
 	assert.ErrorContains(t, err, `invalid max concurrent downloads: -1`)
+}
+
+func TestDefaultStopTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		config   string
+		expected int
+	}{
+		{
+			name:     "positive",
+			config:   `{"default-stop-timeout": 42}`,
+			expected: 42,
+		},
+		{
+			name:     "zero",
+			config:   `{"default-stop-timeout": 0}`,
+			expected: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configFile := makeConfigFile(t, tc.config)
+			flagsConfig := &Config{
+				CommonConfig: CommonConfig{
+					ContainerDefaults: ContainerDefaults{
+						DefaultStopTimeout: 20,
+					},
+				},
+			}
+			flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			flags.IntVar(&flagsConfig.DefaultStopTimeout, "default-stop-timeout", flagsConfig.DefaultStopTimeout, "")
+
+			merged, err := MergeDaemonConfigurations(flagsConfig, flags, configFile)
+			assert.NilError(t, err)
+			assert.Equal(t, merged.DefaultStopTimeout, tc.expected)
+		})
+	}
 }
 
 func TestDaemonConfigurationMergeConflictsWithInnerStructs(t *testing.T) {
@@ -314,6 +353,17 @@ func TestValidateConfigurationErrors(t *testing.T) {
 				},
 			},
 			expectedErr: "invalid max download attempts: -10",
+		},
+		{
+			name: "invalid default-stop-timeout",
+			config: &Config{
+				CommonConfig: CommonConfig{
+					ContainerDefaults: ContainerDefaults{
+						DefaultStopTimeout: -1,
+					},
+				},
+			},
+			expectedErr: "invalid default stop timeout: -1",
 		},
 		// TODO(thaJeztah) temporarily excluding this test as it assumes defaults are set before validating and applying updated configs
 		/*
