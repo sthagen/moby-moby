@@ -19,13 +19,13 @@ on:
         default: ""
 
 env:
-  GO_VERSION: "1.26.5"
+  GO_VERSION: "1.26.8"
   TESTSTAT_VERSION: v0.1.25
   TEMPLATE_NAME: ${{ inputs.template }}
 
 jobs:
   integration:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'ci/validate-only') }}
@@ -191,7 +191,7 @@ jobs:
           retention-days: 1
 
   integration-report:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     if: always() && (github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'ci/validate-only'))

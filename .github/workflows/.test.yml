@@ -30,7 +30,7 @@ on:
         required: false
 
 env:
-  GO_VERSION: "1.26.5"
+  GO_VERSION: "1.26.8"
   GOTESTLIST_VERSION: v0.3.1
   TESTSTAT_VERSION: v0.1.25
   ITG_CLI_MATRIX_SIZE: 6
@@ -42,7 +42,7 @@ env:
 
 jobs:
   docker-py:
-    runs-on: ubuntu-24.04${{ inputs.runnerSuffix }}
+    runs-on: ubuntu-26.04${{ inputs.runnerSuffix }}
     timeout-minutes: 120 # guardrails timeout for the whole job
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     steps:
@@ -57,7 +57,7 @@ jobs:
         uses: ./.github/actions/setup-tracing
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
@@ -98,7 +98,7 @@ jobs:
           retention-days: 1
 
   integration-flaky:
-    runs-on: ubuntu-24.04${{ inputs.runnerSuffix }}
+    runs-on: ubuntu-26.04${{ inputs.runnerSuffix }}
     timeout-minutes: 120 # guardrails timeout for the whole job
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     steps:
@@ -113,7 +113,7 @@ jobs:
         uses: ./.github/actions/setup-runner
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
@@ -137,7 +137,7 @@ jobs:
           TEST_SKIP_INTEGRATION_CLI: 1
 
   integration-prepare:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10 # guardrails timeout for the whole job
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     outputs:
@@ -157,9 +157,9 @@ jobs:
             const extraModes = JSON.parse(`${{ env.MATRIX_EXTRA_MODES }}`);
             const runnerSuffix = `${{ env.MATRIX_RUNNER_SUFFIX }}`;
             let includes = [
-              { arch: arch, runner: `ubuntu-24.04${runnerSuffix}`, mode: '' },
+              { arch: arch, runner: `ubuntu-26.04${runnerSuffix}`, mode: '' },
             ];
-            includes.push(...extraModes.map(mode => ({ arch: arch, runner: `ubuntu-24.04${runnerSuffix}`, mode: mode })));
+            includes.push(...extraModes.map(mode => ({ arch: arch, runner: `ubuntu-26.04${runnerSuffix}`, mode: mode })));
 
             if (arch == "amd64") {
               includes.push({ arch: arch, runner: 'ubuntu-22.04', mode: '' });
@@ -234,7 +234,7 @@ jobs:
           sudo systemctl restart apparmor.service
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
@@ -297,7 +297,7 @@ jobs:
           retention-days: 1
 
   integration-report:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     if: always()
@@ -329,7 +329,7 @@ jobs:
           fi
 
   integration-cli-prepare:
-    runs-on: ubuntu-24.04${{ inputs.runnerSuffix }}
+    runs-on: ubuntu-26.04${{ inputs.runnerSuffix }}
     timeout-minutes: 120 # guardrails timeout for the whole job
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     outputs:
@@ -424,7 +424,7 @@ jobs:
             });
 
   integration-cli:
-    runs-on: ubuntu-24.04${{ inputs.runnerSuffix }}
+    runs-on: ubuntu-26.04${{ inputs.runnerSuffix }}
     timeout-minutes: 120 # guardrails timeout for the whole job
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     needs:
@@ -459,7 +459,7 @@ jobs:
           echo "CACHE_DEV_SCOPE=${CACHE_DEV_SCOPE}" >> $GITHUB_ENV
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         with:
           version: ${{ env.SETUP_BUILDX_VERSION }}
           driver-opts: image=${{ env.SETUP_BUILDKIT_IMAGE }}
@@ -520,7 +520,7 @@ jobs:
           retention-days: 1
 
   integration-cli-report:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     continue-on-error: ${{ github.event_name != 'pull_request' }}
     if: always()

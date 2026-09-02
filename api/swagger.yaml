@@ -19,10 +19,10 @@ produces:
 consumes:
   - "application/json"
   - "text/plain"
-basePath: "/v1.55"
+basePath: "/v1.56"
 info:
   title: "Docker Engine API"
-  version: "1.55"
+  version: "1.56"
   x-logo:
     url: "https://docs.docker.com/assets/images/logo-docker-main.png"
   description: |
@@ -56,7 +56,7 @@ info:
     is returned.
 
     If you omit the version-prefix, the current version of the API is used.
-    For example, calling `/info` is the same as calling `/v1.55/info`. Using the
+    For example, calling `/info` is the same as calling `/v1.56/info`. Using the
     API without a version-prefix is deprecated and will be removed in a future release.
 
     Engine releases in the near future should support this version of the API,
@@ -1942,7 +1942,18 @@ definitions:
         x-nullable: true
       Size:
         description: |
-          Total size of the image including all layers it is composed of.
+          Total size of the image variant, including all layers it is composed of.
+
+          For multi-platform images, this is the size of the platform variant
+          selected by the `platform` query parameter. If no platform is specified,
+          the daemon selects a platform as described in the `platform` parameter.
+
+          When using the containerd image store, this includes both the image content
+          that's present locally and the unpacked snapshot data for the selected
+          variant.
+
+          Image data may be shared between images, so this size does not indicate
+          how much space would be reclaimed by deleting the image.
         type: "integer"
         format: "int64"
         x-nullable: false
@@ -8354,6 +8365,7 @@ paths:
             Available filters:
 
             - `ancestor`=(`<image-name>[:<tag>]`, `<image id>`, or `<image@digest>`)
+            - `annotation=key` or `annotation="key=value"` of a container annotation
             - `before`=(`<container id>` or `<container name>`)
             - `expose`=(`<port>[/<proto>]`|`<startport-endport>/[<proto>]`)
             - `exited=<int>` containers with exit code of `<int>`
@@ -8927,6 +8939,10 @@ paths:
           description: "no error"
         304:
           description: "container already started"
+        400:
+          description: "bad parameter, including an invalid checkpoint ID"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
         404:
           description: "no such container"
           schema:
@@ -9860,14 +9876,17 @@ paths:
           in: "query"
           description: "Set memory limit for build."
           type: "integer"
+          format: "int64"
         - name: "memswap"
           in: "query"
           description: "Total memory (memory + swap). Set as `-1` to disable swap."
           type: "integer"
+          format: "int64"
         - name: "cpushares"
           in: "query"
           description: "CPU shares (relative weight)."
           type: "integer"
+          format: "int64"
         - name: "cpusetcpus"
           in: "query"
           description: "CPUs in which to allow execution (e.g., `0-3`, `0,1`)."
@@ -9876,10 +9895,12 @@ paths:
           in: "query"
           description: "The length of a CPU period in microseconds."
           type: "integer"
+          format: "int64"
         - name: "cpuquota"
           in: "query"
           description: "Microseconds of CPU time that the container can get in a CPU period."
           type: "integer"
+          format: "int64"
         - name: "buildargs"
           in: "query"
           description: >
@@ -9899,6 +9920,7 @@ paths:
           in: "query"
           description: "Size of `/dev/shm` in bytes. The size must be greater than 0. If omitted the system uses 64MB."
           type: "integer"
+          format: "int64"
         - name: "squash"
           in: "query"
           description: "Squash the resulting images layers into a single layer. *(Experimental release only.)*"
@@ -13590,8 +13612,8 @@ paths:
 
             - `id=<secret id>`
             - `label=<key> or label=<key>=value`
-            - `name=<secret name>`
-            - `names=<secret name>`
+            - `name=<secret name>` matches all or part of a secret name (prefix match)
+            - `names=<secret name>` matches a secret name (exact match)
       tags: ["Secret"]
   /secrets/create:
     post:
@@ -13797,8 +13819,7 @@ paths:
 
             - `id=<config id>`
             - `label=<key> or label=<key>=value`
-            - `name=<config name>`
-            - `names=<config name>`
+            - `name=<config name>` matches all or part of a config name (prefix match)
       tags: ["Config"]
   /configs/create:
     post:
