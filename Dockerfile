@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG GO_VERSION=1.26.8
-ARG BASE_DEBIAN_DISTRO="bookworm"
+ARG BASE_DEBIAN_DISTRO=trixie
 ARG GOLANG_IMAGE="golang:${GO_VERSION}-${BASE_DEBIAN_DISTRO}"
 
 # XX_VERSION specifies the version of the xx utility to use.
@@ -9,7 +9,8 @@ ARG GOLANG_IMAGE="golang:${GO_VERSION}-${BASE_DEBIAN_DISTRO}"
 ARG XX_VERSION=1.9.0
 
 # DOCKERCLI_VERSION is the version of the CLI to install in the dev-container.
-ARG DOCKERCLI_VERSION=v29.8.0
+# renovate: datasource=github-tags depName=docker/cli versioning=semver
+ARG DOCKERCLI_VERSION=v29.8.1
 ARG DOCKERCLI_REPOSITORY="https://github.com/docker/cli.git"
 
 # cli version used for integration-cli tests
@@ -17,7 +18,7 @@ ARG DOCKERCLI_INTEGRATION_REPOSITORY="https://github.com/docker/cli.git"
 ARG DOCKERCLI_INTEGRATION_VERSION=v25.0.5
 
 # BUILDX_VERSION is the version of buildx to install in the dev container.
-ARG BUILDX_VERSION=0.37.0
+ARG BUILDX_VERSION=0.37.1
 
 # COMPOSE_VERSION is the version of compose to install in the dev container.
 ARG COMPOSE_VERSION=v5.5.1
@@ -142,7 +143,7 @@ WORKDIR /usr/src/containerd
 # It is used to build containerd binaries, and used for the integration tests.
 # The distributed docker .deb and .rpm packages depend on a separate (containerd.io)
 # package, which may be a different version than specified here.
-ARG CONTAINERD_VERSION=v2.3.5
+ARG CONTAINERD_VERSION=v2.4.0
 ADD https://github.com/containerd/containerd.git?ref=${CONTAINERD_VERSION}&keep-git-dir=1 .
 
 FROM base AS containerd-build
@@ -324,7 +325,7 @@ FROM tini-${TARGETOS} AS tini
 # rootlesskit
 FROM base AS rootlesskit-src
 WORKDIR /usr/src/rootlesskit
-ARG ROOTLESSKIT_VERSION=v3.1.0
+ARG ROOTLESSKIT_VERSION=v3.2.0
 ADD https://github.com/rootless-containers/rootlesskit.git?ref=${ROOTLESSKIT_VERSION}&keep-git-dir=1 .
 
 FROM base AS rootlesskit-build
@@ -489,6 +490,7 @@ RUN --mount=type=cache,sharing=locked,id=moby-dev-aptlib,target=/var/lib/apt \
             apparmor \
             bash-completion \
             bzip2 \
+            e2fsprogs \
             fuse-overlayfs \
             inetutils-ping \
             iproute2 \
@@ -614,6 +616,20 @@ COPY --link --from=containerd    /build/ /
 COPY --link --from=rootlesskit   /build/ /
 COPY --link --from=containerutil /build/ /
 COPY --link --from=build         /build  /
+
+# Tools and fixtures for running integration tests directly on a Linux host.
+# Build this for the host architecture; the Go toolchain and gotestsum run there.
+# The daemon and tests are compiled on the host by hack/make.sh.
+FROM scratch AS test-integration-deps
+COPY --link --from=base          /usr/local/go/ /usr/local/go/
+COPY --link --from=tini          /build/ /usr/local/bin/
+COPY --link --from=runc          /build/ /usr/local/bin/
+COPY --link --from=containerd    /build/ /usr/local/bin/
+COPY --link --from=rootlesskit   /build/ /usr/local/bin/
+COPY --link --from=dockercli     /build/ /usr/local/bin/
+COPY --link --from=gotestsum     /build/ /usr/local/bin/
+COPY --link --from=registry      /build/ /usr/local/bin/
+COPY --link --from=frozen-images /build/ /docker-frozen-images/
 
 # smoke tests
 # usage:

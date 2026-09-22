@@ -4,7 +4,9 @@ package daemon
 
 import (
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
@@ -27,15 +29,29 @@ func (d *Daemon) rootlessCommand(dockerdBinary string) (string, []string, error)
 	if d.dockerdBinary != defaultDockerdBinary {
 		return "", nil, errors.Errorf("[%s] DOCKER_ROOTLESS doesn't support non-default dockerd binary path %q", d.id, d.dockerdBinary)
 	}
-	return "sudo", []string{
+	// Older sudo versions use secure_path to look up the command even when
+	// PATH is preserved for the command's environment.
+	rootlessBinary, err := exec.LookPath(defaultDockerdRootlessBinary)
+	if err != nil {
+		return "", nil, err
+	}
+	env := []string{
 		"-u", d.rootlessUser.Username,
 		"--preserve-env",
 		"--preserve-env=PATH", // Pass through PATH, overriding secure_path.
 		"XDG_RUNTIME_DIR=" + d.rootlessXDGRuntimeDir,
 		"HOME=" + d.rootlessUser.HomeDir,
-		"--",
-		defaultDockerdRootlessBinary,
-	}, nil
+	}
+	if os.Geteuid() != 0 {
+		// When the test binary itself runs as a non-root user, d.rootlessUser
+		// may be that same real user account, which could already be running
+		// a rootless dockerd of its own outside of this test suite (e.g. set
+		// up via dockerd-rootless-setuptool.sh + systemd). Use a state dir
+		// that's distinct from the default $XDG_RUNTIME_DIR/dockerd-rootless
+		// to avoid colliding with it.
+		env = append(env, "DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR="+filepath.Join(d.rootlessXDGRuntimeDir, "dockerd-rootless-testsuite"))
+	}
+	return "sudo", append(env, "--", rootlessBinary), nil
 }
 
 func (d *Daemon) platformArgs() []string {

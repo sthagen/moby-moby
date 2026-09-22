@@ -171,6 +171,13 @@ func (e *Execution) IsRootless() bool {
 	return os.Getenv("DOCKER_ROOTLESS") != ""
 }
 
+// IsNonRootClient returns whether the client is running as a non-root user.
+// Not to be confused with [Execution.IsRootless], which returns whether the
+// daemon is running as a non-root user.
+func (e *Execution) IsNonRootClient() bool {
+	return os.Geteuid() != 0
+}
+
 // IsUserNamespaceInKernel returns whether the kernel supports user namespaces
 func (e *Execution) IsUserNamespaceInKernel() bool {
 	if _, err := os.Stat("/proc/self/uid_map"); os.IsNotExist(err) {
@@ -211,6 +218,21 @@ func (e *Execution) HasExistingImage(t testing.TB, reference string) bool {
 	assert.NilError(t, err, "failed to list images")
 
 	return len(imageList.Items) > 0
+}
+
+// IsSELinuxEnforcing returns true if SELinux is enabled and running in enforcing mode.
+// Returns false on non-Linux systems or if SELinux is not available or not enabled.
+func (e *Execution) IsSELinuxEnforcing() bool {
+	if runtime.GOOS != "linux" {
+		return false
+	}
+
+	data, err := os.ReadFile("/sys/fs/selinux/enforce")
+	if err != nil {
+		return false
+	}
+
+	return strings.TrimSpace(string(data)) == "1"
 }
 
 // EnsureFrozenImagesLinux loads frozen test images into the daemon
