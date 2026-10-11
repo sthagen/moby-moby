@@ -77,6 +77,7 @@ import (
 	nwconfig "github.com/moby/moby/v2/daemon/libnetwork/config"
 	"github.com/moby/moby/v2/daemon/libnetwork/ipamutils"
 	"github.com/moby/moby/v2/daemon/libnetwork/ipbits"
+	"github.com/moby/moby/v2/daemon/libnetwork/kvstore/boltdb"
 	dlogger "github.com/moby/moby/v2/daemon/logger"
 	"github.com/moby/moby/v2/daemon/network"
 	"github.com/moby/moby/v2/daemon/pkg/plugin"
@@ -121,6 +122,7 @@ type Daemon struct {
 	registryService   *registry.Service
 	EventsService     *events.Events
 	netController     *libnetwork.Controller
+	netStore          *boltdb.BoltDB
 	volumes           *volumesservice.VolumesService
 	root              string
 	sysInfoOnce       sync.Once
@@ -540,12 +542,15 @@ func (daemon *Daemon) restore(ctx context.Context, cfg *configStore, containers 
 
 				c.ResetRestartManager(false)
 				if !c.HostConfig.NetworkMode.IsContainer() && c.State.IsRunning() {
-					options, err := buildSandboxOptions(&cfg.Config, c)
-					if err != nil {
-						logger(c).WithError(err).Warn("failed to build sandbox option to restore container")
-					}
 					mapLock.Lock()
-					activeSandboxes[c.NetworkSettings.SandboxID] = options
+					activeSandboxes[c.NetworkSettings.SandboxID] = libnetwork.ActiveSandboxOptionBuilder(func(controller *libnetwork.Controller) []libnetwork.SandboxOption {
+						setHostGatewayIP(controller, &cfg.Config)
+						options, err := buildSandboxOptions(&cfg.Config, c)
+						if err != nil {
+							logger(c).WithError(err).Warn("failed to build sandbox option to restore container")
+						}
+						return options
+					})
 					mapLock.Unlock()
 				}
 			}
@@ -883,7 +888,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 	if err != nil {
 		return nil, fmt.Errorf("Unable to get the full path to the TempDir (%s): %s", tmp, err)
 	}
-	if isWindows {
+	if runtime.GOOS == "windows" {
 		if err := os.MkdirAll(realTmp, 0); err != nil {
 			return nil, fmt.Errorf("Unable to create the TempDir (%s): %s", realTmp, err)
 		}
@@ -953,7 +958,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 
 	// Build the host after installing the cleanup defer: this starts extension
 	// processes and must be covered if initialization fails.
-	d.extensionHost, err = newExtensionHost(ctx, config)
+	d.extensionHost, err = d.newExtensionHost(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -996,7 +1001,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		return nil, err
 	}
 
-	if isWindows {
+	if runtime.GOOS == "windows" {
 		// Note that permissions (0o700) are ignored on Windows; passing them to
 		// show intent only. We could consider using idtools.MkdirAndChown here
 		// to apply an ACL.
@@ -1061,7 +1066,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 			shim     string
 			shimOpts any
 		)
-		if !isWindows {
+		if runtime.GOOS != "windows" {
 			shim, shimOpts, err = rts.Get("")
 			if err != nil {
 				return nil, err
@@ -1344,6 +1349,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 			PolicyVerifierProvider: verifierProvider(cfgStore.Root),
 			MaxConcurrentDownloads: config.MaxConcurrentDownloads,
 			MaxConcurrentUploads:   config.MaxConcurrentUploads,
+			Features:               d,
 		})
 
 		if migrationConfig.ImageCount > 0 {
@@ -1364,7 +1370,7 @@ func NewDaemon(ctx context.Context, config *config.Config, pluginStore *plugin.S
 		}
 	}
 
-	go d.execCommandGC()
+	go d.execCommandGC(ctx)
 
 	d.containerd, err = libcontainerd.NewClient(ctx, d.containerdClient, filepath.Join(config.ExecRoot, "containerd"), config.ContainerdNamespace, d)
 	if err != nil {
@@ -1591,6 +1597,9 @@ func (daemon *Daemon) Shutdown(ctx context.Context) error {
 	if daemon.netController != nil {
 		daemon.netController.Stop()
 	}
+	if daemon.netStore != nil {
+		daemon.netStore.Close()
+	}
 
 	if daemon.containerdClient != nil {
 		daemon.containerdClient.Close()
@@ -1628,7 +1637,7 @@ func (daemon *Daemon) Mount(container *container.Container) error {
 		// The mount path reported by the graph driver should always be trusted on Windows, since the
 		// volume path for a given mounted layer may change over time.  This should only be an error
 		// on non-Windows operating systems.
-		if !isWindows {
+		if runtime.GOOS != "windows" {
 			daemon.Unmount(container)
 			driver := daemon.ImageService().StorageDriver()
 			return fmt.Errorf("driver %s is returning inconsistent paths for container %s ('%s' then '%s')",
@@ -1719,9 +1728,24 @@ func isBridgeNetworkDisabled(conf *config.Config) bool {
 	return conf.BridgeConfig.Iface == config.DisableNetworkBridge
 }
 
+// newNetworkController creates the libnetwork controller, which keeps its
+// state in the daemon's data root.
+func (daemon *Daemon) newNetworkController(ctx context.Context, conf *config.Config, options []nwconfig.Option) error {
+	store, err := boltdb.New(filepath.Join(conf.Root, config.LibnetDataPath, "local-kv.db"))
+	if err != nil {
+		return err
+	}
+	controller, err := libnetwork.New(ctx, append(options, nwconfig.WithKVStore(store))...)
+	if err != nil {
+		store.Close()
+		return err
+	}
+	daemon.netController, daemon.netStore = controller, store
+	return nil
+}
+
 func (daemon *Daemon) networkOptions(conf *config.Config, pg plugingetter.PluginGetter, hostID string, activeSandboxes map[string]any) ([]nwconfig.Option, error) {
 	options := []nwconfig.Option{
-		nwconfig.OptionDataDir(filepath.Join(conf.Root, config.LibnetDataPath)),
 		nwconfig.OptionExecRoot(conf.GetExecRoot()),
 		nwconfig.OptionDefaultDriver(network.DefaultNetwork),
 		nwconfig.OptionDefaultNetwork(network.DefaultNetwork),

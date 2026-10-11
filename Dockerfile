@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.26.8
+ARG GO_VERSION=1.26.9
 ARG BASE_DEBIAN_DISTRO=trixie
 ARG GOLANG_IMAGE="golang:${GO_VERSION}-${BASE_DEBIAN_DISTRO}"
 
@@ -10,7 +10,7 @@ ARG XX_VERSION=1.9.0
 
 # DOCKERCLI_VERSION is the version of the CLI to install in the dev-container.
 # renovate: datasource=github-tags depName=docker/cli versioning=semver
-ARG DOCKERCLI_VERSION=v29.8.1
+ARG DOCKERCLI_VERSION=v29.8.2
 ARG DOCKERCLI_REPOSITORY="https://github.com/docker/cli.git"
 
 # cli version used for integration-cli tests
@@ -18,10 +18,10 @@ ARG DOCKERCLI_INTEGRATION_REPOSITORY="https://github.com/docker/cli.git"
 ARG DOCKERCLI_INTEGRATION_VERSION=v25.0.5
 
 # BUILDX_VERSION is the version of buildx to install in the dev container.
-ARG BUILDX_VERSION=0.37.1
+ARG BUILDX_VERSION=0.37.2
 
 # COMPOSE_VERSION is the version of compose to install in the dev container.
-ARG COMPOSE_VERSION=v5.5.1
+ARG COMPOSE_VERSION=v5.6.0
 
 ARG SYSTEMD="false"
 ARG FIREWALLD="false"
@@ -29,7 +29,7 @@ ARG DOCKER_STATIC=1
 
 # REGISTRY_VERSION is the version of the registry to use for integration tests.
 # It must be a valid tag in the docker.io/library/registry image repository.
-ARG REGISTRY_VERSION=3.1.1
+ARG REGISTRY_VERSION=3.1.2
 
 # delve is currently only supported on linux/amd64, linux/arm64, and linux/ppc64le;
 # https://github.com/go-delve/delve/blob/v1.26.0/pkg/proc/native/support_sentinel.go#L1
@@ -143,7 +143,7 @@ WORKDIR /usr/src/containerd
 # It is used to build containerd binaries, and used for the integration tests.
 # The distributed docker .deb and .rpm packages depend on a separate (containerd.io)
 # package, which may be a different version than specified here.
-ARG CONTAINERD_VERSION=v2.4.0
+ARG CONTAINERD_VERSION=v2.4.1
 ADD https://github.com/containerd/containerd.git?ref=${CONTAINERD_VERSION}&keep-git-dir=1 .
 
 FROM base AS containerd-build
@@ -249,7 +249,7 @@ WORKDIR /usr/src/runc
 # This version should usually match the version that is used by the containerd version
 # that is used. If you need to update runc, open a pull request in the containerd
 # project first, and update both after that is merged.
-ARG RUNC_VERSION=v1.5.1
+ARG RUNC_VERSION=v1.5.2
 ADD https://github.com/opencontainers/runc.git?ref=${RUNC_VERSION}&keep-git-dir=1 .
 
 FROM base AS runc-build

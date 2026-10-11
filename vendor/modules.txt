@@ -26,11 +26,11 @@ cloud.google.com/go/auth/internal/trustboundary
 # cloud.google.com/go/auth/oauth2adapt v0.2.8
 ## explicit; go 1.23.0
 cloud.google.com/go/auth/oauth2adapt
-# cloud.google.com/go/compute/metadata v0.9.1
-## explicit; go 1.25.0
+# cloud.google.com/go/compute/metadata v0.10.0
+## explicit; go 1.26.0
 cloud.google.com/go/compute/metadata
-# cloud.google.com/go/logging v1.19.1
-## explicit; go 1.25.0
+# cloud.google.com/go/logging v1.20.0
+## explicit; go 1.26.0
 cloud.google.com/go/logging
 cloud.google.com/go/logging/apiv2
 cloud.google.com/go/logging/apiv2/loggingpb
@@ -92,15 +92,15 @@ github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/exported
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/generated
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/shared
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas
-# github.com/Azure/go-ansiterm v0.0.0-20260917205352-e937bb47801a
-## explicit; go 1.16
+# github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4
+## explicit; go 1.17
 github.com/Azure/go-ansiterm
 github.com/Azure/go-ansiterm/winterm
 # github.com/Graylog2/go-gelf v0.0.0-20191017102106-1550ee647df0
 ## explicit
 github.com/Graylog2/go-gelf/gelf
-# github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29
-## explicit; go 1.23.0
+# github.com/Microsoft/go-winio v0.6.3-0.20260930231756-f19d9717deb0
+## explicit; go 1.26.0
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/backuptar
 github.com/Microsoft/go-winio/internal/fs
@@ -331,18 +331,22 @@ github.com/cenkalti/backoff/v5
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/cilium/ebpf v0.17.3
-## explicit; go 1.22
+# github.com/cilium/ebpf v0.22.0
+## explicit; go 1.25.0
 github.com/cilium/ebpf
 github.com/cilium/ebpf/asm
 github.com/cilium/ebpf/btf
+github.com/cilium/ebpf/features
 github.com/cilium/ebpf/internal
+github.com/cilium/ebpf/internal/efw
 github.com/cilium/ebpf/internal/kallsyms
 github.com/cilium/ebpf/internal/kconfig
 github.com/cilium/ebpf/internal/linux
+github.com/cilium/ebpf/internal/mountinfo
+github.com/cilium/ebpf/internal/platform
 github.com/cilium/ebpf/internal/sys
 github.com/cilium/ebpf/internal/sysenc
-github.com/cilium/ebpf/internal/testutils/fdtrace
+github.com/cilium/ebpf/internal/testutils/testmain
 github.com/cilium/ebpf/internal/tracefs
 github.com/cilium/ebpf/internal/unix
 github.com/cilium/ebpf/link
@@ -423,7 +427,7 @@ github.com/containerd/containerd/api/types/runc/options
 github.com/containerd/containerd/api/types/runtimeoptions/v1
 github.com/containerd/containerd/api/types/task
 github.com/containerd/containerd/api/types/transfer
-# github.com/containerd/containerd/v2 v2.4.0
+# github.com/containerd/containerd/v2 v2.4.1
 ## explicit; go 1.26.6
 github.com/containerd/containerd/v2/client
 github.com/containerd/containerd/v2/cmd/containerd/server/config
@@ -614,7 +618,7 @@ github.com/containerd/plugin/registry
 ## explicit; go 1.24.0
 github.com/containerd/stargz-snapshotter/estargz
 github.com/containerd/stargz-snapshotter/estargz/errorutil
-# github.com/containerd/ttrpc v1.2.9
+# github.com/containerd/ttrpc v1.2.10
 ## explicit; go 1.25.0
 github.com/containerd/ttrpc
 # github.com/containerd/typeurl/v2 v2.3.0
@@ -695,7 +699,7 @@ github.com/docker/distribution/registry/client/auth/challenge
 github.com/docker/distribution/registry/client/transport
 github.com/docker/distribution/registry/storage/cache
 github.com/docker/distribution/registry/storage/cache/memory
-# github.com/docker/go-connections v0.8.1
+# github.com/docker/go-connections v0.8.2
 ## explicit; go 1.23
 github.com/docker/go-connections/sockets
 github.com/docker/go-connections/tlsconfig
@@ -996,10 +1000,6 @@ github.com/hashicorp/golang-lru/v2/simplelru
 # github.com/hashicorp/memberlist v0.7.0
 ## explicit; go 1.25.0
 github.com/hashicorp/memberlist
-# github.com/hashicorp/serf v0.11.0
-## explicit; go 1.26.0
-github.com/hashicorp/serf/coordinate
-github.com/hashicorp/serf/serf
 # github.com/hiddeco/sshsig v0.2.0
 ## explicit; go 1.23.0
 github.com/hiddeco/sshsig
@@ -1029,7 +1029,7 @@ github.com/ishidawataru/sctp
 # github.com/jmoiron/sqlx v1.4.0
 ## explicit; go 1.10
 github.com/jmoiron/sqlx/types
-# github.com/klauspost/compress v1.20.0
+# github.com/klauspost/compress v1.20.1
 ## explicit; go 1.25
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
@@ -1063,8 +1063,8 @@ github.com/mitchellh/copystructure
 # github.com/mitchellh/reflectwalk v1.0.2
 ## explicit
 github.com/mitchellh/reflectwalk
-# github.com/moby/buildkit v0.33.0
-## explicit; go 1.26.3
+# github.com/moby/buildkit v0.34.0
+## explicit; go 1.26.8
 github.com/moby/buildkit/api/services/control
 github.com/moby/buildkit/api/types
 github.com/moby/buildkit/cache
@@ -1181,6 +1181,7 @@ github.com/moby/buildkit/util/apicaps
 github.com/moby/buildkit/util/apicaps/pb
 github.com/moby/buildkit/util/appcontext
 github.com/moby/buildkit/util/appdefaults
+github.com/moby/buildkit/util/archiveutil
 github.com/moby/buildkit/util/archutil
 github.com/moby/buildkit/util/attestation
 github.com/moby/buildkit/util/bklog
@@ -1195,6 +1196,7 @@ github.com/moby/buildkit/util/converter/tarconverter
 github.com/moby/buildkit/util/cpuset
 github.com/moby/buildkit/util/db
 github.com/moby/buildkit/util/db/boltutil
+github.com/moby/buildkit/util/db/compaction
 github.com/moby/buildkit/util/disk
 github.com/moby/buildkit/util/entitlements
 github.com/moby/buildkit/util/entitlements/security
@@ -1214,6 +1216,7 @@ github.com/moby/buildkit/util/network/cniprovider
 github.com/moby/buildkit/util/network/netpool
 github.com/moby/buildkit/util/network/netproviders
 github.com/moby/buildkit/util/network/proxyprovider
+github.com/moby/buildkit/util/openfile
 github.com/moby/buildkit/util/overlay
 github.com/moby/buildkit/util/pgpsign
 github.com/moby/buildkit/util/pools
@@ -1292,7 +1295,7 @@ github.com/moby/ipvs
 # github.com/moby/locker v1.0.1
 ## explicit; go 1.13
 github.com/moby/locker
-# github.com/moby/moby/api v1.56.0 => ./api
+# github.com/moby/moby/api v1.56.1
 ## explicit; go 1.24
 github.com/moby/moby/api/pkg/authconfig
 github.com/moby/moby/api/pkg/stdcopy
@@ -1314,7 +1317,7 @@ github.com/moby/moby/api/types/storage
 github.com/moby/moby/api/types/swarm
 github.com/moby/moby/api/types/system
 github.com/moby/moby/api/types/volume
-# github.com/moby/moby/client v0.6.0 => ./client
+# github.com/moby/moby/client v0.6.2
 ## explicit; go 1.24
 github.com/moby/moby/client
 github.com/moby/moby/client/internal
@@ -1328,17 +1331,17 @@ github.com/moby/moby/client/pkg/versions
 ## explicit; go 1.19
 github.com/moby/patternmatcher
 github.com/moby/patternmatcher/ignorefile
-# github.com/moby/policy-helpers v0.0.0-20260901142052-72f704e6cdb6
+# github.com/moby/policy-helpers v0.0.0-20261006174519-bd98f4747414
 ## explicit; go 1.25.8
 github.com/moby/policy-helpers
 github.com/moby/policy-helpers/image
 github.com/moby/policy-helpers/roots
 github.com/moby/policy-helpers/roots/dhi
 github.com/moby/policy-helpers/types
-# github.com/moby/profiles/apparmor v0.2.2-0.20260916170658-245180c51918
+# github.com/moby/profiles/apparmor v0.2.2
 ## explicit; go 1.23.0
 github.com/moby/profiles/apparmor
-# github.com/moby/profiles/seccomp v0.2.3
+# github.com/moby/profiles/seccomp v0.2.4
 ## explicit; go 1.23.0
 github.com/moby/profiles/seccomp
 # github.com/moby/pubsub v1.0.0
@@ -1477,8 +1480,8 @@ github.com/opencontainers/runtime-spec/specs-go/features
 github.com/opencontainers/selinux/go-selinux
 github.com/opencontainers/selinux/go-selinux/label
 github.com/opencontainers/selinux/pkg/pwalkdir
-# github.com/package-url/packageurl-go v0.1.1
-## explicit; go 1.17
+# github.com/package-url/packageurl-go v0.1.7
+## explicit; go 1.18
 github.com/package-url/packageurl-go
 # github.com/pelletier/go-toml v1.9.5
 ## explicit; go 1.12
@@ -1690,8 +1693,8 @@ github.com/tonistiigi/dchapes-mode
 github.com/tonistiigi/fsutil
 github.com/tonistiigi/fsutil/copy
 github.com/tonistiigi/fsutil/types
-# github.com/tonistiigi/go-actions-cache v0.0.0-20260120203934-54bc28c26fd2
-## explicit; go 1.23.0
+# github.com/tonistiigi/go-actions-cache v0.0.0-20260930145529-afe8013b5ac4
+## explicit; go 1.25.0
 github.com/tonistiigi/go-actions-cache
 # github.com/tonistiigi/go-archvariant v1.0.0
 ## explicit; go 1.17
@@ -1765,26 +1768,26 @@ go.etcd.io/bbolt
 go.etcd.io/bbolt/errors
 go.etcd.io/bbolt/internal/common
 go.etcd.io/bbolt/internal/freelist
-# go.etcd.io/etcd/api/v3 v3.6.14
-## explicit; go 1.25.0
+# go.etcd.io/etcd/api/v3 v3.6.15
+## explicit; go 1.26
 go.etcd.io/etcd/api/v3/authpb
 go.etcd.io/etcd/api/v3/etcdserverpb
 go.etcd.io/etcd/api/v3/membershippb
 go.etcd.io/etcd/api/v3/mvccpb
 go.etcd.io/etcd/api/v3/version
 go.etcd.io/etcd/api/v3/versionpb
-# go.etcd.io/etcd/client/pkg/v3 v3.6.14
-## explicit; go 1.25.0
+# go.etcd.io/etcd/client/pkg/v3 v3.6.15
+## explicit; go 1.26
 go.etcd.io/etcd/client/pkg/v3/fileutil
 go.etcd.io/etcd/client/pkg/v3/verify
-# go.etcd.io/etcd/pkg/v3 v3.6.14
-## explicit; go 1.25.0
+# go.etcd.io/etcd/pkg/v3 v3.6.15
+## explicit; go 1.26
 go.etcd.io/etcd/pkg/v3/crc
 go.etcd.io/etcd/pkg/v3/idutil
 go.etcd.io/etcd/pkg/v3/ioutil
 go.etcd.io/etcd/pkg/v3/pbutil
-# go.etcd.io/etcd/server/v3 v3.6.14
-## explicit; go 1.25.0
+# go.etcd.io/etcd/server/v3 v3.6.15
+## explicit; go 1.26
 go.etcd.io/etcd/server/v3/etcdserver/api/snap
 go.etcd.io/etcd/server/v3/etcdserver/api/snap/snappb
 go.etcd.io/etcd/server/v3/storage/wal
@@ -1986,7 +1989,7 @@ golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 ## explicit; go 1.26.0
 golang.org/x/mod/semver
 golang.org/x/mod/sumdb/note
-# golang.org/x/net v0.59.0
+# golang.org/x/net v0.60.0
 ## explicit; go 1.26.0
 golang.org/x/net/bpf
 golang.org/x/net/context
@@ -2283,5 +2286,3 @@ tags.cncf.io/container-device-interface/pkg/parser
 # tags.cncf.io/container-device-interface/specs-go v1.1.1
 ## explicit; go 1.19
 tags.cncf.io/container-device-interface/specs-go
-# github.com/moby/moby/api => ./api
-# github.com/moby/moby/client => ./client

@@ -29,7 +29,7 @@ on:
         required: false
 
 env:
-  GO_VERSION: "1.26.8"
+  GO_VERSION: "1.26.9"
   GOTESTLIST_VERSION: v0.3.1
   TESTSTAT_VERSION: v0.1.25
   WINDOWS_BASE_IMAGE: mcr.microsoft.com/windows/servercore
@@ -150,7 +150,7 @@ jobs:
             ${{ env.TEST_IMAGE_NAME }} hack\make.ps1 -TestUnit
       -
         name: Send to Codecov
-        if: inputs.send_coverage
+        if: inputs.send_coverage && github.repository == 'moby/moby'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           directory: bundles
@@ -369,7 +369,7 @@ jobs:
           INTEGRATION_TESTRUN: ${{ matrix.test }}
       -
         name: Send to Codecov
-        if: inputs.send_coverage
+        if: inputs.send_coverage && github.repository == 'moby/moby'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           directory: bundles

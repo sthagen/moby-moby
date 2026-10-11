@@ -22,7 +22,7 @@ on:
         required: false
 
 env:
-  GO_VERSION: "1.26.8"
+  GO_VERSION: "1.26.9"
   GOTESTLIST_VERSION: v0.3.1
   TESTSTAT_VERSION: v0.1.25
   SETUP_BUILDX_VERSION: edge
@@ -87,6 +87,7 @@ jobs:
           tree -nh /tmp/reports
       -
         name: Send to Codecov
+        if: github.repository == 'moby/moby'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           directory: ./bundles

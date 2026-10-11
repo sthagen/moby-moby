@@ -30,7 +30,7 @@ on:
         required: false
 
 env:
-  GO_VERSION: "1.26.8"
+  GO_VERSION: "1.26.9"
   GOTESTLIST_VERSION: v0.3.1
   TESTSTAT_VERSION: v0.1.25
   ITG_CLI_MATRIX_SIZE: 6
@@ -276,6 +276,7 @@ jobs:
           tree -nh $reportsPath
       -
         name: Send to Codecov
+        if: github.repository == 'moby/moby'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           directory: ./bundles/test-integration
@@ -499,6 +500,7 @@ jobs:
           tree -nh $reportsPath
       -
         name: Send to Codecov
+        if: github.repository == 'moby/moby'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           directory: ./bundles/test-integration
